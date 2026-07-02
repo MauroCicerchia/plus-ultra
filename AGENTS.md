@@ -16,10 +16,12 @@ own manifest, and they all point at the one shared `skills/` dir.
 .cursor-plugin/plugin.json       Cursor manifest — skills only
 .agents/plugins/marketplace.json open-agents ("agents") marketplace entry
 skills/                          portable markdown skills (SKILL.md + assets) — shared by ALL agents
+commands/                        slash commands (*.md) — Claude only
 agents/                          Claude Code subagents (*.md) — Claude only
 hooks/                           hooks.json + zero-dep Node ESM scripts — Claude only
-mcp/github.json                  remote GitHub MCP — Claude
 ```
+
+GitHub access is via the `gh` CLI (no bundled MCP).
 
 ## Conventions
 

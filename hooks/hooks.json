@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra guardrails: commit-gate, dangerous-command blocking, test-pass tracking, auto-format, spec-aware session resume.",
+  "description": "plus-ultra guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, Biome auto-format, spec-aware session resume.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,16 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dangerous-command.mjs",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/secret-scan.mjs",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/commit-msg-lint.mjs",
             "timeout": 10
           },
           {
