@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "plus-ultra",
+  "owner": {
+    "name": "Mauro Cicerchia",
+    "email": "mauro.cicerchia@humand.co"
+  },
+  "description": "Spec-driven solo development harness for Node/TS, built on top of Superpowers.",
+  "plugins": [
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers"
+      },
+      "description": "Core spec-driven methodology skills: brainstorming, writing-plans, subagent-driven TDD, systematic debugging, verification-before-completion."
+    },
+    {
+      "name": "plus-ultra",
+      "source": "./plus-ultra",
+      "description": "Repo conventions, guardrail hooks, spec-aware session resume, review subagents, and GitHub MCP layered on Superpowers."
+    }
+  ]
+}

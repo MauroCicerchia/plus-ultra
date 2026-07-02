@@ -1,0 +1,17 @@
+{
+  "name": "plus-ultra",
+  "displayName": "Plus Ultra",
+  "description": "Spec-driven solo dev harness: repo conventions, guardrail hooks, spec-aware session resume, and review subagents on top of Superpowers.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Mauro Cicerchia",
+    "email": "mauro.cicerchia@humand.co"
+  },
+  "homepage": "https://github.com/maurocicerchia/plus-ultra",
+  "repository": "https://github.com/maurocicerchia/plus-ultra",
+  "license": "MIT",
+  "keywords": ["spec-driven", "tdd", "harness", "workflow", "nodejs", "typescript"],
+  "dependencies": ["superpowers"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./mcp/github.json"
+}
