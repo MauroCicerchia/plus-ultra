@@ -43,20 +43,33 @@ Superpowers owns generic skill names (`brainstorming`, `writing-plans`, …). Ev
 adds is namespaced (`plus-ultra:spec-conventions`, the `plus-ultra:*` subagents, etc.) so ownership
 is unambiguous.
 
+## Multi-agent
+
+Structured skills-first, like Superpowers: the repo root is the plugin for every agent, and each
+agent's manifest points at the one shared `skills/` dir. The `spec-conventions` skill (and its
+template) therefore works on Claude Code, Codex, Cursor, and any agent that reads `skills/`.
+
+Guardrail hooks and review subagents are **Claude Code only** — they rely on Claude's hook system
+(`PreToolUse`/`PostToolUse`/`SessionStart`) and subagent format, which other agents don't share. The
+Codex/Cursor manifests ship skills only (`hooks: {}`). To add another agent, drop in its
+`.<agent>-plugin/plugin.json` with `"skills": "./skills/"`.
+
 ## Hook scripts
 
-Hooks are dependency-free Node ESM scripts under `plus-ultra/hooks/`. They read the hook JSON from
-stdin and (for PreToolUse) block by emitting a `permissionDecision: "deny"` decision. Set
+Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JSON from stdin and
+(for PreToolUse) block by emitting a `permissionDecision: "deny"` decision. Set
 `PLUS_ULTRA_HOOK_DEBUG=1` to dump raw hook payloads to stderr while developing.
 
 ## Layout
 
 ```
-.claude-plugin/marketplace.json     marketplace: superpowers + plus-ultra
-plus-ultra/
-  .claude-plugin/plugin.json        manifest; dependencies: ["superpowers"]
-  skills/spec-conventions/          SKILL.md + template.md
-  agents/                           repo-explorer, code-reviewer, dep-auditor
-  hooks/                            hooks.json + *.mjs
-  mcp/github.json                   remote GitHub MCP
+.claude-plugin/marketplace.json  marketplace: superpowers + plus-ultra (source ./)
+.claude-plugin/plugin.json       Claude manifest; dependencies: ["superpowers"]
+.codex-plugin/plugin.json        Codex manifest (skills only)
+.cursor-plugin/plugin.json       Cursor manifest (skills only)
+.agents/plugins/marketplace.json open-agents marketplace entry
+skills/spec-conventions/         SKILL.md + template.md — shared by all agents
+agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
+hooks/                           hooks.json + *.mjs — Claude only
+mcp/github.json                  remote GitHub MCP — Claude
 ```

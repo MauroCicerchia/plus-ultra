@@ -1,0 +1,25 @@
+{
+  "name": "plus-ultra",
+  "version": "0.1.0",
+  "description": "Spec-driven development conventions on top of Superpowers. Portable skill + spec template; the Claude Code build adds guardrail hooks and review subagents.",
+  "author": {
+    "name": "Mauro Cicerchia",
+    "email": "maurocicerchia98@gmail.com",
+    "url": "https://github.com/maurocicerchia"
+  },
+  "homepage": "https://github.com/maurocicerchia/plus-ultra",
+  "repository": "https://github.com/maurocicerchia/plus-ultra",
+  "license": "MIT",
+  "keywords": ["spec-driven", "tdd", "workflow", "planning"],
+  "skills": "./skills/",
+  "hooks": {},
+  "interface": {
+    "displayName": "Plus Ultra",
+    "shortDescription": "Spec-driven development conventions for coding agents",
+    "longDescription": "Repo conventions for spec-driven development: specs/NNN-slug.md numbering, a spec template, and a draft -> approved -> in-progress -> done lifecycle. Built to sit on top of Superpowers.",
+    "developerName": "Mauro Cicerchia",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/maurocicerchia/plus-ultra"
+  }
+}
