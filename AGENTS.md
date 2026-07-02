@@ -6,13 +6,19 @@ methodology. End-user docs live in `README.md` — this file is for agents editi
 
 ## Layout
 
+Skills-first, like Superpowers: the repo root **is** the plugin for every agent. Each agent has its
+own manifest, and they all point at the one shared `skills/` dir.
+
 ```
-.claude-plugin/marketplace.json     lists superpowers (github) + plus-ultra (./plus-ultra)
-plus-ultra/.claude-plugin/plugin.json  manifest; dependencies: ["superpowers"] (array, unpinned)
-plus-ultra/skills/                  portable markdown skills (SKILL.md + assets)
-plus-ultra/agents/                  Claude Code subagents (*.md)
-plus-ultra/hooks/                   hooks.json + zero-dep Node ESM scripts
-plus-ultra/mcp/github.json          remote GitHub MCP
+.claude-plugin/marketplace.json  lists superpowers (github) + plus-ultra (./)
+.claude-plugin/plugin.json       Claude manifest; dependencies: ["superpowers"] (array, unpinned)
+.codex-plugin/plugin.json        Codex manifest — skills only, hooks: {}
+.cursor-plugin/plugin.json       Cursor manifest — skills only
+.agents/plugins/marketplace.json open-agents ("agents") marketplace entry
+skills/                          portable markdown skills (SKILL.md + assets) — shared by ALL agents
+agents/                          Claude Code subagents (*.md) — Claude only
+hooks/                           hooks.json + zero-dep Node ESM scripts — Claude only
+mcp/github.json                  remote GitHub MCP — Claude
 ```
 
 ## Conventions
@@ -38,9 +44,11 @@ plus-ultra/mcp/github.json          remote GitHub MCP
 - Deny paths should exit 0 with a decision JSON; allow paths exit 0 silent; blockers use the marker
   under `${CLAUDE_PROJECT_DIR}/.claude/plus-ultra/state/<session_id>.json`.
 
-## Portability note
+## Multi-agent
 
-Skills, the spec template, and the MCP server are portable across coding agents. Hooks and subagents
-are Claude-Code-specific mechanisms (Codex/Cursor/etc. each have their own hook schema, or none), so
-they do not port as-is. If multi-agent support is added, follow the Superpowers pattern: one shared
-`skills/` dir, per-agent manifests, and per-agent (or empty) hook configs.
+Only the `skills/` dir (portable markdown) ports across agents; every manifest points at it. Hooks
+and subagents are Claude-Code-specific mechanisms, so the Codex/Cursor/agents manifests ship skills
+only (`hooks: {}` or omitted). When editing a skill, remember it must read well for any agent, not
+just Claude — keep Claude-only mechanics (hooks, subagents, `${CLAUDE_PLUGIN_ROOT}`) out of skill
+prose. To add another agent, drop in its `.<agent>-plugin/plugin.json` (or marketplace entry) with
+`"skills": "./skills/"`; don't duplicate skill content.

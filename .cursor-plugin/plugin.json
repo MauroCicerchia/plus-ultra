@@ -1,0 +1,15 @@
+{
+  "name": "plus-ultra",
+  "displayName": "Plus Ultra",
+  "description": "Spec-driven development conventions on top of Superpowers (portable skill + spec template).",
+  "version": "0.1.0",
+  "author": {
+    "name": "Mauro Cicerchia",
+    "email": "maurocicerchia98@gmail.com"
+  },
+  "homepage": "https://github.com/maurocicerchia/plus-ultra",
+  "repository": "https://github.com/maurocicerchia/plus-ultra",
+  "license": "MIT",
+  "keywords": ["spec-driven", "tdd", "workflow", "planning"],
+  "skills": "./skills/"
+}

@@ -17,7 +17,7 @@
     },
     {
       "name": "plus-ultra",
-      "source": "./plus-ultra",
+      "source": "./",
       "description": "Repo conventions, guardrail hooks, spec-aware session resume, review subagents, and GitHub MCP layered on Superpowers."
     }
   ]
