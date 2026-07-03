@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// PostToolUse (Bash): when a test command completes successfully, write a
-// per-session marker that commit-gate reads. Fail-closed: only write on a
-// clear success signal.
-import { mkdirSync, writeFileSync } from "node:fs";
-import { readInput, debug, stateDir } from "./_lib.mjs";
+// PostToolUse (Bash): when a test run OR a typecheck completes successfully,
+// record it in the per-session marker that commit-gate reads. Fail-closed: only
+// record on a clear success signal.
+import { readInput, debug, mergeMarker } from "./_lib.mjs";
 
 const input = await readInput();
 debug("test-marker", input);
@@ -11,16 +10,38 @@ debug("test-marker", input);
 const cmd = String(input?.tool_input?.command ?? "");
 const sessionId = String(input?.session_id ?? "default");
 
-// Does this look like a test-runner invocation?
-const TEST_CMD =
-  /(^|[;&|]\s*)(npx\s+)?(npm\s+(run\s+)?test\b|npm\s+t\b|yarn\s+(run\s+)?test\b|pnpm\s+(run\s+)?test\b|bun\s+test\b|vitest\b|jest\b|mocha\b|node\s+--test\b|ava\b)/;
-if (!TEST_CMD.test(cmd)) process.exit(0);
+// Classify the command: a test runner or a typecheck. Neither → nothing to do.
+// A package-manager prefix may carry flags between the pm and the script
+// (e.g. `pnpm -r test`, `pnpm --filter web typecheck`), so allow flag tokens.
+const PM = "(?:pnpm|npm|yarn|bun)";
+const FLAG = "(?:run|exec|dlx|-{1,2}[\\w:=./-]+|--filter[= ]?\\S+)";
+const PM_PREFIX = `${PM}(?:\\s+${FLAG})*\\s+`;
+const A = "(?:^|[;&|]\\s*)"; // command start or a shell separator
+
+// test runners (may stand alone or under a pm), pm test scripts, or `node --test`
+const TEST_CMD = new RegExp(
+  `${A}(?:` +
+    `(?:npx\\s+)?(?:${PM_PREFIX})?(?:vitest|jest|mocha|ava)\\b` +
+    `|(?:npx\\s+)?${PM_PREFIX}(?:test|t)\\b` +
+    `|node\\s+--test\\b` +
+    `)`
+);
+// tsc/vue-tsc directly, or a pm typecheck script
+const TYPECHECK_CMD = new RegExp(
+  `${A}(?:` +
+    `(?:npx\\s+)?(?:${PM_PREFIX})?(?:tsc|vue-tsc)\\b` +
+    `|(?:npx\\s+)?${PM_PREFIX}(?:typecheck|type-check)\\b` +
+    `)`
+);
+
+const isTest = TEST_CMD.test(cmd);
+const isTypecheck = TYPECHECK_CMD.test(cmd);
+if (!isTest && !isTypecheck) process.exit(0);
 
 // Success detection. tool_response shape is not fully documented, so probe the
 // likely fields in priority order and fail-closed on ambiguity.
 const resp = input?.tool_response ?? {};
-const exit =
-  resp.exitCode ?? resp.exit_code ?? resp.returnCode ?? resp.code ?? undefined;
+const exit = resp.exitCode ?? resp.exit_code ?? resp.returnCode ?? resp.code ?? undefined;
 
 let passed;
 if (input?.tool_error === true || resp.interrupted === true) {
@@ -37,22 +58,19 @@ if (input?.tool_error === true || resp.interrupted === true) {
     /\b\d+\s+(failing|failed)\b/.test(text) ||
     /tests?\s+failed/.test(text) ||
     /\bfail(ed)?\b.*\b(suite|spec|test)/.test(text) ||
+    /error ts\d+:/.test(text) ||
     /npm error|command failed|exit code [1-9]/.test(text);
-  // Require an affirmative pass token AND no failure token.
-  const success = /\b(pass(ed|ing)?|✓|ok\b|\d+\s+passing|tests?\s+passed)\b/.test(text);
+  const success =
+    /\b(pass(ed|ing)?|✓|ok\b|\d+\s+passing|tests?\s+passed)\b/.test(text) ||
+    (isTypecheck && !failure); // typecheck often prints nothing on success
   passed = success && !failure;
 }
 
 if (!passed) process.exit(0);
 
-try {
-  const dir = stateDir();
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    `${dir}/${sessionId}.json`,
-    JSON.stringify({ testPassedAt: new Date().toISOString(), command: cmd }, null, 2)
-  );
-} catch {
-  // Never disrupt the session over a marker write failure.
-}
+const now = new Date().toISOString();
+const patch = {};
+if (isTest) patch.testPassedAt = now;
+if (isTypecheck) patch.typecheckPassedAt = now;
+mergeMarker(sessionId, patch);
 process.exit(0);

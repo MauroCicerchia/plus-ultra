@@ -19,23 +19,33 @@ Superpowers is declared as a dependency and installed automatically from the sam
 
 ## What it adds
 
-- **`plus-ultra:spec-conventions` skill** — `specs/NNN-slug.md` numbering + a spec template
-  (Problem, Goals/Non-goals, Acceptance criteria, Interface contracts, Data model, Test plan, Risks)
-  with a `status:` lifecycle (draft → approved → in-progress → done). Plus `docs/` layout for
-  architecture notes, ADRs, and the changelog.
+- **Skills (portable, `plus-ultra:*`):**
+  - *spec-conventions* — `specs/NNN-slug.md` numbering + a spec template (Problem, Goals/Non-goals,
+    Acceptance criteria, Interface contracts, Data model, Test plan, Risks) with a `status:` lifecycle
+    (draft → approved → in-progress → done). Plus `docs/` layout and an ADR template.
+  - *tech-stack* — the default stack: a TypeScript-everywhere **pnpm-workspaces monorepo** —
+    React + Vite (web), Hono (api), shared zod/types, Drizzle + Neon, vitest, Biome. Defaults, with
+    a stated escape hatch per row.
+  - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
+  - *new-project* — scaffolds the tech-stack monorepo + CI.
+- **Slash command:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
+  spec's status.
 - **Guardrail hooks:**
-  - *commit-gate* (PreToolUse / `git commit`) — blocks a commit unless a test run passed this
-    session. Order is flexible: tests any time in the session, not necessarily before writing code.
   - *dangerous-command* (PreToolUse / Bash) — blocks `rm -rf` and force-pushes to `main`/`master`.
-  - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test command exits 0.
-  - *auto-format* (PostToolUse / Write|Edit) — runs `eslint --fix` + `prettier --write` on edited
-    files under `src/**` (no-ops if tooling is absent).
+  - *secret-scan* (PreToolUse / `git commit`) — blocks a commit whose staged diff contains a
+    private key, cloud/API token, or a staged `.env` file.
+  - *commit-msg-lint* (PreToolUse / `git commit -m`) — blocks a header that isn't a Conventional Commit.
+  - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed this session (and, in
+    a TypeScript project, a typecheck). Order is flexible: checks any time in the session.
+  - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test or typecheck exits 0.
+  - *auto-format* (PostToolUse / Write|Edit) — runs `biome check --write` on edited JS/TS/JSON files
+    anywhere in the repo (no-ops if Biome is absent).
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
     resume without re-explaining context.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
   criteria), `dep-auditor` (vet new npm packages).
-- **MCP:** remote GitHub MCP server (`https://api.githubcopilot.com/mcp/`). Authorize it once via
-  `/mcp` (OAuth) in an interactive session.
+- **GitHub:** no bundled MCP — use the `gh` CLI (with the `gh-cli` skill) from the shell for PRs,
+  issues, Actions, and releases.
 
 ## Naming
 
@@ -49,10 +59,10 @@ Structured skills-first, like Superpowers: the repo root is the plugin for every
 agent's manifest points at the one shared `skills/` dir. The `spec-conventions` skill (and its
 template) therefore works on Claude Code, Codex, Cursor, and any agent that reads `skills/`.
 
-Guardrail hooks and review subagents are **Claude Code only** — they rely on Claude's hook system
-(`PreToolUse`/`PostToolUse`/`SessionStart`) and subagent format, which other agents don't share. The
-Codex/Cursor manifests ship skills only (`hooks: {}`). To add another agent, drop in its
-`.<agent>-plugin/plugin.json` with `"skills": "./skills/"`.
+Guardrail hooks, the slash command, and review subagents are **Claude Code only** — they rely on
+Claude's hook system (`PreToolUse`/`PostToolUse`/`SessionStart`), command, and subagent formats,
+which other agents don't share. The Codex/Cursor manifests ship skills only (`hooks: {}`). To add
+another agent, drop in its `.<agent>-plugin/plugin.json` with `"skills": "./skills/"`.
 
 ## Hook scripts
 
@@ -68,8 +78,9 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 .codex-plugin/plugin.json        Codex manifest (skills only)
 .cursor-plugin/plugin.json       Cursor manifest (skills only)
 .agents/plugins/marketplace.json open-agents marketplace entry
-skills/spec-conventions/         SKILL.md + template.md — shared by all agents
+skills/                          portable skills (spec-conventions, tech-stack,
+                                 conventional-commits, new-project) — shared by all agents
+commands/spec.md                 /plus-ultra:spec lifecycle command — Claude only
 agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
 hooks/                           hooks.json + *.mjs — Claude only
-mcp/github.json                  remote GitHub MCP — Claude
 ```

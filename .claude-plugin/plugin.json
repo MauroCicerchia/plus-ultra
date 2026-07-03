@@ -12,6 +12,5 @@
   "license": "MIT",
   "keywords": ["spec-driven", "tdd", "harness", "workflow", "nodejs", "typescript"],
   "dependencies": ["superpowers"],
-  "hooks": "./hooks/hooks.json",
-  "mcpServers": "./mcp/github.json"
+  "hooks": "./hooks/hooks.json"
 }

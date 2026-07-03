@@ -46,7 +46,9 @@ New specs start from [`template.md`](./template.md). Required sections:
 ## Docs live in `docs/`
 
 - `docs/architecture.md` — system overview, module boundaries, key decisions in prose.
-- `docs/adr/NNN-slug.md` — Architecture Decision Records (one per significant decision, same numbering style).
+- `docs/adr/NNN-slug.md` — Architecture Decision Records (one per significant decision, same
+  numbering style). Start each from [`adr-template.md`](./adr-template.md): Context → Decision →
+  Alternatives considered → Consequences, with a `status:` of proposed → accepted → superseded.
 - `docs/CHANGELOG.md` — user-facing change log, newest first.
 
 ## Workflow fit
