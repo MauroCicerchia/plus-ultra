@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, Biome auto-format, spec-aware session resume.",
+  "description": "plus-ultra guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, PR description reminders, Biome auto-format, spec-aware session resume.",
   "hooks": {
     "PreToolUse": [
       {
@@ -35,6 +35,11 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/test-marker.mjs",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pr-description-reminder.mjs",
             "timeout": 10
           }
         ]

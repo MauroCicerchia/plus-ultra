@@ -29,6 +29,8 @@ Superpowers is declared as a dependency and installed automatically from the sam
     React + Vite (web), Hono (api), shared zod/types, Drizzle + Neon, vitest, Biome. Defaults, with
     a stated escape hatch per row.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
+  - *pull-request-descriptions* — drafts reviewer-focused PR bodies that connect context, summary,
+    testing, risks, and review guidance.
   - *new-project* — scaffolds the tech-stack monorepo + CI.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
@@ -42,6 +44,8 @@ Superpowers is declared as a dependency and installed automatically from the sam
   - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed this session (and, in
     a TypeScript project, a typecheck). Order is flexible: checks any time in the session.
   - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test or typecheck exits 0.
+  - *pr-description-reminder* (PostToolUse / `git commit`) — reminds you to refresh an open PR
+    description after new commits; it never edits GitHub state.
   - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
     JS/TS/JSON files anywhere in the repo (no-ops if Biome is absent).
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
@@ -86,8 +90,9 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 .cursor-plugin/plugin.json       Cursor manifest (skills only)
 .agents/plugins/marketplace.json open-agents marketplace entry
 skills/                          portable skills (spec-conventions, spec, tech-stack,
-                                 conventional-commits, new-project, repo-explorer,
-                                 code-reviewer, dep-auditor) — shared by all agents
+                                 conventional-commits, pull-request-descriptions,
+                                 new-project, repo-explorer, code-reviewer, dep-auditor) —
+                                 shared by all agents
 commands/spec.md                 /plus-ultra:spec lifecycle command — Claude only
 agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
 hooks/                           hooks.json, hooks-codex.json + *.mjs
