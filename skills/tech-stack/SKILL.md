@@ -6,7 +6,8 @@ description: The default technology stack for new projects in this harness — a
 # plus-ultra default tech stack
 
 Opinionated defaults so a new project starts without re-litigating tooling. **TypeScript on both
-ends, React on the front, Hono on the back, one monorepo, types shared across the boundary.**
+ends, React on the front, Hono on the back, one monorepo, types shared across the boundary, and
+hexagonal architecture around a functional core where application complexity justifies it.**
 
 These are defaults, not laws. Each row says when to deviate. If the user names a different tool,
 follow the user — this skill only fills silence.
@@ -41,6 +42,21 @@ apps/api           Hono server
 packages/shared    zod schemas + types imported by BOTH apps
 ```
 
+In `apps/api`, use `plus-ultra:engineering-principles` when business logic or infrastructure
+integration is involved. Default to a functional core with hexagonal boundaries:
+
+```
+apps/api/src/domain       pure business types, rules, invariants
+apps/api/src/application  use cases that coordinate domain logic through ports
+apps/api/src/ports        interfaces for persistence, clocks, IDs, queues, gateways
+apps/api/src/adapters     concrete Drizzle/Neon/SDK implementations of ports
+apps/api/src/http         Hono routes, validation, auth extraction, serialization
+```
+
+The dependency rule is inward only: domain/application code must not import Hono, Drizzle, React,
+environment helpers, filesystem APIs, or network clients. Expected failures should be modeled with
+typed results or discriminated unions. Side effects belong behind ports and adapters.
+
 The point of TypeScript-on-both-ends is the shared boundary: **define a shape once as a zod schema
 in `packages/shared`**, and both the API (validate input) and the web app (typed fetch via Hono RPC)
 consume it. No duplicated types, no drift. If you find yourself writing the same interface twice,
@@ -54,6 +70,8 @@ move it to `packages/shared`.
   Hono validates with it server-side; the web app infers types from it client-side.
 - **Drizzle + Neon** — Drizzle schema lives in `apps/api`; use `@neondatabase/serverless` for the
   connection so it works on serverless/edge runtimes.
+- **Functional core** — application use cases accept data plus ports and return explicit results.
+  Hono routes and Drizzle repositories adapt external details to that core.
 
 ## Companion capabilities
 
@@ -71,6 +89,8 @@ missing, continue with official docs and CLI commands.
 ## Fit with the rest of plus-ultra
 
 - `plus-ultra:new-project` scaffolds this layout.
+- `plus-ultra:engineering-principles` defines the architecture and functional programming defaults
+  for non-trivial application code.
 - The `auto-format` hook runs **Biome** on edited files — matches this stack's lint/format pick.
 - The `commit-gate` hook requires a passing **vitest** run (and a `tsc` typecheck in TS projects)
   before commit.

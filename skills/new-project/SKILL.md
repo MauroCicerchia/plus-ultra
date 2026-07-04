@@ -13,6 +13,8 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 - Confirm project name and whether they want the full **monorepo** (default) or a **single package**
   (throwaway / single-surface). Everything below assumes the monorepo.
 - Check companion capabilities before using stack-specific workflows. Prefer:
+  - `plus-ultra:engineering-principles` for hexagonal architecture and functional programming
+    defaults when the project has business rules or external integrations.
   - `frontend-design` for the web app's visual direction.
   - `shadcn` or a shadcn MCP for component docs, registry lookup, and component installation.
   - `gh-cli` with the `gh` CLI for GitHub setup and PR/release workflows.
@@ -33,7 +35,7 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 ├── .github/workflows/ci.yml # from this skill's assets/ci.yml
 ├── apps/
 │   ├── web/                 # React + Vite + React Router + Tailwind + shadcn/ui
-│   └── api/                 # Hono server + Drizzle (Neon Postgres)
+│   └── api/                 # Hono server + hexagonal core + Drizzle (Neon Postgres)
 └── packages/
     └── shared/              # zod schemas + types imported by BOTH apps
 ```
@@ -46,8 +48,15 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 2. **`tsconfig.base.json`** — `strict: true`, `moduleResolution: bundler`, `noUncheckedIndexedAccess`.
    Each workspace extends it.
 3. **`packages/shared`** — export zod schemas + inferred types. This is the front↔back contract.
-4. **`apps/api`** — Hono app; validate request bodies with the shared zod schemas; **export the app
-   type** for RPC. Drizzle schema + `@neondatabase/serverless` connection.
+4. **`apps/api`** — Hono app around a hexagonal, functional core. Use:
+   - `src/domain` for pure business types, rules, and invariants.
+   - `src/application` for a pure use case layer that coordinates domain logic through ports.
+   - `src/ports` for repository, clock, ID, queue, gateway, and telemetry interfaces.
+   - `src/adapters` for Drizzle, Neon, SDK, filesystem, and network implementations.
+   - `src/http` for Hono routes, validation, auth extraction, status codes, and serialization.
+   Validate request bodies with the shared zod schemas; **export the app type** for RPC. Drizzle
+   schema + `@neondatabase/serverless` connection stay in adapters. Keep domain/application imports
+   inward: no Hono, Drizzle, React, environment helpers, filesystem APIs, or network clients.
 5. **`apps/web`** — Vite + React + React Router; Tailwind + shadcn/ui; typed API calls via Hono's
    `hc<AppType>` client. Apply `frontend-design` for the visual layer when available. Use shadcn
    companion tooling for docs/examples/registry operations when available; otherwise use the shadcn
@@ -61,6 +70,23 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 9. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
    `docs/agent-setup.md` that names the recommended optional companions (`frontend-design`,
    `shadcn`, `gh-cli`, Neon skills/MCPs) without requiring them for normal development.
+
+## API shape
+
+Use this structure for non-trivial APIs:
+
+```
+apps/api/src/
+  domain/
+  application/
+  ports/
+  adapters/
+  http/
+```
+
+The initial example should include one pure use case that accepts explicit input plus injected
+ports and returns a typed result. Route handlers should translate HTTP details into that use case.
+Repository adapters should implement ports and be replaceable by in-memory fakes in unit tests.
 
 ## After scaffolding
 

@@ -23,6 +23,14 @@ created: <YYYY-MM-DD>
 ## Interface contracts
 <Public APIs, function signatures, CLI flags, HTTP routes, events. Include types.>
 
+## Architecture boundaries
+<Hexagonal boundaries for this change: domain/application modules, ports, adapters, and dependency
+direction. Note where framework, database, network, filesystem, or UI details are isolated.>
+
+## Functional core
+<Pure functions, immutable data, explicit result/error types, injected dependencies, and side effects
+that should stay behind ports. Explain any deliberate deviation.>
+
 ## Data model
 <Schemas, types, migrations, persisted shapes.>
 
