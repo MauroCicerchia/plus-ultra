@@ -55,6 +55,19 @@ move it to `packages/shared`.
 - **Drizzle + Neon** — Drizzle schema lives in `apps/api`; use `@neondatabase/serverless` for the
   connection so it works on serverless/edge runtimes.
 
+## Companion capabilities
+
+These are recommended helpers, not plus-ultra dependencies. Use them when available; if they are
+missing, continue with official docs and CLI commands.
+
+- **`frontend-design`** — apply when creating or reshaping the web app's visual layer.
+- **`shadcn` / shadcn MCP** — use for component docs, registry lookup, examples, and safe component
+  installation.
+- **`gh-cli`** — use with the `gh` CLI for GitHub issues, PRs, Actions, releases, and repository
+  operations.
+- **Neon skills / MCPs** — use for Neon project setup, database URLs, branching, and connection
+  guidance.
+
 ## Fit with the rest of plus-ultra
 
 - `plus-ultra:new-project` scaffolds this layout.
