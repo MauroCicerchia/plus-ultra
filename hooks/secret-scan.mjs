@@ -3,7 +3,7 @@
 // secrets and block if any are found. Deliberate blocker (like commit-gate).
 // Fail open: if git is unavailable or anything errors, allow the commit.
 import { spawnSync } from "node:child_process";
-import { readInput, debug, deny, allow } from "./_lib.mjs";
+import { readInput, debug, deny, allow, projectRoot } from "./_lib.mjs";
 
 const input = await readInput();
 debug("secret-scan", input);
@@ -14,7 +14,7 @@ const c = cmd.replace(/\s+/g, " ").trim();
 if (!/\bgit\s+commit\b/.test(c)) allow();
 if (/--dry-run\b/.test(c)) allow();
 
-const root = process.env.CLAUDE_PROJECT_DIR || input?.cwd || process.cwd();
+const root = projectRoot(input);
 
 const git = (args) => {
   try {

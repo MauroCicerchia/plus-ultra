@@ -1,0 +1,73 @@
+{
+  "description": "plus-ultra Codex guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, Biome auto-format, spec-aware session resume.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/dangerous-command.mjs",
+            "timeout": 10,
+            "statusMessage": "Checking dangerous command policy"
+          },
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/secret-scan.mjs",
+            "timeout": 15,
+            "statusMessage": "Scanning staged changes for secrets"
+          },
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/commit-msg-lint.mjs",
+            "timeout": 10,
+            "statusMessage": "Checking commit message"
+          },
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/commit-gate.mjs",
+            "timeout": 10,
+            "statusMessage": "Checking test and typecheck gate"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/test-marker.mjs",
+            "timeout": 10,
+            "statusMessage": "Recording verification status"
+          }
+        ]
+      },
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/auto-format.mjs",
+            "timeout": 30,
+            "statusMessage": "Formatting edited source files"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/session-start.mjs",
+            "timeout": 10,
+            "statusMessage": "Loading spec status"
+          }
+        ]
+      }
+    ]
+  }
+}

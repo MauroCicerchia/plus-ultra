@@ -3,12 +3,12 @@
 // (and what's next up) so a session resumes without re-explaining context.
 // stdout is injected into the session context.
 import { readdirSync, readFileSync } from "node:fs";
-import { readInput, debug } from "./_lib.mjs";
+import { readInput, debug, isCodexInput, projectRoot } from "./_lib.mjs";
 
 const input = await readInput();
 debug("session-start", input);
 
-const root = process.env.CLAUDE_PROJECT_DIR || input?.cwd || process.cwd();
+const root = projectRoot(input);
 const specsDir = `${root}/specs`;
 
 let files;
@@ -44,6 +44,19 @@ if (buckets.approved.length) lines.push(`Approved (ready to start): ${buckets.ap
 if (buckets.draft.length) lines.push(`Drafts: ${buckets.draft.join(", ")}`);
 
 if (lines.length) {
-  process.stdout.write("plus-ultra spec status:\n" + lines.map((l) => `  - ${l}`).join("\n") + "\n");
+  const context = "plus-ultra spec status:\n" + lines.map((l) => `  - ${l}`).join("\n") + "\n";
+
+  if (isCodexInput(input)) {
+    process.stdout.write(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: context,
+        },
+      })
+    );
+  } else {
+    process.stdout.write(context);
+  }
 }
 process.exit(0);

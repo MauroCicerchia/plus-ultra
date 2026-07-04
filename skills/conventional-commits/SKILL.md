@@ -1,6 +1,6 @@
 ---
 name: conventional-commits
-description: The commit message format for this repo — Conventional Commits (type(scope): subject). Use whenever writing a git commit message, squashing, or shaping a PR title. Defines the allowed types, scope rules, subject style, body/footer conventions, and how breaking changes are marked. The commit-msg-lint hook enforces the header format on Claude Code.
+description: "The commit message format for this repo — Conventional Commits (type(scope): subject). Use whenever writing a git commit message, squashing, or shaping a PR title. Defines the allowed types, scope rules, subject style, body/footer conventions, and how breaking changes are marked. The commit-msg-lint hook enforces the header format on Claude Code."
 ---
 
 # plus-ultra commit conventions
