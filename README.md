@@ -19,17 +19,21 @@ Superpowers is declared as a dependency and installed automatically from the sam
 
 ## What it adds
 
-- **Skills (portable, `plus-ultra:*`):**
+- **Skills (portable, `plus-ultra:*` when installed as a plugin):**
   - *spec-conventions* — `specs/NNN-slug.md` numbering + a spec template (Problem, Goals/Non-goals,
     Acceptance criteria, Interface contracts, Data model, Test plan, Risks) with a `status:` lifecycle
     (draft → approved → in-progress → done). Plus `docs/` layout and an ADR template.
+  - *spec* — portable equivalent of `/plus-ultra:spec`: list specs, create the next-numbered spec,
+    or flip a spec's status.
   - *tech-stack* — the default stack: a TypeScript-everywhere **pnpm-workspaces monorepo** —
     React + Vite (web), Hono (api), shared zod/types, Drizzle + Neon, vitest, Biome. Defaults, with
     a stated escape hatch per row.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
   - *new-project* — scaffolds the tech-stack monorepo + CI.
+  - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
+    subagents.
 - **Slash command:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
-  spec's status.
+  spec's status. Claude Code only; Codex uses the `plus-ultra:spec` skill instead.
 - **Guardrail hooks:**
   - *dangerous-command* (PreToolUse / Bash) — blocks `rm -rf` and force-pushes to `main`/`master`.
   - *secret-scan* (PreToolUse / `git commit`) — blocks a commit whose staged diff contains a
@@ -38,8 +42,8 @@ Superpowers is declared as a dependency and installed automatically from the sam
   - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed this session (and, in
     a TypeScript project, a typecheck). Order is flexible: checks any time in the session.
   - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test or typecheck exits 0.
-  - *auto-format* (PostToolUse / Write|Edit) — runs `biome check --write` on edited JS/TS/JSON files
-    anywhere in the repo (no-ops if Biome is absent).
+  - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
+    JS/TS/JSON files anywhere in the repo (no-ops if Biome is absent).
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
     resume without re-explaining context.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
@@ -59,10 +63,13 @@ Structured skills-first, like Superpowers: the repo root is the plugin for every
 agent's manifest points at the one shared `skills/` dir. The `spec-conventions` skill (and its
 template) therefore works on Claude Code, Codex, Cursor, and any agent that reads `skills/`.
 
-Guardrail hooks, the slash command, and review subagents are **Claude Code only** — they rely on
-Claude's hook system (`PreToolUse`/`PostToolUse`/`SessionStart`), command, and subagent formats,
-which other agents don't share. The Codex/Cursor manifests ship skills only (`hooks: {}`). To add
-another agent, drop in its `.<agent>-plugin/plugin.json` with `"skills": "./skills/"`.
+Codex ships the shared skills plus `hooks/hooks-codex.json`, which uses Codex's lifecycle hook
+schema and `${PLUGIN_ROOT}`. Claude Code ships `hooks/hooks.json`, which uses Claude's plugin
+environment. Cursor ships skills only.
+
+The slash command in `commands/` and Markdown subagents in `agents/` remain Claude Code formats.
+Codex gets equivalent behavior through the portable `spec`, `repo-explorer`, `code-reviewer`, and
+`dep-auditor` skills.
 
 ## Hook scripts
 
@@ -75,12 +82,13 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 ```
 .claude-plugin/marketplace.json  marketplace: superpowers + plus-ultra (source ./)
 .claude-plugin/plugin.json       Claude manifest; dependencies: ["superpowers"]
-.codex-plugin/plugin.json        Codex manifest (skills only)
+.codex-plugin/plugin.json        Codex manifest (skills + Codex lifecycle hooks)
 .cursor-plugin/plugin.json       Cursor manifest (skills only)
 .agents/plugins/marketplace.json open-agents marketplace entry
-skills/                          portable skills (spec-conventions, tech-stack,
-                                 conventional-commits, new-project) — shared by all agents
+skills/                          portable skills (spec-conventions, spec, tech-stack,
+                                 conventional-commits, new-project, repo-explorer,
+                                 code-reviewer, dep-auditor) — shared by all agents
 commands/spec.md                 /plus-ultra:spec lifecycle command — Claude only
 agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
-hooks/                           hooks.json + *.mjs — Claude only
+hooks/                           hooks.json, hooks-codex.json + *.mjs
 ```

@@ -72,5 +72,5 @@ const now = new Date().toISOString();
 const patch = {};
 if (isTest) patch.testPassedAt = now;
 if (isTypecheck) patch.typecheckPassedAt = now;
-mergeMarker(sessionId, patch);
+mergeMarker(sessionId, patch, input);
 process.exit(0);

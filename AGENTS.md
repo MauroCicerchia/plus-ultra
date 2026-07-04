@@ -12,20 +12,21 @@ own manifest, and they all point at the one shared `skills/` dir.
 ```
 .claude-plugin/marketplace.json  lists superpowers (github) + plus-ultra (./)
 .claude-plugin/plugin.json       Claude manifest; dependencies: ["superpowers"] (array, unpinned)
-.codex-plugin/plugin.json        Codex manifest — skills only, hooks: {}
+.codex-plugin/plugin.json        Codex manifest — skills + hooks/hooks-codex.json
 .cursor-plugin/plugin.json       Cursor manifest — skills only
 .agents/plugins/marketplace.json open-agents ("agents") marketplace entry
 skills/                          portable markdown skills (SKILL.md + assets) — shared by ALL agents
 commands/                        slash commands (*.md) — Claude only
 agents/                          Claude Code subagents (*.md) — Claude only
-hooks/                           hooks.json + zero-dep Node ESM scripts — Claude only
+hooks/                           hooks.json, hooks-codex.json + zero-dep Node ESM scripts
 ```
 
 GitHub access is via the `gh` CLI (no bundled MCP).
 
 ## Conventions
 
-- **Hooks are dependency-free Node ESM** (`.mjs`), invoked as `node ${CLAUDE_PLUGIN_ROOT}/hooks/…`.
+- **Hooks are dependency-free Node ESM** (`.mjs`). Claude invokes them as
+  `node ${CLAUDE_PLUGIN_ROOT}/hooks/…`; Codex invokes them as `node ${PLUGIN_ROOT}/hooks/…`.
   Shared stdin/decision helpers live in `hooks/_lib.mjs`. PreToolUse hooks block by emitting a
   `permissionDecision: "deny"` JSON decision (see `deny()`), never by throwing.
 - **Fail open, never disrupt the session.** A hook that errors or hits missing tooling should exit 0
@@ -40,6 +41,9 @@ GitHub access is via the `gh` CLI (no bundled MCP).
 
 - `claude plugin validate .` (marketplace) and `claude plugin validate ./plus-ultra` (plugin +
   frontmatter/hooks JSON) must pass.
+- Codex packaging should install from a clean temporary `CODEX_HOME`:
+  `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin marketplace add "$(pwd)"`, then
+  `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin add plus-ultra@plus-ultra-dev`.
 - Test hook scripts by piping a sample payload:
   `echo '<json>' | node plus-ultra/hooks/<script>.mjs; echo "exit=$?"`.
   Set `PLUS_ULTRA_HOOK_DEBUG=1` to dump the raw hook payload to stderr.
@@ -48,9 +52,10 @@ GitHub access is via the `gh` CLI (no bundled MCP).
 
 ## Multi-agent
 
-Only the `skills/` dir (portable markdown) ports across agents; every manifest points at it. Hooks
-and subagents are Claude-Code-specific mechanisms, so the Codex/Cursor/agents manifests ship skills
-only (`hooks: {}` or omitted). When editing a skill, remember it must read well for any agent, not
-just Claude — keep Claude-only mechanics (hooks, subagents, `${CLAUDE_PLUGIN_ROOT}`) out of skill
-prose. To add another agent, drop in its `.<agent>-plugin/plugin.json` (or marketplace entry) with
-`"skills": "./skills/"`; don't duplicate skill content.
+Only the `skills/` dir (portable markdown) ports across every agent; every manifest points at it.
+Codex also supports lifecycle hooks, so it ships `hooks/hooks-codex.json`. Claude's slash commands
+and Markdown subagents do not port directly; keep portable equivalents as skills. When editing a
+skill, remember it must read well for any agent, not just Claude — keep Claude-only mechanics
+(hooks, subagents, `${CLAUDE_PLUGIN_ROOT}`) out of skill prose. To add another agent, drop in its
+`.<agent>-plugin/plugin.json` (or marketplace entry) with `"skills": "./skills/"`; don't duplicate
+skill content.
