@@ -17,6 +17,23 @@ conventions and guardrails on top.
 
 Superpowers is declared as a dependency and installed automatically from the same marketplace.
 
+## Optional companions
+
+`plus-ultra` stays focused on spec-driven development. For day-to-day projects, it pairs well with
+generic skills and MCPs that are intentionally not bundled as dependencies:
+
+- **`frontend-design`** — use for visual direction, layout, typography, and UI polish when a project
+  has a user-facing surface.
+- **`shadcn` / shadcn MCP** — use for shadcn/ui component discovery, docs, examples, and registry
+  operations.
+- **`gh-cli`** — use with the `gh` CLI for issues, pull requests, Actions, releases, and repo
+  operations.
+- **Neon skills / MCPs** — use when a project adopts the default Neon Postgres path from
+  `plus-ultra:tech-stack`.
+
+`plus-ultra:new-project` treats these as companion capabilities: use them when available, note when
+they are missing, and continue with plain CLI/docs when the project can still be scaffolded safely.
+
 ## What it adds
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**

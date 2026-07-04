@@ -12,6 +12,13 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 
 - Confirm project name and whether they want the full **monorepo** (default) or a **single package**
   (throwaway / single-surface). Everything below assumes the monorepo.
+- Check companion capabilities before using stack-specific workflows. Prefer:
+  - `frontend-design` for the web app's visual direction.
+  - `shadcn` or a shadcn MCP for component docs, registry lookup, and component installation.
+  - `gh-cli` with the `gh` CLI for GitHub setup and PR/release workflows.
+  - Neon skills or MCPs for Neon project setup, `DATABASE_URL`, branching, and connection guidance.
+  If a companion is unavailable, do not block scaffolding; say what is missing and fall back to
+  official docs or plain CLI commands.
 - Fetch current setup commands/versions via Context7 before running init commands — don't rely on
   memorized CLI flags for Vite, Hono, Drizzle, Biome, etc.
 
@@ -42,13 +49,18 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 4. **`apps/api`** — Hono app; validate request bodies with the shared zod schemas; **export the app
    type** for RPC. Drizzle schema + `@neondatabase/serverless` connection.
 5. **`apps/web`** — Vite + React + React Router; Tailwind + shadcn/ui; typed API calls via Hono's
-   `hc<AppType>` client. Apply the `frontend-design` skill for the visual layer.
+   `hc<AppType>` client. Apply `frontend-design` for the visual layer when available. Use shadcn
+   companion tooling for docs/examples/registry operations when available; otherwise use the shadcn
+   CLI and official docs directly.
 6. **Biome** — `biome.json` at root; wire the plus-ultra `auto-format` hook's tool (it runs
    `biome check --write` on edited files).
 7. **CI** — copy [`assets/ci.yml`](./assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
    ci → typecheck → test).
 8. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
    `.gitignore` covering `node_modules`, `dist`, `.env*` (keep `.env.example`).
+9. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
+   `docs/agent-setup.md` that names the recommended optional companions (`frontend-design`,
+   `shadcn`, `gh-cli`, Neon skills/MCPs) without requiring them for normal development.
 
 ## After scaffolding
 
