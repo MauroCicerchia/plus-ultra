@@ -44,6 +44,8 @@ Superpowers is declared as a dependency and installed automatically from the sam
   - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed this session (and, in
     a TypeScript project, a typecheck). Order is flexible: checks any time in the session.
   - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test or typecheck exits 0.
+  - *pr-description-reminder* (PostToolUse / `git commit`) — reminds you to refresh an open PR
+    description after new commits; it never edits GitHub state.
   - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
     JS/TS/JSON files anywhere in the repo (no-ops if Biome is absent).
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions

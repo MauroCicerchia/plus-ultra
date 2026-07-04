@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra Codex guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, Biome auto-format, spec-aware session resume.",
+  "description": "plus-ultra Codex guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, PR description reminders, Biome auto-format, spec-aware session resume.",
   "hooks": {
     "PreToolUse": [
       {
@@ -41,6 +41,12 @@
             "command": "node ${PLUGIN_ROOT}/hooks/test-marker.mjs",
             "timeout": 10,
             "statusMessage": "Recording verification status"
+          },
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/pr-description-reminder.mjs",
+            "timeout": 10,
+            "statusMessage": "Checking PR description freshness"
           }
         ]
       },
