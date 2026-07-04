@@ -38,10 +38,14 @@ New specs start from [`template.md`](./template.md). Required sections:
 3. **Acceptance criteria** — checklist the implementation must satisfy. The `plus-ultra:code-reviewer`
    subagent diffs the branch against these.
 4. **Interface contracts** — public APIs, function signatures, CLI flags, HTTP routes, events.
-5. **Data model** — schemas, types, migrations, persisted shapes.
-6. **Test plan** — what to test and at what level (unit/integration/e2e). Tests must pass before
+5. **Architecture boundaries** — domain/application modules, ports, adapters, and dependency
+   direction for changes where hexagonal architecture is applicable.
+6. **Functional core** — pure functions, immutable data, explicit result/error types, injected
+   dependencies, side-effect boundaries, and any justified deviation.
+7. **Data model** — schemas, types, migrations, persisted shapes.
+8. **Test plan** — what to test and at what level (unit/integration/e2e). Tests must pass before
    commit (enforced by the `commit-gate` hook).
-7. **Risks** — what could go wrong, edge cases, rollback story.
+9. **Risks** — what could go wrong, edge cases, rollback story.
 
 ## Docs live in `docs/`
 

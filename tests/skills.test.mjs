@@ -54,3 +54,59 @@ test("pull-request-descriptions skill is packaged and discoverable", () => {
   const readme = readRelative("README.md");
   assert.match(readme, /pull-request-descriptions/);
 });
+
+test("engineering-principles skill is packaged and connected to project workflow", () => {
+  const skillPath = "skills/engineering-principles/SKILL.md";
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const frontmatter = parseFrontmatter(skill);
+
+  assert.equal(frontmatter.name, "engineering-principles");
+  assert.match(frontmatter.description, /Use when/i);
+  assert.match(frontmatter.description, /hexagonal|functional/i);
+
+  for (const expectedTerm of [
+    "domain",
+    "application",
+    "ports",
+    "adapters",
+    "pure functions",
+    "dependency rule",
+  ]) {
+    assert.match(skill, new RegExp(expectedTerm, "i"));
+  }
+
+  const readme = readRelative("README.md");
+  assert.match(readme, /engineering-principles/);
+  assert.match(readme, /hexagonal architecture/i);
+  assert.match(readme, /functional programming/i);
+});
+
+test("project scaffolding and review guidance enforce architecture and FP conventions", () => {
+  const techStack = readRelative("skills/tech-stack/SKILL.md");
+  assert.match(techStack, /engineering-principles/);
+  assert.match(techStack, /hexagonal/i);
+  assert.match(techStack, /functional core/i);
+
+  const newProject = readRelative("skills/new-project/SKILL.md");
+  for (const expectedPath of [
+    "src/domain",
+    "src/application",
+    "src/ports",
+    "src/adapters",
+    "src/http",
+  ]) {
+    assert.match(newProject, new RegExp(expectedPath.replace("/", "\\/")));
+  }
+  assert.match(newProject, /pure use case/i);
+
+  const specTemplate = readRelative("skills/spec-conventions/template.md");
+  assert.match(specTemplate, /Architecture boundaries/i);
+  assert.match(specTemplate, /Functional core/i);
+
+  const codeReviewer = readRelative("skills/code-reviewer/SKILL.md");
+  assert.match(codeReviewer, /dependency rule/i);
+  assert.match(codeReviewer, /side effects/i);
+  assert.match(codeReviewer, /adapters/i);
+});

@@ -38,13 +38,17 @@ they are missing, and continue with plain CLI/docs when the project can still be
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**
   - *spec-conventions* — `specs/NNN-slug.md` numbering + a spec template (Problem, Goals/Non-goals,
-    Acceptance criteria, Interface contracts, Data model, Test plan, Risks) with a `status:` lifecycle
-    (draft → approved → in-progress → done). Plus `docs/` layout and an ADR template.
+    Acceptance criteria, Interface contracts, Architecture boundaries, Functional core, Data model,
+    Test plan, Risks) with a `status:` lifecycle (draft → approved → in-progress → done). Plus
+    `docs/` layout and an ADR template.
   - *spec* — portable equivalent of `/plus-ultra:spec`: list specs, create the next-numbered spec,
     or flip a spec's status.
   - *tech-stack* — the default stack: a TypeScript-everywhere **pnpm-workspaces monorepo** —
     React + Vite (web), Hono (api), shared zod/types, Drizzle + Neon, vitest, Biome. Defaults, with
     a stated escape hatch per row.
+  - *engineering-principles* — default guidance for hexagonal architecture and functional programming
+    where applicable: domain/application boundaries, ports/adapters, pure functions,
+    immutable data, explicit error values, and side-effect isolation.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
   - *pull-request-descriptions* — drafts reviewer-focused PR bodies that connect context, summary,
     testing, risks, and review guidance.
@@ -107,8 +111,9 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 .cursor-plugin/plugin.json       Cursor manifest (skills only)
 .agents/plugins/marketplace.json open-agents marketplace entry
 skills/                          portable skills (spec-conventions, spec, tech-stack,
-                                 conventional-commits, pull-request-descriptions,
-                                 new-project, repo-explorer, code-reviewer, dep-auditor) —
+                                 engineering-principles, conventional-commits,
+                                 pull-request-descriptions, new-project, repo-explorer,
+                                 code-reviewer, dep-auditor) —
                                  shared by all agents
 commands/spec.md                 /plus-ultra:spec lifecycle command — Claude only
 agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
