@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pull Request Descriptions"
+  short_description: "Draft reviewer-focused PR descriptions"
+  default_prompt: "Draft a clear pull request description for the current branch."
