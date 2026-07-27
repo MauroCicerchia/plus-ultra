@@ -30,9 +30,28 @@ generic skills and MCPs that are intentionally not bundled as dependencies:
   operations.
 - **Neon skills / MCPs** — use when a project adopts the default Neon Postgres path from
   `plus-ultra:tech-stack`.
+- **`vercel-react-best-practices`** — use for React and Next.js implementation or review where
+  rendering, data fetching, bundle size, or runtime performance matters.
+- **`vercel-composition-patterns`** — use when designing reusable React component APIs or refactoring
+  components overloaded with boolean props.
+- **`vitest`** — use for Vitest-specific test design, mocking, configuration, debugging, and suite
+  reliability.
+- **`playwright-best-practices`** — use when a project has selected Playwright for browser E2E
+  coverage and needs reliable locators, isolation, fixtures, or CI guidance.
 
 `plus-ultra:new-project` treats these as companion capabilities: use them when available, note when
 they are missing, and continue with plain CLI/docs when the project can still be scaffolded safely.
+They do not replace Superpowers' workflow or `plus-ultra`'s architecture defaults, and they are not
+installed automatically.
+
+Install any of the quality companions you want with the skills CLI:
+
+```sh
+npx skills add vercel-labs/agent-skills@vercel-react-best-practices
+npx skills add vercel-labs/agent-skills@vercel-composition-patterns
+npx skills add pproenca/dot-skills@vitest
+npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices
+```
 
 ## What it adds
 
