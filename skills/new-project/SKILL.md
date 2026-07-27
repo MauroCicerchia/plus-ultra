@@ -17,10 +17,17 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
     defaults when the project has business rules or external integrations.
   - `frontend-design` for the web app's visual direction.
   - `shadcn` or a shadcn MCP for component docs, registry lookup, and component installation.
+  - `vercel-react-best-practices` for React rendering, data-fetching, bundle, and runtime
+    performance guidance.
+  - `vercel-composition-patterns` for reusable React component API design.
+  - `vitest` for Vitest-specific test design, mocking, configuration, debugging, and reliability.
+  - `playwright-best-practices` only if the user selects Playwright or the project already uses it
+    for browser E2E tests.
   - `gh-cli` with the `gh` CLI for GitHub setup and PR/release workflows.
   - Neon skills or MCPs for Neon project setup, `DATABASE_URL`, branching, and connection guidance.
   If a companion is unavailable, do not block scaffolding; say what is missing and fall back to
-  official docs or plain CLI commands.
+  official docs or plain CLI commands. Companions are optional advisors: do not install them or add
+  their associated libraries unless the user asks.
 - Fetch current setup commands/versions via Context7 before running init commands — don't rely on
   memorized CLI flags for Vite, Hono, Drizzle, Biome, etc.
 
@@ -60,16 +67,24 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 5. **`apps/web`** — Vite + React + React Router; Tailwind + shadcn/ui; typed API calls via Hono's
    `hc<AppType>` client. Apply `frontend-design` for the visual layer when available. Use shadcn
    companion tooling for docs/examples/registry operations when available; otherwise use the shadcn
-   CLI and official docs directly.
+   CLI and official docs directly. When available, use `vercel-react-best-practices` for React
+   performance-sensitive implementation and review, and `vercel-composition-patterns` when shaping
+   reusable component APIs.
 6. **Biome** — `biome.json` at root; wire the plus-ultra `auto-format` hook's tool (it runs
    `biome check --write` on edited files).
-7. **CI** — copy [`assets/ci.yml`](./assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
-   ci → typecheck → test).
-8. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
+7. **Testing** — configure Vitest for unit and integration tests; use the optional `vitest`
+   companion when present for framework-specific setup, mocking, debugging, and reliability.
+   Add Playwright browser E2E only when the user requests it; if selected and
+   `playwright-best-practices` is available, use it for locators, isolation, fixtures, and CI.
+8. **CI** — copy [`assets/ci.yml`](./assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
+   ci → typecheck → test). Extend it with browser E2E only if Playwright was selected.
+9. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
    `.gitignore` covering `node_modules`, `dist`, `.env*` (keep `.env.example`).
-9. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
+10. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
    `docs/agent-setup.md` that names the recommended optional companions (`frontend-design`,
-   `shadcn`, `gh-cli`, Neon skills/MCPs) without requiring them for normal development.
+   `shadcn`, `vercel-react-best-practices`, `vercel-composition-patterns`, `vitest`,
+   `playwright-best-practices`, `gh-cli`, Neon skills/MCPs) without requiring them for normal
+   development.
 
 ## API shape
 

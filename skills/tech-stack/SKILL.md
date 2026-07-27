@@ -81,10 +81,22 @@ missing, continue with official docs and CLI commands.
 - **`frontend-design`** — apply when creating or reshaping the web app's visual layer.
 - **`shadcn` / shadcn MCP** — use for component docs, registry lookup, examples, and safe component
   installation.
+- **`vercel-react-best-practices`** — apply to React implementation and review when rendering,
+  data fetching, bundle size, or runtime performance matters.
+- **`vercel-composition-patterns`** — apply when designing reusable React component APIs or
+  refactoring components overloaded with boolean props.
+- **`vitest`** — apply for Vitest-specific test design, mocking, configuration, debugging, and
+  suite reliability. Superpowers still owns the test-first workflow.
+- **`playwright-best-practices`** — apply only when the user selects Playwright or the project
+  already contains Playwright browser E2E tests. It does not make Playwright a stack dependency.
 - **`gh-cli`** — use with the `gh` CLI for GitHub issues, PRs, Actions, releases, and repository
   operations.
 - **Neon skills / MCPs** — use for Neon project setup, database URLs, branching, and connection
   guidance.
+
+These companions are technology-specific advisors. They do not replace Superpowers' methodology,
+`plus-ultra:engineering-principles`, or the user's explicit choices, and their absence must not
+block normal work.
 
 ## Fit with the rest of plus-ultra
 
