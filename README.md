@@ -26,16 +26,17 @@ methodology; `plus-ultra` adds the repository conventions, stack defaults, and g
 
 ```text
 Use the plus-ultra:new-project skill to scaffold a new project for [describe the product]. Then use
-Superpowers to brainstorm the first feature, write its implementation plan, implement it with TDD,
-and verify the result.
+plus-ultra:spec-conventions to keep workflow artifacts local before using Superpowers to brainstorm
+the first feature, write its implementation plan, implement it with TDD, and verify the result.
 ```
 
 ### Use an existing repository
 
 ```text
-In this repository, use Superpowers to brainstorm [describe the change]. After I approve the design,
-use plus-ultra:spec to create and manage the repository spec, write the implementation plan,
-implement it with TDD, verify the result, and prepare the pull request.
+In this repository, first use plus-ultra:spec-conventions to configure workflow artifact locations
+and ignore rules. Then use Superpowers to brainstorm [describe the change]. After I approve the
+design, use plus-ultra:spec to create and manage the repository spec, write the implementation
+plan, implement it with TDD, verify the result, and prepare the pull request.
 ```
 
 ## Optional companions

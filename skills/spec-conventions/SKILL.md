@@ -1,6 +1,6 @@
 ---
 name: spec-conventions
-description: Repo conventions for spec-driven development in this project — how to name, structure, and track spec documents under specs/, plus where architecture notes, ADRs, and the changelog live in docs/. Use when creating a new spec, organizing spec files, updating a spec's status, or resuming work and needing to know the project's spec layout. Complements Superpowers' brainstorming and writing-plans skills, which produce the spec content itself.
+description: Use when creating, organizing, tracking, or resuming specs; when Superpowers brainstorming or writing-plans needs project artifact locations; or when deciding whether workflow artifacts belong in version control.
 ---
 
 # plus-ultra spec conventions
@@ -14,6 +14,7 @@ Override Superpowers' default artifact paths so intermediate process documents d
 repository documentation:
 
 - Store transient brainstorming output and implementation plans under `.context/superpowers/`.
+- Ensure `.gitignore` contains `/.context/` and `/docs/superpowers/` before brainstorming or planning.
 - Do not commit `.context/`; it is local agent workspace state.
 - Do not commit `docs/superpowers/`; ignore it as a compatibility path for tools using defaults.
 - For trivial changes, skip standalone design and implementation-plan artifacts.
