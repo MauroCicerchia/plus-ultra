@@ -79,9 +79,12 @@ haven't stated one — this skill fills silence, it doesn't override stated pref
 8. **CI** — copy [`assets/ci.yml`](./assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
    ci → typecheck → test). Extend it with browser E2E only if Playwright was selected.
 9. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
-   `.gitignore` covering `node_modules`, `dist`, `.env*` (keep `.env.example`).
+   `.gitignore` covering `node_modules`, `dist`, `.env*` (keep `.env.example`), plus root-anchored
+   entries `/.context/` and `/docs/superpowers/`.
 10. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
-   `docs/agent-setup.md` that names the recommended optional companions (`frontend-design`,
+   `docs/agent-setup.md`. State that transient workflow artifacts go in `.context/superpowers/`,
+   durable specs go in `specs/`, and durable project documentation goes in `docs/`. Also name the
+   recommended optional companions (`frontend-design`,
    `shadcn`, `vercel-react-best-practices`, `vercel-composition-patterns`, `vitest`,
    `playwright-best-practices`, `gh-cli`, Neon skills/MCPs) without requiring them for normal
    development.

@@ -189,3 +189,37 @@ test("quality companions are documented and remain optional and technology-scope
   const claudeManifest = JSON.parse(readRelative(".claude-plugin/plugin.json"));
   assert.deepEqual(claudeManifest.dependencies, ["superpowers"]);
 });
+
+test("repository ignores transient Superpowers workflow artifacts", () => {
+  const gitignorePath = join(repoRoot, ".gitignore");
+  assert.ok(existsSync(gitignorePath), ".gitignore exists");
+
+  const ignoredPaths = readFileSync(gitignorePath, "utf8").split("\n");
+  assert.ok(ignoredPaths.includes("/.context/"), ".context is ignored at the repository root");
+  assert.ok(
+    ignoredPaths.includes("/docs/superpowers/"),
+    "Superpowers' default workflow artifact directory is ignored"
+  );
+});
+
+test("spec conventions separate transient workflow artifacts from durable documents", () => {
+  const specConventions = readRelative("skills/spec-conventions/SKILL.md");
+
+  assert.match(specConventions, /`.context\/superpowers\/`/);
+  assert.match(specConventions, /do not commit[^\n]*`.context\/`/i);
+  assert.match(specConventions, /do not commit[^\n]*`docs\/superpowers\/`/i);
+  assert.match(specConventions, /trivial changes[^\n]*skip/i);
+  assert.match(specConventions, /approved[^\n]*`specs\/NNN-slug\.md`[^\n]*commit/i);
+  assert.match(specConventions, /durable[^\n]*`docs\/`[^\n]*commit/i);
+});
+
+test("new project scaffolding keeps workflow artifacts transient", () => {
+  const newProject = readRelative("skills/new-project/SKILL.md");
+  const scaffoldSteps = markdownSection(newProject, "Steps");
+
+  assert.match(scaffoldSteps, /`\/\.context\/`/);
+  assert.match(scaffoldSteps, /`\/docs\/superpowers\/`/);
+  assert.match(scaffoldSteps, /transient workflow artifacts[^\n]*`.context\/superpowers\/`/i);
+  assert.match(scaffoldSteps, /durable specs[^\n]*`specs\/`/i);
+  assert.match(scaffoldSteps, /durable project documentation[^\n]*`docs\/`/i);
+});
