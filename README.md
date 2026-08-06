@@ -17,6 +17,27 @@ conventions and guardrails on top.
 
 Superpowers is declared as a dependency and installed automatically from the same marketplace.
 
+## Quick start
+
+After installation, tell your coding agent which path you are taking. Superpowers supplies the core
+methodology; `plus-ultra` adds the repository conventions, stack defaults, and guardrails.
+
+### Start a new project
+
+```text
+Use the plus-ultra:new-project skill to scaffold a new project for [describe the product]. Then use
+Superpowers to brainstorm the first feature, write its implementation plan, implement it with TDD,
+and verify the result.
+```
+
+### Use an existing repository
+
+```text
+In this repository, use Superpowers to brainstorm [describe the change]. After I approve the design,
+use plus-ultra:spec to create and manage the repository spec, write the implementation plan,
+implement it with TDD, verify the result, and prepare the pull request.
+```
+
 ## Optional companions
 
 `plus-ultra` stays focused on spec-driven development. For day-to-day projects, it pairs well with
