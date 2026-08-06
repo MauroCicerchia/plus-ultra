@@ -1,12 +1,26 @@
 ---
 name: spec-conventions
-description: Repo conventions for spec-driven development in this project — how to name, structure, and track spec documents under specs/, plus where architecture notes, ADRs, and the changelog live in docs/. Use when creating a new spec, organizing spec files, updating a spec's status, or resuming work and needing to know the project's spec layout. Complements Superpowers' brainstorming and writing-plans skills, which produce the spec content itself.
+description: Use when creating, organizing, tracking, or resuming specs; when Superpowers brainstorming or writing-plans needs project artifact locations; or when deciding whether workflow artifacts belong in version control.
 ---
 
 # plus-ultra spec conventions
 
 Superpowers owns the *methodology* (brainstorming → writing-plans → subagent TDD → verification).
 This skill owns the *repo conventions* for where that work lives and how its state is tracked.
+
+## Working artifacts stay local
+
+Override Superpowers' default artifact paths so intermediate process documents do not become
+repository documentation:
+
+- Store transient brainstorming output and implementation plans under `.context/superpowers/`.
+- Ensure `.gitignore` contains `/.context/` and `/docs/superpowers/` before brainstorming or planning.
+- Do not commit `.context/`; it is local agent workspace state.
+- Do not commit `docs/superpowers/`; ignore it as a compatibility path for tools using defaults.
+- For trivial changes, skip standalone design and implementation-plan artifacts.
+- For approved work, use `specs/NNN-slug.md` and commit it as the durable specification.
+- Keep durable project documentation under `docs/` and commit it only when it remains useful after
+  the implementation session.
 
 ## Specs live in `specs/`
 
@@ -57,8 +71,11 @@ New specs start from [`template.md`](./template.md). Required sections:
 
 ## Workflow fit
 
-- Use Superpowers **brainstorming** to shape the idea, then **writing-plans** to produce the spec body.
-- Save the result as `specs/NNN-slug.md` with `status: draft`, following the template.
-- Flip to `approved` once agreed, `in-progress` when implementation starts, `done` when verified.
+- Use Superpowers **brainstorming** to shape the idea, then **writing-plans** to plan implementation.
+- Keep intermediate outputs under `.context/superpowers/`; do not duplicate them under `docs/`.
+- When a durable spec is warranted, shape `specs/NNN-slug.md` with `status: draft` using the
+  template while keeping intermediate process documents under `.context/superpowers/`.
+- Once agreed, flip the spec to `approved` and commit it; use `in-progress` during implementation
+  and `done` after verification.
 - On a fresh session, the plus-ultra SessionStart hook reports which spec is `in-progress` so you
   resume without re-explaining context.

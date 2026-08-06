@@ -19,6 +19,16 @@ function markdownSection(markdown, heading) {
   return nextHeading === -1 ? content : content.slice(0, nextHeading);
 }
 
+function markdownSubsection(markdown, heading) {
+  const marker = `### ${heading}\n`;
+  const start = markdown.indexOf(marker);
+  assert.notEqual(start, -1, `${heading} subsection exists`);
+
+  const content = markdown.slice(start + marker.length);
+  const nextHeading = content.search(/^### /m);
+  return nextHeading === -1 ? content : content.slice(0, nextHeading);
+}
+
 function parseFrontmatter(markdown) {
   const match = markdown.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(match, "skill has YAML frontmatter");
@@ -188,4 +198,59 @@ test("quality companions are documented and remain optional and technology-scope
 
   const claudeManifest = JSON.parse(readRelative(".claude-plugin/plugin.json"));
   assert.deepEqual(claudeManifest.dependencies, ["superpowers"]);
+});
+
+test("repository ignores transient Superpowers workflow artifacts", () => {
+  const gitignorePath = join(repoRoot, ".gitignore");
+  assert.ok(existsSync(gitignorePath), ".gitignore exists");
+
+  const ignoredPaths = readFileSync(gitignorePath, "utf8").split("\n");
+  assert.ok(ignoredPaths.includes("/.context/"), ".context is ignored at the repository root");
+  assert.ok(
+    ignoredPaths.includes("/docs/superpowers/"),
+    "Superpowers' default workflow artifact directory is ignored"
+  );
+});
+
+test("spec conventions separate transient workflow artifacts from durable documents", () => {
+  const specConventions = readRelative("skills/spec-conventions/SKILL.md");
+  const frontmatter = parseFrontmatter(specConventions);
+  const normalized = specConventions.replace(/\s+/g, " ");
+
+  assert.match(frontmatter.description, /workflow artifacts/i);
+  assert.match(normalized, /`.context\/superpowers\/`/);
+  assert.match(normalized, /do not commit.*?`.context\/`/i);
+  assert.match(normalized, /do not commit.*?`docs\/superpowers\/`/i);
+  assert.match(normalized, /trivial changes.*?skip/i);
+  assert.match(normalized, /approved.*?`specs\/NNN-slug\.md`.*?commit/i);
+  assert.match(normalized, /durable.*?`docs\/`.*?commit/i);
+  assert.match(normalized, /ensure `.gitignore` contains `\/\.context\/` and `\/docs\/superpowers\/`/i);
+});
+
+test("new project scaffolding keeps workflow artifacts transient", () => {
+  const newProject = readRelative("skills/new-project/SKILL.md");
+  const scaffoldSteps = markdownSection(newProject, "Steps");
+  const normalized = scaffoldSteps.replace(/\s+/g, " ");
+
+  assert.match(scaffoldSteps, /`\/\.context\/`/);
+  assert.match(scaffoldSteps, /`\/docs\/superpowers\/`/);
+  assert.match(normalized, /transient workflow artifacts.*?`.context\/superpowers\/`/i);
+  assert.match(normalized, /durable specs.*?`specs\/`/i);
+  assert.match(normalized, /durable project documentation.*?`docs\/`/i);
+  assert.match(normalized, /trivial changes.*?skip/i);
+});
+
+test("Quick start activates artifact conventions before Superpowers", () => {
+  const readme = readRelative("README.md");
+  const quickStart = markdownSection(readme, "Quick start");
+
+  for (const heading of ["Start a new project", "Use an existing repository"]) {
+    const path = markdownSubsection(quickStart, heading);
+    const conventionsIndex = path.indexOf("plus-ultra:spec-conventions");
+    const superpowersIndex = path.indexOf("Superpowers");
+
+    assert.notEqual(conventionsIndex, -1, `${heading} activates spec-conventions`);
+    assert.notEqual(superpowersIndex, -1, `${heading} invokes Superpowers`);
+    assert.ok(conventionsIndex < superpowersIndex, `${heading} activates conventions first`);
+  }
 });
