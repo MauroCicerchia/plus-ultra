@@ -1,4 +1,4 @@
 interface:
   display_name: "Pull Request Descriptions"
-  short_description: "Draft reviewer-focused PR descriptions"
+  short_description: "Draft PR descriptions with a human-first overview and conditional Mermaid diagrams"
   default_prompt: "Draft a clear pull request description for the current branch."

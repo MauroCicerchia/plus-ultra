@@ -75,6 +75,75 @@ test("pull-request-descriptions skill is packaged and discoverable", () => {
   assert.match(readme, /pull-request-descriptions/);
 });
 
+test("pull-request-descriptions leads with a human-first overview and conditional Mermaid diagrams", () => {
+  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
+  const templateStart = skill.indexOf("## Recommended Template");
+  const templateEnd = skill.indexOf("## Section Guidance");
+  assert.notEqual(templateStart, -1, "Recommended Template section exists");
+  assert.notEqual(templateEnd, -1, "Section Guidance section exists");
+  const template = skill.slice(templateStart, templateEnd);
+  const metadata = readRelative("skills/pull-request-descriptions/agents/openai.yaml");
+  const readme = readRelative("README.md");
+
+  const orderedSections = [
+    "At a glance",
+    "Diagram",
+    "Context",
+    "Summary",
+    "Testing",
+    "Risks",
+    "Review Guidance",
+  ];
+  let previousIndex = -1;
+  for (const heading of orderedSections) {
+    const headingIndex = template.indexOf(`## ${heading}`);
+    assert.notEqual(headingIndex, -1, `${heading} is present in the template`);
+    assert.ok(headingIndex > previousIndex, `${heading} follows the previous template section`);
+    previousIndex = headingIndex;
+  }
+
+  const normalized = skill.replace(/\s+/g, " ");
+  assert.match(normalized, /At a glance.*?at most three sentences/i);
+  assert.match(normalized, /problem.*?observable outcome.*?affected audience/i);
+  assert.match(normalized, /exactly one compact Mermaid diagram/i);
+  assert.match(normalized, /three or more components, services, or modules/i);
+  assert.match(normalized, /request, data, control, or dependency flow/i);
+  assert.match(normalized, /lifecycle or state transitions/i);
+  assert.match(normalized, /non-obvious before\/after architecture/i);
+  assert.match(normalized, /localized fixes.*?straightforward documentation\/configuration\/dependency updates/i);
+  assert.match(normalized, /Never invent relationships.*?placeholder Mermaid/i);
+
+  for (const diagram of ["flowchart", "sequenceDiagram", "stateDiagram-v2"]) {
+    assert.match(skill, new RegExp(diagram));
+  }
+  assert.match(normalized, /no more than eight nodes or participants/i);
+
+  for (const expectedSection of [
+    "Context",
+    "Summary",
+    "Testing",
+    "Risks",
+    "Review Guidance",
+  ]) {
+    assert.match(template, new RegExp(`## ${expectedSection}`));
+  }
+
+  assert.match(readme, /human-first overview/i);
+  assert.match(readme, /conditional Mermaid diagrams/i);
+  assert.match(metadata, /human-first overview/i);
+  assert.match(metadata, /conditional Mermaid diagrams/i);
+});
+
+test("pull-request-descriptions demonstrates diagram decisions for common review scenarios", () => {
+  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
+  const examples = markdownSection(skill, "Diagram Examples").replace(/\s+/g, " ");
+
+  assert.match(examples, /localized fix.*?omit the Diagram section/i);
+  assert.match(examples, /cross-component flow.*?flowchart/i);
+  assert.match(examples, /ordered interaction.*?sequenceDiagram/i);
+  assert.match(examples, /lifecycle change.*?stateDiagram-v2/i);
+});
+
 test("engineering-principles skill is packaged and connected to project workflow", () => {
   const skillPath = "skills/engineering-principles/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);

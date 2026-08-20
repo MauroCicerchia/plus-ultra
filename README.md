@@ -91,8 +91,8 @@ npx skills add currents-dev/playwright-best-practices-skill@playwright-best-prac
     where applicable: domain/application boundaries, ports/adapters, pure functions,
     immutable data, explicit error values, and side-effect isolation.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
-  - *pull-request-descriptions* — drafts reviewer-focused PR bodies that connect context, summary,
-    testing, risks, and review guidance.
+  - *pull-request-descriptions* — drafts reviewer-focused PR bodies with a human-first overview and
+    conditional Mermaid diagrams, then connects context, summary, testing, risks, and review guidance.
   - *new-project* — scaffolds the tech-stack monorepo + CI.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
