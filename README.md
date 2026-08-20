@@ -93,11 +93,17 @@ npx skills add currents-dev/playwright-best-practices-skill@playwright-best-prac
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
   - *pull-request-descriptions* — drafts reviewer-focused PR bodies with a human-first overview and
     conditional Mermaid diagrams, then connects context, summary, testing, risks, and review guidance.
+  - *pr-review* — reviews a GitHub pull request against the single in-progress spec, posts
+    deduplicated right-side findings, and maintains a canonical tagged review summary. It uses the
+    current branch’s PR by default; pass a positive PR number to override it. This workflow requires
+    GitHub write access through `gh`.
   - *new-project* — scaffolds the tech-stack monorepo + CI.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
-- **Slash command:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
-  spec's status. Claude Code only; Codex uses the `plus-ultra:spec` skill instead.
+- **Slash commands:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
+  spec's status; `/plus-ultra:pr-review [pr-number]` — publish and maintain a spec-driven PR
+  review. Claude Code only; Codex uses the `plus-ultra:spec` and `plus-ultra:pr-review` skills
+  instead.
 - **Guardrail hooks:**
   - *dangerous-command* (PreToolUse / Bash) — blocks `rm -rf` and force-pushes to `main`/`master`.
   - *secret-scan* (PreToolUse / `git commit`) — blocks a commit whose staged diff contains a
@@ -113,7 +119,8 @@ npx skills add currents-dev/playwright-best-practices-skill@playwright-best-prac
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
     resume without re-explaining context.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
-  criteria), `dep-auditor` (vet new npm packages).
+  criteria), `pr-reviewer` (GitHub review publishing and maintenance), `dep-auditor` (vet new npm
+  packages).
 - **GitHub:** no bundled MCP — use the `gh` CLI (with the `gh-cli` skill) from the shell for PRs,
   issues, Actions, and releases.
 
@@ -135,7 +142,7 @@ environment. Cursor ships skills only.
 
 The slash command in `commands/` and Markdown subagents in `agents/` remain Claude Code formats.
 Codex gets equivalent behavior through the portable `spec`, `repo-explorer`, `code-reviewer`, and
-`dep-auditor` skills.
+`pr-review`, and `dep-auditor` skills.
 
 ## Hook scripts
 
@@ -154,9 +161,9 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 skills/                          portable skills (spec-conventions, spec, tech-stack,
                                  engineering-principles, conventional-commits,
                                  pull-request-descriptions, new-project, repo-explorer,
-                                 code-reviewer, dep-auditor) —
+                                 code-reviewer, pr-review, dep-auditor) —
                                  shared by all agents
-commands/spec.md                 /plus-ultra:spec lifecycle command — Claude only
-agents/                          repo-explorer, code-reviewer, dep-auditor — Claude only
+commands/                        /plus-ultra:spec and /plus-ultra:pr-review — Claude only
+agents/                          repo-explorer, code-reviewer, pr-reviewer, dep-auditor — Claude only
 hooks/                           hooks.json, hooks-codex.json + *.mjs
 ```
