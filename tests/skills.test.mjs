@@ -323,3 +323,59 @@ test("Quick start activates artifact conventions before Superpowers", () => {
     assert.ok(conventionsIndex < superpowersIndex, `${heading} activates conventions first`);
   }
 });
+
+test("pr-review workflow is packaged, safe, and available through Claude", () => {
+  const skillPath = "skills/pr-review/SKILL.md";
+  const commandPath = "commands/pr-review.md";
+  const agentPath = "agents/pr-reviewer.md";
+
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+  assert.ok(existsSync(join(repoRoot, commandPath)), `${commandPath} exists`);
+  assert.ok(existsSync(join(repoRoot, agentPath)), `${agentPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const command = readRelative(commandPath);
+  const agent = readRelative(agentPath);
+  const readme = readRelative("README.md");
+  const codeReviewer = readRelative("skills/code-reviewer/SKILL.md");
+  const frontmatter = parseFrontmatter(skill);
+
+  assert.equal(frontmatter.name, "pr-review");
+  assert.match(frontmatter.description, /Use when/i);
+  assert.match(frontmatter.description, /pull request|PR|GitHub/i);
+  assert.match(skill, /no argument/i);
+  assert.match(skill, /positive PR number/i);
+  assert.match(skill, /gh auth status/i);
+  assert.match(skill, /gh pr view/i);
+  assert.match(skill, /gh pr diff/i);
+  assert.match(skill, /headRefOid/i);
+  assert.match(skill, /remote PR head/i);
+  assert.match(skill, /spec.*GitHub API|GitHub API.*spec/i);
+  assert.match(skill, /in-progress spec/i);
+  assert.match(skill, /plus-ultra:pr-review:inline/i);
+  assert.match(skill, /plus-ultra:pr-review:summary/i);
+  assert.match(skill, /pulls\/\{pull_number\}\/comments/i);
+  assert.match(skill, /issues\/comments/i);
+  assert.match(skill, /resolveReviewThread/i);
+  assert.match(skill, /paginate/i);
+  assert.match(skill, /authenticated reviewer/i);
+  assert.match(skill, /summary marker.*authenticated reviewer|authenticated reviewer.*summary marker/i);
+  assert.match(skill, /equivalent unresolved/i);
+  assert.match(skill, /unanchorable/i);
+  assert.match(skill, /Report every mutation/i);
+
+  assert.match(command, /argument-hint: "\[pr-number\]"/);
+  assert.match(command, /positive integer/i);
+  assert.match(command, /plus-ultra:pr-reviewer/);
+  assert.match(agent, /^name: pr-reviewer$/m);
+  assert.match(agent, /^tools: .*Bash/m);
+  assert.match(agent, /plus-ultra:pr-review/);
+
+  assert.match(readme, /plus-ultra:pr-review/);
+  assert.match(readme, /\/plus-ultra:pr-review \[pr-number\]/);
+  assert.match(readme, /GitHub.*write|write.*GitHub/i);
+  assert.match(readme, /pr-reviewer/);
+
+  assert.doesNotMatch(codeReviewer, /\bgh\b/i);
+  assert.match(codeReviewer, /Do not modify files/i);
+});
