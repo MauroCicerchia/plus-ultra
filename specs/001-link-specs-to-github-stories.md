@@ -37,28 +37,28 @@ a spec to the GitHub story that requested it.
 
 ## Acceptance criteria
 
-- [ ] Spec frontmatter accepts an optional `issue: <positive integer>` field;
+- [x] Spec frontmatter accepts an optional `issue: <positive integer>` field;
       specs without it remain supported.
-- [ ] Template, portable skills, Claude command/agent guidance, manifests,
+- [x] Template, portable skills, Claude command/agent guidance, manifests,
       README, hooks, and tests use `draft`, `approved`, and `superseded` only
       for spec status.
-- [ ] `plus-ultra:spec new --issue <number>` verifies the Issue exists with
+- [x] `plus-ultra:spec new --issue <number>` verifies the Issue exists with
       `gh issue view`, derives its title and a kebab-case slug, and creates the
       next-numbered draft spec with its `issue` field.
-- [ ] `plus-ultra:spec new <slug> --issue <number>` verifies the Issue and
+- [x] `plus-ultra:spec new <slug> --issue <number>` verifies the Issue and
       uses the explicit slug while deriving the spec title from the Issue.
-- [ ] `plus-ultra:spec link <NNN|slug> <number>` verifies the Issue, writes
+- [x] `plus-ultra:spec link <NNN|slug> <number>` verifies the Issue, writes
       the `issue` field for an unlinked spec, and is idempotent when it already
       points to that number.
-- [ ] Linking a different Issue never silently replaces an existing `issue`:
+- [x] Linking a different Issue never silently replaces an existing `issue`:
       the workflow displays the old and new values and requires explicit
       confirmation before updating frontmatter.
-- [ ] `refine-issues` may recommend `plus-ultra:spec new --issue <number>` as
+- [x] `refine-issues` may recommend `plus-ultra:spec new --issue <number>` as
       a next step, but makes no spec file changes itself.
-- [ ] Session resume lists approved specs, appending `Issue #<number>` when
+- [x] Session resume lists approved specs, appending `Issue #<number>` when
       the frontmatter contains one, and does not identify a globally active
       spec.
-- [ ] Superseded specs remain readable history and are excluded from new-work
+- [x] Superseded specs remain readable history and are excluded from new-work
       and review selection; approved specs are the current technical contract.
 
 ## Interface contracts
