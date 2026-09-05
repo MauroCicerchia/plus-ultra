@@ -22,12 +22,16 @@ if (files.length === 0) process.exit(0);
 const frontmatterOf = (path) => {
   try {
     const text = readFileSync(path, "utf8");
-    const fm = text.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*$/m);
+    const fm = text.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
     if (!fm) return null;
-    const statusMatch = fm[1].match(/^\s*status:\s*(?:"([a-z-]+)"|'([a-z-]+)'|([a-z-]+))\s*$/im);
+    const statusMatch = fm[1].match(
+      /^[ \t]*status:[ \t]*(?:"([a-z-]+)"|'([a-z-]+)'|([a-z-]+))[ \t]*(?:#[^\r\n]*)?\r?$/im
+    );
     if (!statusMatch) return null;
     const status = statusMatch[1] ?? statusMatch[2] ?? statusMatch[3];
-    const issueMatch = fm[1].match(/^\s*issue:\s*([^\r\n]+?)\s*$/im);
+    const issueMatch = fm[1].match(
+      /^[ \t]*issue:[ \t]*([0-9]+)[ \t]*(?:#[^\r\n]*)?\r?$/im
+    );
     const rawIssue = issueMatch?.[1];
     const issue = /^\d+$/.test(rawIssue ?? "") && Number(rawIssue) > 0 ? Number(rawIssue) : null;
     return { status: status.toLowerCase(), issue };

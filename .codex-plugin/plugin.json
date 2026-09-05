@@ -22,7 +22,7 @@
     "capabilities": ["Read", "Write"],
     "defaultPrompt": [
       "Create a new plus-ultra spec for this feature.",
-      "Review this branch against the in-progress plus-ultra spec."
+      "Review this branch against its approved technical contract."
     ],
     "websiteURL": "https://github.com/maurocicerchia/plus-ultra"
   }

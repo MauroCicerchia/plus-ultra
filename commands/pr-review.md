@@ -1,5 +1,5 @@
 ---
-description: Review a GitHub pull request against the active spec and publish maintained review findings.
+description: Review a GitHub pull request against an approved technical contract and publish maintained review findings.
 argument-hint: "[pr-number]"
 ---
 

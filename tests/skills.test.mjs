@@ -74,6 +74,7 @@ test("Issue-linked spec documentation", () => {
   const refiner = readRelative("skills/refine-issues/SKILL.md");
   const readme = readRelative("README.md");
   const codexManifest = JSON.parse(readRelative(".codex-plugin/plugin.json"));
+  const prReviewCommand = parseFrontmatter(readRelative("commands/pr-review.md"));
 
   assert.match(refiner, /plus-ultra:spec new --issue <number>/);
   assert.match(refiner, /do not create|never create.*spec/i);
@@ -81,6 +82,10 @@ test("Issue-linked spec documentation", () => {
   assert.match(readme, /approved.*Issue #|Issue.*approved/i);
   assert.match(codexManifest.interface.longDescription, /draft -> approved -> superseded/);
   assert.doesNotMatch(JSON.stringify(codexManifest), /draft -> approved -> in-progress -> done/);
+  assert.match(codexManifest.interface.defaultPrompt[1], /approved technical contract/i);
+  assert.doesNotMatch(JSON.stringify(codexManifest), /in-progress plus-ultra spec|active spec/i);
+  assert.match(prReviewCommand.description, /approved technical contract/i);
+  assert.doesNotMatch(prReviewCommand.description, /active spec|in-progress/i);
 });
 
 test("pull-request-descriptions skill is packaged and discoverable", () => {
