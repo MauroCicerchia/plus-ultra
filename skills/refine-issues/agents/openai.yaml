@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refine Issues"
+  short_description: "Turn a raw GitHub issue into a reviewable implementation brief"
+  default_prompt: "Use $refine-issues to propose a structured brief for GitHub issue #<number>."

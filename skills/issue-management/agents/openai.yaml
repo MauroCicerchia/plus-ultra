@@ -1,0 +1,4 @@
+interface:
+  display_name: "Issue Management"
+  short_description: "Organize GitHub milestones, epics, stories, and progress"
+  default_prompt: "Use $issue-management to report and organize this repository's GitHub Issues."

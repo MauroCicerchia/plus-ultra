@@ -75,6 +75,29 @@ npx skills add pproenca/dot-skills@vitest
 npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices
 ```
 
+## GitHub Issue workflows
+
+Use GitHub Issues as the source of truth for product work: a **milestone** represents a release or
+roadmap horizon, an **epic** is an issue labelled `type:epic`, and a **story** is its executable
+sub-issue labelled `type:story`. The workflow uses `status:backlog`, `status:ready`,
+`status:in-progress`, and `status:blocked`; closing an issue represents completion. Milestone
+progress aggregates the assigned work, while epic progress comes from its sub-issues.
+
+The portable workflows are:
+
+- **`plus-ultra:issue-management`** — report the hierarchy and progress, or propose milestones,
+  epics, stories, labels, and parent-child links.
+- **`plus-ultra:refine-issues`** — turn a raw person-created issue into a proposed structured brief:
+  `Context`, `Goal`, `Scope`, acceptance criteria, dependencies, and risks.
+- **`plus-ultra:roadmap-planning`** — turn a roadmap brief or issue into a proposed milestone →
+  epic → story tree.
+
+Claude Code also offers `/plus-ultra:issue-management`, `/plus-ultra:refine-issues <issue-number>`,
+and `/plus-ultra:roadmap-planning <brief | issue-number>`. Every GitHub write requires authenticated
+`gh` access with repository write permission, a complete preview of the exact mutations, and an
+explicit confirmation in that execution. These workflows intentionally use neither GitHub Projects
+nor a bundled GitHub MCP.
+
 ## What it adds
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**
@@ -97,13 +120,17 @@ npx skills add currents-dev/playwright-best-practices-skill@playwright-best-prac
     deduplicated right-side findings, and maintains a canonical tagged review summary. It uses the
     current branch’s PR by default; pass a positive PR number to override it. This workflow requires
     GitHub write access through `gh`.
+  - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
+    milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
+    are always proposal-first and confirmation-gated.
   - *new-project* — scaffolds the tech-stack monorepo + CI.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
 - **Slash commands:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
   spec's status; `/plus-ultra:pr-review [pr-number]` — publish and maintain a spec-driven PR
-  review. Claude Code only; Codex uses the `plus-ultra:spec` and `plus-ultra:pr-review` skills
-  instead.
+  review; `/plus-ultra:issue-management`, `/plus-ultra:refine-issues <issue-number>`, and
+  `/plus-ultra:roadmap-planning <brief | issue-number>` — manage GitHub Issue roadmaps. Claude Code
+  only; Codex uses the corresponding portable skills instead.
 - **Guardrail hooks:**
   - *dangerous-command* (PreToolUse / Bash) — blocks `rm -rf` and force-pushes to `main`/`master`.
   - *secret-scan* (PreToolUse / `git commit`) — blocks a commit whose staged diff contains a
@@ -119,8 +146,9 @@ npx skills add currents-dev/playwright-best-practices-skill@playwright-best-prac
   - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
     resume without re-explaining context.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
-  criteria), `pr-reviewer` (GitHub review publishing and maintenance), `dep-auditor` (vet new npm
-  packages).
+  criteria), `pr-reviewer` (GitHub review publishing and maintenance), `issue-manager`,
+  `issue-refiner`, `roadmap-planner` (confirmation-gated GitHub Issue workflows), and `dep-auditor`
+  (vet new npm packages).
 - **GitHub:** no bundled MCP — use the `gh` CLI (with the `gh-cli` skill) from the shell for PRs,
   issues, Actions, and releases.
 
@@ -142,7 +170,7 @@ environment. Cursor ships skills only.
 
 The slash command in `commands/` and Markdown subagents in `agents/` remain Claude Code formats.
 Codex gets equivalent behavior through the portable `spec`, `repo-explorer`, `code-reviewer`, and
-`pr-review`, and `dep-auditor` skills.
+`pr-review`, `issue-management`, `refine-issues`, `roadmap-planning`, and `dep-auditor` skills.
 
 ## Hook scripts
 
@@ -161,9 +189,11 @@ Hooks are dependency-free Node ESM scripts under `hooks/`. They read the hook JS
 skills/                          portable skills (spec-conventions, spec, tech-stack,
                                  engineering-principles, conventional-commits,
                                  pull-request-descriptions, new-project, repo-explorer,
-                                 code-reviewer, pr-review, dep-auditor) —
+                                 code-reviewer, pr-review, issue-management, refine-issues,
+                                 roadmap-planning, dep-auditor) —
                                  shared by all agents
-commands/                        /plus-ultra:spec and /plus-ultra:pr-review — Claude only
-agents/                          repo-explorer, code-reviewer, pr-reviewer, dep-auditor — Claude only
+commands/                        /plus-ultra:spec, /plus-ultra:pr-review, and Issue workflows — Claude only
+agents/                          repo-explorer, code-reviewer, pr-reviewer, Issue workflow agents,
+                                 dep-auditor — Claude only
 hooks/                           hooks.json, hooks-codex.json + *.mjs
 ```

@@ -379,3 +379,101 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.doesNotMatch(codeReviewer, /\bgh\b/i);
   assert.match(codeReviewer, /Do not modify files/i);
 });
+
+test("GitHub Issues workflows are portable, confirmation-gated, and available through Claude", () => {
+  const workflows = [
+    {
+      name: "issue-management",
+      command: "issue-management",
+      agent: "issue-manager",
+      displayName: "Issue Management",
+    },
+    {
+      name: "refine-issues",
+      command: "refine-issues",
+      agent: "issue-refiner",
+      displayName: "Refine Issues",
+    },
+    {
+      name: "roadmap-planning",
+      command: "roadmap-planning",
+      agent: "roadmap-planner",
+      displayName: "Roadmap Planning",
+    },
+  ];
+
+  const readme = readRelative("README.md");
+  for (const workflow of workflows) {
+    const skillPath = `skills/${workflow.name}/SKILL.md`;
+    const commandPath = `commands/${workflow.command}.md`;
+    const agentPath = `agents/${workflow.agent}.md`;
+    const metadataPath = `skills/${workflow.name}/agents/openai.yaml`;
+
+    assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+    assert.ok(existsSync(join(repoRoot, commandPath)), `${commandPath} exists`);
+    assert.ok(existsSync(join(repoRoot, agentPath)), `${agentPath} exists`);
+    assert.ok(existsSync(join(repoRoot, metadataPath)), `${metadataPath} exists`);
+
+    const skill = readRelative(skillPath);
+    const command = readRelative(commandPath);
+    const agent = readRelative(agentPath);
+    const metadata = readRelative(metadataPath);
+    const frontmatter = parseFrontmatter(skill);
+
+    assert.equal(frontmatter.name, workflow.name);
+    assert.match(frontmatter.description, /Use when/i);
+    assert.match(command, new RegExp(`plus-ultra:${workflow.agent}`));
+    assert.match(agent, new RegExp(`^name: ${workflow.agent}$`, "m"));
+    assert.match(agent, new RegExp(`plus-ultra:${workflow.name}`));
+    assert.match(metadata, new RegExp(`display_name: "${workflow.displayName}"`));
+    assert.match(readme, new RegExp(`plus-ultra:${workflow.name}`));
+  }
+
+  const management = readRelative("skills/issue-management/SKILL.md");
+  assert.match(management, /type:epic/);
+  assert.match(management, /type:story/);
+  for (const status of ["backlog", "ready", "in-progress", "blocked"]) {
+    assert.match(management, new RegExp(`status:${status}`));
+  }
+  for (const priority of ["high", "medium", "low"]) {
+    assert.match(management, new RegExp(`priority:${priority}`));
+  }
+  assert.match(management, /gh auth status/);
+  assert.match(management, /ADMIN/);
+  assert.match(management, /explicit confirmation/i);
+  assert.match(management, /createIssue/);
+  assert.match(management, /parentIssueId/);
+  assert.match(management, /addSubIssue/);
+  assert.match(management, /GitHub Projects/i);
+  assert.match(management, /not.*GitHub Projects|GitHub Projects.*not/i);
+  assert.match(management, /replace.*status|status.*replace/i);
+  assert.match(management, /replace.*priority|priority.*replace/i);
+  assert.match(management, /remove.*same group|same group.*remove/i);
+  for (const label of ["type:epic", "type:story", "status:backlog", "priority:high"]) {
+    assert.match(management, new RegExp(`${label}.*#[0-9A-Fa-f]{6}`));
+  }
+
+  const refiner = readRelative("skills/refine-issues/SKILL.md");
+  for (const section of [
+    "Context",
+    "Goal",
+    "Scope",
+    "Acceptance Criteria",
+    "Dependencies",
+    "Risks",
+  ]) {
+    assert.match(refiner, new RegExp(section));
+  }
+  assert.match(refiner, /issue number/i);
+  assert.match(refiner, /explicit confirmation/i);
+  assert.match(refiner, /do not.*edit|never.*edit/i);
+
+  const roadmap = readRelative("skills/roadmap-planning/SKILL.md");
+  assert.match(roadmap, /brief.*issue|issue.*brief/i);
+  assert.match(roadmap, /Milestone/);
+  assert.match(roadmap, /Epic/);
+  assert.match(roadmap, /Story/);
+  assert.match(roadmap, /dependencies/i);
+  assert.match(roadmap, /explicit confirmation/i);
+  assert.match(roadmap, /do not invent.*dates.*assignees.*estimates.*priorities/i);
+});
