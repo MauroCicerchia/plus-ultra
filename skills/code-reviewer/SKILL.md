@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Review the current branch's diff against the acceptance criteria of the in-progress plus-ultra spec. Use before opening a PR or marking a spec done. Reports substantiated findings and does not modify code.
+description: Review the current branch's diff against the acceptance criteria of an approved plus-ultra technical contract. Reports substantiated findings and does not modify code.
 ---
 
 # plus-ultra code reviewer
@@ -9,7 +9,10 @@ Review the current branch for a spec-driven Node/TypeScript project.
 
 ## Process
 
-1. Identify the in-progress spec by scanning `specs/*.md` for `status: in-progress`.
+1. Scan `specs/*.md` for `status: approved`; exclude superseded specs, but retain unlinked approved
+   specs as candidates. When exactly one approved spec exists, select it. When the caller explicitly selects
+   an `NNN|slug`, use it only if that resolved spec is approved. Otherwise, list every
+   approved candidate and stop instead of guessing.
 2. Read that spec's `Acceptance criteria`, `Interface contracts`, `Architecture boundaries`,
    `Functional core`, and `Test plan` sections.
 3. Get the current branch diff with `git diff --merge-base main`.
@@ -35,6 +38,6 @@ Review the current branch for a spec-driven Node/TypeScript project.
 - **Architecture findings:** dependency direction, ports/adapters, functional core, and side-effect
   isolation issues. Only report issues that affect the changed code and are not explicitly justified
   by the spec.
-- **Verdict:** ready or not ready to mark done, with blocking items.
+- **Verdict:** ready against the approved technical contract, or not ready, with blocking items.
 
 Do not modify files. Be specific and cite `path:line`. Only report issues you can substantiate from the diff or code.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// SessionStart: scan specs/*.md frontmatter and report which spec is in-progress
-// (and what's next up) so a session resumes without re-explaining context.
+// SessionStart: scan specs/*.md frontmatter and report approved technical contracts
+// so a session resumes without re-explaining context.
 // stdout is injected into the session context.
 import { readdirSync, readFileSync } from "node:fs";
 import { readInput, debug, isCodexInput, projectRoot } from "./_lib.mjs";
@@ -19,29 +19,44 @@ try {
 }
 if (files.length === 0) process.exit(0);
 
-const statusOf = (path) => {
+const frontmatterOf = (path) => {
   try {
     const text = readFileSync(path, "utf8");
-    const fm = text.match(/^---\s*\n([\s\S]*?)\n---/);
+    const fm = text.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
     if (!fm) return null;
-    const m = fm[1].match(/^\s*status:\s*["']?([a-z-]+)["']?\s*$/im);
-    return m ? m[1].toLowerCase() : null;
+    const statusMatch = fm[1].match(
+      /^[ \t]*status:[ \t]*(?:"([a-z-]+)"|'([a-z-]+)'|([a-z-]+))[ \t]*(?:#[^\r\n]*)?\r?$/im
+    );
+    if (!statusMatch) return null;
+    const status = statusMatch[1] ?? statusMatch[2] ?? statusMatch[3];
+    const issueMatch = fm[1].match(
+      /^[ \t]*issue:[ \t]*([0-9]+)[ \t]*(?:#[^\r\n]*)?\r?$/im
+    );
+    const rawIssue = issueMatch?.[1];
+    const issue = /^\d+$/.test(rawIssue ?? "") && Number(rawIssue) > 0 ? Number(rawIssue) : null;
+    return { status: status.toLowerCase(), issue };
   } catch {
     return null;
   }
 };
 
-const buckets = { "in-progress": [], approved: [], draft: [], done: [] };
+const buckets = { approved: [], draft: [], superseded: [] };
 for (const f of files) {
-  const s = statusOf(`${specsDir}/${f}`);
-  if (s && buckets[s]) buckets[s].push(f);
+  const frontmatter = frontmatterOf(`${specsDir}/${f}`);
+  if (frontmatter && buckets[frontmatter.status]) buckets[frontmatter.status].push({
+    file: f,
+    issue: frontmatter.issue,
+  });
 }
 
 const lines = [];
-if (buckets["in-progress"].length)
-  lines.push(`In progress: ${buckets["in-progress"].join(", ")}`);
-if (buckets.approved.length) lines.push(`Approved (ready to start): ${buckets.approved.join(", ")}`);
-if (buckets.draft.length) lines.push(`Drafts: ${buckets.draft.join(", ")}`);
+if (buckets.approved.length) {
+  const displays = buckets.approved.map(({ file, issue }) =>
+    issue ? `${file} (Issue #${issue})` : file
+  );
+  lines.push(`Approved (current technical contracts): ${displays.join(", ")}`);
+}
+if (buckets.draft.length) lines.push(`Drafts: ${buckets.draft.map(({ file }) => file).join(", ")}`);
 
 if (lines.length) {
   const context = "plus-ultra spec status:\n" + lines.map((l) => `  - ${l}`).join("\n") + "\n";

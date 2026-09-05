@@ -27,8 +27,32 @@ function makeTempProject() {
   const root = mkdtempSync(join(tmpdir(), "plus-ultra-test-"));
   mkdirSync(join(root, "specs"), { recursive: true });
   writeFileSync(
-    join(root, "specs", "001-codex-hooks.md"),
-    "---\nstatus: in-progress\n---\n# Codex hooks\n"
+    join(root, "specs", "001-linked.md"),
+    "---\nstatus: approved\nissue: 30\n---\n# Linked\n"
+  );
+  writeFileSync(
+    join(root, "specs", "002-unlinked.md"),
+    "---\nstatus: approved\n---\n# Unlinked\n"
+  );
+  writeFileSync(
+    join(root, "specs", "003-history.md"),
+    "---\nstatus: superseded\nissue: 31\n---\n# History\n"
+  );
+  writeFileSync(
+    join(root, "specs", "004-malformed.md"),
+    "---\nstatus: \"approved\n---\n# Malformed\n"
+  );
+  writeFileSync(
+    join(root, "specs", "005-malformed-delimiter.md"),
+    "---\nstatus: approved\n--- not a closing delimiter\n# Malformed delimiter\n"
+  );
+  writeFileSync(
+    join(root, "specs", "006-body-frontmatter.md"),
+    "# Notes\n\n---\nstatus: approved\nissue: 34\n---\nThis is body content, not frontmatter.\n"
+  );
+  writeFileSync(
+    join(root, "specs", "007-commented-crlf.md"),
+    "---\r\nstatus: approved # draft → approved → superseded\r\nissue: 32 # optional\r\n---\r\n# Commented CRLF\r\n"
   );
   return root;
 }
@@ -104,8 +128,16 @@ test("session-start emits Codex additional context JSON", () => {
 
     const output = JSON.parse(stdout);
     assert.equal(output.hookSpecificOutput.hookEventName, "SessionStart");
-    assert.match(output.hookSpecificOutput.additionalContext, /plus-ultra spec status:/);
-    assert.match(output.hookSpecificOutput.additionalContext, /001-codex-hooks\.md/);
+    const context = output.hookSpecificOutput.additionalContext;
+    assert.match(context, /Approved \(current technical contracts\):/);
+    assert.match(context, /001-linked\.md \(Issue #30\)/);
+    assert.match(context, /002-unlinked\.md/);
+    assert.doesNotMatch(context, /003-history\.md/);
+    assert.doesNotMatch(context, /004-malformed\.md/);
+    assert.doesNotMatch(context, /005-malformed-delimiter\.md/);
+    assert.doesNotMatch(context, /006-body-frontmatter\.md/);
+    assert.match(context, /007-commented-crlf\.md \(Issue #32\)/);
+    assert.doesNotMatch(context, /In progress|active spec/i);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

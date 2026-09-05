@@ -1,6 +1,7 @@
 ---
 title: <Short title>
-status: draft # draft → approved → in-progress → done
+status: draft # draft → approved → superseded
+issue: <positive GitHub Issue number> # optional
 created: <YYYY-MM-DD>
 ---
 

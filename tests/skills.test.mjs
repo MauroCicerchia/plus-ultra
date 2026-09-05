@@ -50,6 +50,44 @@ function parseFrontmatter(markdown) {
   );
 }
 
+test("spec lifecycle links optional GitHub Issues without owning work state", () => {
+  const template = readRelative("skills/spec-conventions/template.md");
+  const conventions = readRelative("skills/spec-conventions/SKILL.md");
+  const spec = readRelative("skills/spec/SKILL.md");
+  const command = readRelative("commands/spec.md");
+
+  assert.match(template, /status: draft # draft → approved → superseded/);
+  assert.match(template, /issue: <positive GitHub Issue number> # optional/);
+  assert.match(conventions, /draft → approved → superseded/);
+  assert.doesNotMatch(conventions, /status: in-progress|status: done/);
+  assert.match(spec, /new --issue <positive-integer>/);
+  assert.match(spec, /new <kebab-case-slug> --issue <positive-integer>/);
+  assert.match(spec, /link <NNN\|slug> <positive-integer>/);
+  assert.match(spec, /gh issue view <number>/);
+  assert.match(spec, /type:story.*not.*require|not.*require.*type:story/i);
+  assert.match(spec, /explicit confirmation/i);
+  assert.match(command, /new \[<slug>\] --issue <positive-integer>/);
+  assert.match(command, /link <NNN\|slug> <positive-integer>/);
+});
+
+test("Issue-linked spec documentation", () => {
+  const refiner = readRelative("skills/refine-issues/SKILL.md");
+  const readme = readRelative("README.md");
+  const codexManifest = JSON.parse(readRelative(".codex-plugin/plugin.json"));
+  const prReviewCommand = parseFrontmatter(readRelative("commands/pr-review.md"));
+
+  assert.match(refiner, /plus-ultra:spec new --issue <number>/);
+  assert.match(refiner, /do not create|never create.*spec/i);
+  assert.match(readme, /draft → approved → superseded/);
+  assert.match(readme, /approved.*Issue #|Issue.*approved/i);
+  assert.match(codexManifest.interface.longDescription, /draft -> approved -> superseded/);
+  assert.doesNotMatch(JSON.stringify(codexManifest), /draft -> approved -> in-progress -> done/);
+  assert.match(codexManifest.interface.defaultPrompt[1], /approved technical contract/i);
+  assert.doesNotMatch(JSON.stringify(codexManifest), /in-progress plus-ultra spec|active spec/i);
+  assert.match(prReviewCommand.description, /approved technical contract/i);
+  assert.doesNotMatch(prReviewCommand.description, /active spec|in-progress/i);
+});
+
 test("pull-request-descriptions skill is packaged and discoverable", () => {
   const skillPath = "skills/pull-request-descriptions/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
@@ -351,7 +389,16 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /headRefOid/i);
   assert.match(skill, /remote PR head/i);
   assert.match(skill, /spec.*GitHub API|GitHub API.*spec/i);
-  assert.match(skill, /in-progress spec/i);
+  assert.match(skill, /approved spec/i);
+  assert.match(skill, /closingIssuesReferences/);
+  assert.match(skill, /before writes if.*ambiguous|ambiguous.*before writes/i);
+  assert.match(skill, /no approved candidates|zero approved candidates|no approved specs|zero approved specs/i);
+  assert.match(skill, /selection fails[\s\S]*stop before\s+(?:any\s+)?GitHub writes|stop before writes.*selection fails/i);
+  assert.doesNotMatch(skill, /status: in-progress/);
+  assert.match(codeReviewer, /status: approved/);
+  assert.match(codeReviewer, /explicitly select|ask.*select/i);
+  assert.doesNotMatch(codeReviewer, /status: in-progress/);
+  assert.doesNotMatch(codeReviewer, /ready or not ready to mark done/i);
   assert.match(skill, /plus-ultra:pr-review:inline/i);
   assert.match(skill, /plus-ultra:pr-review:summary/i);
   assert.match(skill, /pulls\/\{pull_number\}\/comments/i);

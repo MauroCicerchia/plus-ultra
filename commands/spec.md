@@ -1,31 +1,51 @@
 ---
-description: Manage spec-driven lifecycle — list specs, create the next-numbered spec, or flip a spec's status. Follows plus-ultra:spec-conventions.
-argument-hint: "[new <slug> | status <NNN|slug> <draft|approved|in-progress|done> | list]"
+description: Manage Issue-aware specs — list, create from an Issue, link an Issue, or update technical-contract status. Follows plus-ultra:spec-conventions.
+argument-hint: "[list | new [<slug>] --issue <positive-integer> | link <NNN|slug> <positive-integer> | status <NNN|slug> <draft|approved|superseded>]"
 ---
 
-Manage the repo's specs under `specs/`, following the `plus-ultra:spec-conventions` skill. Read that
-skill if you need the numbering/lifecycle rules.
+Manage the repo's specs under `specs/`, following the `plus-ultra:spec-conventions` skill. GitHub
+Issues own work progress; specs track only their technical-contract lifecycle.
 
 Arguments: `$ARGUMENTS`
 
-Interpret the arguments and act:
+Interpret the arguments using this complete grammar:
+
+```
+list
+new --issue <positive-integer>
+new <kebab-case-slug> --issue <positive-integer>
+link <NNN|slug> <positive-integer>
+status <NNN|slug> <draft|approved|superseded>
+```
+
+Reject invalid Issue numbers before issuing commands. Before every create or link mutation, run
+`gh issue view <number>`; do not query or require `type:story`.
 
 ## `list` (or no arguments)
-Scan `specs/*.md`, read each file's `status:` frontmatter, and print a grouped summary:
-In progress → Approved → Drafts → Done. Note if more than one spec is `in-progress` (normally only
-one should be).
 
-## `new <slug>`
-1. Find the highest existing `NNN` in `specs/` and add one (zero-padded 3 digits). Never reuse.
-2. Copy the template from the `plus-ultra:spec-conventions` skill (`template.md`) into
-   `specs/NNN-<slug>.md` with `status: draft`.
-3. Fill in the title; leave the sections as prompts for the user to complete. Report the path.
+Scan `specs/*.md`, read each file's `status:` frontmatter, and print a grouped summary in this
+order: Approved → Drafts → Superseded. Append `Issue #<number>` when an `issue:` field is present.
 
-## `status <NNN|slug> <new-status>`
-1. Resolve the spec file by number or slug.
-2. Validate the transition follows `draft → approved → in-progress → done` (warn, don't hard-block,
-   on a skip or reversal — the user may have a reason).
-3. If moving a spec to `in-progress` while another is already `in-progress`, call it out and confirm.
-4. Edit only the `status:` field in the frontmatter. Report the change.
+## `new [<slug>] --issue <positive-integer>`
 
-If the arguments don't match any of these, explain the three forms and stop.
+Validate the Issue number and run `gh issue view <number>`. Find the next unused zero-padded
+three-digit `NNN`; never reuse a number.
+
+With no slug, derive the title and a non-empty kebab-case slug from the Issue title. If derivation
+is empty or the target exists, stop and request an explicit slug. With a caller-provided slug, use
+it but still derive the title from the Issue; if the target exists, stop and request another explicit
+slug. Copy the template into `specs/NNN-<slug>.md`, set `status: draft`, `issue: <number>`, and the
+current date, then leave the section prompts for the user to complete and report the path.
+
+## `link <NNN|slug> <positive-integer>`
+
+Resolve exactly one spec. Validate and view the Issue before editing. Add an absent `issue:` field;
+if it is identical, report no change. For a different Issue, display old and new values and require
+explicit confirmation before replacing it.
+
+## `status <NNN|slug> <draft|approved|superseded>`
+
+Resolve exactly one spec. Warn, but do not hard-block, on skipped or reversed transitions. Never
+enforce an active-spec singleton. Edit only `status:` and report the change.
+
+If the arguments do not match this grammar, explain the supported forms and stop.

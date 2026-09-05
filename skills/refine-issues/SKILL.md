@@ -34,3 +34,6 @@ Keep uncertain facts as explicit questions, not invented requirements. Do not ed
 labels, assign a milestone, or create a parent-child relation until the user gives **explicit confirmation**
 for the displayed proposal. On confirmation, make only those edits and report the
 updated issue URL; GitHub's edit history remains the record of the original intake.
+
+After reporting the updated Issue URL, suggest `plus-ultra:spec new --issue <number>` to create a
+separate durable technical contract. Do not create, link, or edit any spec as part of refinement.
