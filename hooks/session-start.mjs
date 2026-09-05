@@ -22,7 +22,7 @@ if (files.length === 0) process.exit(0);
 const frontmatterOf = (path) => {
   try {
     const text = readFileSync(path, "utf8");
-    const fm = text.match(/^---\s*\n([\s\S]*?)\n---/);
+    const fm = text.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*$/m);
     if (!fm) return null;
     const statusMatch = fm[1].match(/^\s*status:\s*(?:"([a-z-]+)"|'([a-z-]+)'|([a-z-]+))\s*$/im);
     if (!statusMatch) return null;

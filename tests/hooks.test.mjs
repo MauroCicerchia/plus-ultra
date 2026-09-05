@@ -42,6 +42,10 @@ function makeTempProject() {
     join(root, "specs", "004-malformed.md"),
     "---\nstatus: \"approved\n---\n# Malformed\n"
   );
+  writeFileSync(
+    join(root, "specs", "005-malformed-delimiter.md"),
+    "---\nstatus: approved\n--- not a closing delimiter\n# Malformed delimiter\n"
+  );
   return root;
 }
 
@@ -122,6 +126,7 @@ test("session-start emits Codex additional context JSON", () => {
     assert.match(context, /002-unlinked\.md/);
     assert.doesNotMatch(context, /003-history\.md/);
     assert.doesNotMatch(context, /004-malformed\.md/);
+    assert.doesNotMatch(context, /005-malformed-delimiter\.md/);
     assert.doesNotMatch(context, /In progress|active spec/i);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
