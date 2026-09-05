@@ -33,15 +33,15 @@ One file per spec: `specs/NNN-slug.md`
 Each spec carries YAML frontmatter with a `status:` field driving the lifecycle:
 
 ```
-draft → approved → in-progress → done
+draft → approved → superseded
 ```
 
 - **draft** — being written / under discussion. Not ready to build.
-- **approved** — agreed; ready to pick up.
-- **in-progress** — actively being implemented (the SessionStart hook surfaces this on resume).
-- **done** — shipped and verified.
+- **approved** — the current technical contract.
+- **superseded** — readable history that is excluded from new implementation and review.
 
-Exactly one spec should normally be `in-progress` at a time (solo, one thread of work).
+GitHub Issues are authoritative for work progress. An optional `issue:` frontmatter field links a
+spec to its Issue; unlinked legacy specs remain fallback candidates when selecting relevant work.
 
 ## Spec template
 
@@ -75,7 +75,5 @@ New specs start from [`template.md`](./template.md). Required sections:
 - Keep intermediate outputs under `.context/superpowers/`; do not duplicate them under `docs/`.
 - When a durable spec is warranted, shape `specs/NNN-slug.md` with `status: draft` using the
   template while keeping intermediate process documents under `.context/superpowers/`.
-- Once agreed, flip the spec to `approved` and commit it; use `in-progress` during implementation
-  and `done` after verification.
-- On a fresh session, the plus-ultra SessionStart hook reports which spec is `in-progress` so you
-  resume without re-explaining context.
+- Once agreed, flip the spec to `approved` and commit it. When a later contract replaces it, mark
+  the older spec `superseded`; use the linked GitHub Issue to track implementation progress.
