@@ -378,6 +378,7 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(codeReviewer, /status: approved/);
   assert.match(codeReviewer, /explicitly select|ask.*select/i);
   assert.doesNotMatch(codeReviewer, /status: in-progress/);
+  assert.doesNotMatch(codeReviewer, /ready or not ready to mark done/i);
   assert.match(skill, /plus-ultra:pr-review:inline/i);
   assert.match(skill, /plus-ultra:pr-review:summary/i);
   assert.match(skill, /pulls\/\{pull_number\}\/comments/i);

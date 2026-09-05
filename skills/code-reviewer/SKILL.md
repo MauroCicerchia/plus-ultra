@@ -38,6 +38,6 @@ Review the current branch for a spec-driven Node/TypeScript project.
 - **Architecture findings:** dependency direction, ports/adapters, functional core, and side-effect
   isolation issues. Only report issues that affect the changed code and are not explicitly justified
   by the spec.
-- **Verdict:** ready or not ready to mark done, with blocking items.
+- **Verdict:** ready against the approved technical contract, or not ready, with blocking items.
 
 Do not modify files. Be specific and cite `path:line`. Only report issues you can substantiate from the diff or code.
