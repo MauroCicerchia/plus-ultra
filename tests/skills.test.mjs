@@ -374,6 +374,8 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /approved spec/i);
   assert.match(skill, /closingIssuesReferences/);
   assert.match(skill, /before writes if.*ambiguous|ambiguous.*before writes/i);
+  assert.match(skill, /no approved candidates|zero approved candidates|no approved specs|zero approved specs/i);
+  assert.match(skill, /selection fails[\s\S]*stop before\s+(?:any\s+)?GitHub writes|stop before writes.*selection fails/i);
   assert.doesNotMatch(skill, /status: in-progress/);
   assert.match(codeReviewer, /status: approved/);
   assert.match(codeReviewer, /explicitly select|ask.*select/i);

@@ -23,9 +23,11 @@ open. This is a writing workflow: it needs authenticated GitHub write access. Us
    at `headRefOid`; do not read the local checkout as the source of truth. Consider only approved
    specs (`status: approved`) and exclude superseded specs. Select exactly one approved spec whose
    `issue:` matches a PR `closingIssuesReferences` Issue. If no unique Issue match exists, select
-   the only approved spec when there is exactly one. Otherwise, report every approved candidate and
-   stop before writes if ambiguous. Read the selected approved spec's acceptance criteria, interface
-   contracts, architecture boundaries, functional core, test plan, and risks.
+   the only approved spec when there is exactly one. If selection fails—including zero approved candidates
+   or no approved specs, or unresolved ambiguity—report every approved candidate (if any) and stop before
+   any GitHub writes; for ambiguous candidates, explicitly stop before writes. Read the selected
+   approved spec's acceptance criteria, interface contracts, architecture boundaries, functional core,
+   test plan, and risks.
 
 Do all validation and collection before the first mutation. State every stop or skip and why.
 
