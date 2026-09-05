@@ -371,7 +371,13 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /headRefOid/i);
   assert.match(skill, /remote PR head/i);
   assert.match(skill, /spec.*GitHub API|GitHub API.*spec/i);
-  assert.match(skill, /in-progress spec/i);
+  assert.match(skill, /approved spec/i);
+  assert.match(skill, /closingIssuesReferences/);
+  assert.match(skill, /before writes if.*ambiguous|ambiguous.*before writes/i);
+  assert.doesNotMatch(skill, /status: in-progress/);
+  assert.match(codeReviewer, /status: approved/);
+  assert.match(codeReviewer, /explicitly select|ask.*select/i);
+  assert.doesNotMatch(codeReviewer, /status: in-progress/);
   assert.match(skill, /plus-ultra:pr-review:inline/i);
   assert.match(skill, /plus-ultra:pr-review:summary/i);
   assert.match(skill, /pulls\/\{pull_number\}\/comments/i);

@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Use when reviewing a GitHub pull request against its in-progress plus-ultra spec and publishing or maintaining actionable review findings.
+description: Use when reviewing a GitHub pull request against its approved plus-ultra technical contract and publishing or maintaining actionable review findings.
 ---
 
 # plus-ultra PR review
@@ -16,13 +16,16 @@ open. This is a writing workflow: it needs authenticated GitHub write access. Us
 2. Run `gh auth status`; stop before writes if authentication or GitHub write authorization is not
    available.
 3. Resolve and validate the PR with `gh pr view <number>` (or `gh pr view` for no argument). Fetch
-   remote metadata including its number, base ref, head ref, head repository, state, URL, and
-   `headRefOid`. Stop before writes if the PR cannot be found, is closed, or is not reviewable.
+   remote metadata including its number, base ref, head ref, head repository, state, URL,
+   `headRefOid`, and `closingIssuesReferences`. Stop before writes if the PR cannot be found, is
+   closed, or is not reviewable.
 4. From the **remote PR head**, list `specs/` and fetch each candidate spec through the GitHub API
-   at `headRefOid`; do not read the local checkout as the source of truth. Require exactly one
-   in-progress spec (`status: in-progress`). Stop before writes if none or more than one exists.
-   Read its acceptance criteria, interface contracts, architecture boundaries, functional core, test
-   plan, and risks.
+   at `headRefOid`; do not read the local checkout as the source of truth. Consider only approved
+   specs (`status: approved`) and exclude superseded specs. Select exactly one approved spec whose
+   `issue:` matches a PR `closingIssuesReferences` Issue. If no unique Issue match exists, select
+   the only approved spec when there is exactly one. Otherwise, report every approved candidate and
+   stop before writes if ambiguous. Read the selected approved spec's acceptance criteria, interface
+   contracts, architecture boundaries, functional core, test plan, and risks.
 
 Do all validation and collection before the first mutation. State every stop or skip and why.
 
