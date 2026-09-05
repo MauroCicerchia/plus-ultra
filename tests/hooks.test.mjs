@@ -33,6 +33,58 @@ function makeTempProject() {
   return root;
 }
 
+function runCommand(command, args, cwd) {
+  const result = spawnSync(command, args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+}
+
+function makeGitProject({ typescript = false } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "plus-ultra-git-"));
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "app.mjs"), "export const value = 1;\n");
+  if (typescript) writeFileSync(join(root, "tsconfig.json"), "{}\n");
+
+  runCommand("git", ["init", "--initial-branch=main"], root);
+  runCommand("git", ["config", "user.email", "hooks@example.com"], root);
+  runCommand("git", ["config", "user.name", "Hook tests"], root);
+  runCommand("git", ["add", "."], root);
+  runCommand("git", ["commit", "-m", "Initial commit"], root);
+  return root;
+}
+
+function markerPayload(command, sessionId = "session-1") {
+  return {
+    hook_event_name: "PostToolUse",
+    model: "gpt-5.5",
+    permission_mode: "default",
+    session_id: sessionId,
+    tool_name: "Bash",
+    tool_input: { command },
+    tool_response: { exitCode: 0 },
+    tool_use_id: "tool-1",
+    transcript_path: null,
+    turn_id: "turn-1",
+  };
+}
+
+function commitPayload(sessionId = "session-1") {
+  return {
+    hook_event_name: "PreToolUse",
+    model: "gpt-5.5",
+    permission_mode: "default",
+    session_id: sessionId,
+    tool_name: "Bash",
+    tool_input: { command: "git commit -m 'feat: guarded commit'" },
+    tool_use_id: "tool-1",
+    transcript_path: null,
+    turn_id: "turn-1",
+  };
+}
+
+function denialReason(output) {
+  return JSON.parse(output).hookSpecificOutput.permissionDecisionReason;
+}
+
 test("session-start emits Codex additional context JSON", () => {
   const cwd = makeTempProject();
   try {
@@ -105,7 +157,7 @@ test("auto-format formats files from Codex apply_patch payloads", () => {
 });
 
 test("test marker writes Codex session state under .codex", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "plus-ultra-marker-"));
+  const cwd = makeGitProject();
   try {
     runHook(
       "test-marker.mjs",
@@ -129,6 +181,96 @@ test("test marker writes Codex session state under .codex", () => {
       readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
     );
     assert.equal(typeof marker.testPassedAt, "string");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("test marker does not record a verification when the Git tree cannot be fingerprinted", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "plus-ultra-marker-"));
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+
+    assert.equal(existsSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json")), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate accepts a successful test for the unchanged Git tree", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+
+    const marker = JSON.parse(
+      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
+    );
+    assert.equal(typeof marker.testPassedFor, "string");
+    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate rejects a test verification after an unstaged tracked change", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+
+    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
+    assert.equal(
+      denialReason(output),
+      "Blocked by plus-ultra commit-gate: Verification stale: code changed since last successful test run. " +
+        "Run the required checks (exit 0) before committing, then retry."
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate rejects a test verification after a staged change", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+    runCommand("git", ["add", "src/app.mjs"], cwd);
+
+    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
+    assert.match(output, /Verification stale: code changed since last successful test run\./);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate rejects a test verification after an untracked change", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    writeFileSync(join(cwd, "new-file.mjs"), "export const value = 2;\n");
+
+    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
+    assert.match(output, /Verification stale: code changed since last successful test run\./);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate requires a matching typecheck verification in TypeScript projects", () => {
+  const cwd = makeGitProject({ typescript: true });
+  try {
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
+
+    const marker = JSON.parse(
+      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
+    );
+    assert.equal(typeof marker.typecheckPassedFor, "string");
+    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
+
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
+    assert.match(output, /Verification stale: code changed since last successful typecheck\./);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

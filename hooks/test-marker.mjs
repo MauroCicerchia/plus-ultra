@@ -2,7 +2,7 @@
 // PostToolUse (Bash): when a test run OR a typecheck completes successfully,
 // record it in the per-session marker that commit-gate reads. Fail-closed: only
 // record on a clear success signal.
-import { readInput, debug, mergeMarker } from "./_lib.mjs";
+import { readInput, debug, mergeMarker, projectRoot, workingTreeFingerprint } from "./_lib.mjs";
 
 const input = await readInput();
 debug("test-marker", input);
@@ -68,9 +68,18 @@ if (input?.tool_error === true || resp.interrupted === true) {
 
 if (!passed) process.exit(0);
 
+const fingerprint = workingTreeFingerprint(projectRoot(input));
+if (!fingerprint) process.exit(0);
+
 const now = new Date().toISOString();
 const patch = {};
-if (isTest) patch.testPassedAt = now;
-if (isTypecheck) patch.typecheckPassedAt = now;
+if (isTest) {
+  patch.testPassedAt = now;
+  patch.testPassedFor = fingerprint;
+}
+if (isTypecheck) {
+  patch.typecheckPassedAt = now;
+  patch.typecheckPassedFor = fingerprint;
+}
 mergeMarker(sessionId, patch, input);
 process.exit(0);
