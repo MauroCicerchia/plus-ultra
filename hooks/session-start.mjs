@@ -24,12 +24,13 @@ const frontmatterOf = (path) => {
     const text = readFileSync(path, "utf8");
     const fm = text.match(/^---\s*\n([\s\S]*?)\n---/);
     if (!fm) return null;
-    const statusMatch = fm[1].match(/^\s*status:\s*["']?([a-z-]+)["']?\s*$/im);
+    const statusMatch = fm[1].match(/^\s*status:\s*(?:"([a-z-]+)"|'([a-z-]+)'|([a-z-]+))\s*$/im);
     if (!statusMatch) return null;
+    const status = statusMatch[1] ?? statusMatch[2] ?? statusMatch[3];
     const issueMatch = fm[1].match(/^\s*issue:\s*([^\r\n]+?)\s*$/im);
     const rawIssue = issueMatch?.[1];
     const issue = /^\d+$/.test(rawIssue ?? "") && Number(rawIssue) > 0 ? Number(rawIssue) : null;
-    return { status: statusMatch[1].toLowerCase(), issue };
+    return { status: status.toLowerCase(), issue };
   } catch {
     return null;
   }

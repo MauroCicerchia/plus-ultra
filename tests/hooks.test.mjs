@@ -38,6 +38,10 @@ function makeTempProject() {
     join(root, "specs", "003-history.md"),
     "---\nstatus: superseded\nissue: 31\n---\n# History\n"
   );
+  writeFileSync(
+    join(root, "specs", "004-malformed.md"),
+    "---\nstatus: \"approved\n---\n# Malformed\n"
+  );
   return root;
 }
 
@@ -117,6 +121,7 @@ test("session-start emits Codex additional context JSON", () => {
     assert.match(context, /001-linked\.md \(Issue #30\)/);
     assert.match(context, /002-unlinked\.md/);
     assert.doesNotMatch(context, /003-history\.md/);
+    assert.doesNotMatch(context, /004-malformed\.md/);
     assert.doesNotMatch(context, /In progress|active spec/i);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
