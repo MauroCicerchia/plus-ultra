@@ -1,6 +1,6 @@
 ---
 title: Link specs to GitHub stories
-status: draft # draft → approved → superseded
+status: approved # draft → approved → superseded
 issue: 30
 created: 2026-09-05
 ---
