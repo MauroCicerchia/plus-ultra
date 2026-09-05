@@ -1,5 +1,16 @@
 // Shared helpers for plus-ultra hooks. Zero dependencies.
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { resolve, sep } from "node:path";
 
 // Read and parse the hook JSON payload from stdin. Returns {} on empty/invalid.
 export async function readInput() {
@@ -98,4 +109,103 @@ export function isTsProject(root) {
     }
   }
   return false;
+}
+
+function git(root, args) {
+  const result = spawnSync("git", args, {
+    cwd: root,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0 || !Buffer.isBuffer(result.stdout)) return null;
+  return result.stdout;
+}
+
+function nullDelimited(buffer) {
+  const values = [];
+  let start = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    if (buffer[index] !== 0) continue;
+    if (index > start) values.push(buffer.subarray(start, index));
+    start = index + 1;
+  }
+  return values;
+}
+
+function addHashPart(hash, label, value) {
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value));
+  hash.update(label);
+  hash.update("\0");
+  hash.update(String(bytes.length));
+  hash.update("\0");
+  hash.update(bytes);
+}
+
+function fileEntry(root, path) {
+  const relativePath = path.toString("utf8");
+  const absolutePath = resolve(root, relativePath);
+  const rootPrefix = root.endsWith(sep) ? root : `${root}${sep}`;
+  if (absolutePath !== root && !absolutePath.startsWith(rootPrefix)) return null;
+
+  let stat;
+  try {
+    stat = lstatSync(absolutePath);
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return { type: "missing", mode: 0, value: Buffer.alloc(0) };
+    return null;
+  }
+
+  try {
+    if (stat.isFile()) return { type: "file", mode: stat.mode & 0o7777, value: readFileSync(absolutePath) };
+    if (stat.isSymbolicLink()) {
+      return { type: "symlink", mode: stat.mode & 0o7777, value: readlinkSync(absolutePath, "buffer") };
+    }
+    return { type: "other", mode: stat.mode & 0o7777, value: Buffer.alloc(0) };
+  } catch {
+    return null;
+  }
+}
+
+function addWorktreePaths(hash, root, label, paths) {
+  for (const path of paths.sort(Buffer.compare)) {
+    const entry = fileEntry(root, path);
+    if (!entry) return false;
+    addHashPart(hash, `${label}:path`, path);
+    addHashPart(hash, `${label}:type`, entry.type);
+    addHashPart(hash, `${label}:mode`, entry.mode);
+    addHashPart(hash, `${label}:value`, entry.value);
+  }
+  return true;
+}
+
+function isPluginStatePath(path) {
+  const relativePath = path.toString("utf8");
+  return /^(?:\.claude|\.codex)\/plus-ultra\/state\//.test(relativePath);
+}
+
+// Hash the index and visible worktree state without mutating Git state. A null
+// result means the hook cannot establish a trustworthy verification baseline.
+export function workingTreeFingerprint(root) {
+  try {
+    const requestedRoot = typeof root === "object" ? projectRoot(root) : root || process.cwd();
+    const repository = git(requestedRoot, ["rev-parse", "--show-toplevel"]);
+    if (!repository) return null;
+
+    const repositoryRoot = repository.toString("utf8").trim();
+    if (!repositoryRoot) return null;
+
+    const index = git(repositoryRoot, ["ls-files", "--stage", "-z"]);
+    const tracked = git(repositoryRoot, ["ls-files", "-z"]);
+    const untracked = git(repositoryRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
+    if (!index || !tracked || !untracked) return null;
+
+    const hash = createHash("sha256");
+    addHashPart(hash, "plus-ultra-working-tree-fingerprint", "v1");
+    addHashPart(hash, "index", index);
+    if (!addWorktreePaths(hash, repositoryRoot, "tracked", nullDelimited(tracked))) return null;
+    const userUntracked = nullDelimited(untracked).filter((path) => !isPluginStatePath(path));
+    if (!addWorktreePaths(hash, repositoryRoot, "untracked", userUntracked)) return null;
+    return hash.digest("hex");
+  } catch {
+    return null;
+  }
 }

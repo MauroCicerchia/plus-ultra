@@ -136,9 +136,11 @@ nor a bundled GitHub MCP.
   - *secret-scan* (PreToolUse / `git commit`) — blocks a commit whose staged diff contains a
     private key, cloud/API token, or a staged `.env` file.
   - *commit-msg-lint* (PreToolUse / `git commit -m`) — blocks a header that isn't a Conventional Commit.
-  - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed this session (and, in
-    a TypeScript project, a typecheck). Order is flexible: checks any time in the session.
-  - *test-marker* (PostToolUse / Bash) — records a per-session marker when a test or typecheck exits 0.
+  - *commit-gate* (PreToolUse / `git commit`) — blocks unless a test run passed for the current Git
+    working tree this session (and, in a TypeScript project, a typecheck). Order is flexible: checks
+    any time in the session, but code changes require rerunning them.
+  - *test-marker* (PostToolUse / Bash) — records a per-session, Git-tree fingerprinted marker when a
+    test or typecheck exits 0.
   - *pr-description-reminder* (PostToolUse / `git commit`) — reminds you to refresh an open PR
     description after new commits; it never edits GitHub state.
   - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
