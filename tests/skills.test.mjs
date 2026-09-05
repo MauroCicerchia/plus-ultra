@@ -70,6 +70,19 @@ test("spec lifecycle links optional GitHub Issues without owning work state", ()
   assert.match(command, /link <NNN\|slug> <positive-integer>/);
 });
 
+test("Issue-linked spec documentation", () => {
+  const refiner = readRelative("skills/refine-issues/SKILL.md");
+  const readme = readRelative("README.md");
+  const codexManifest = JSON.parse(readRelative(".codex-plugin/plugin.json"));
+
+  assert.match(refiner, /plus-ultra:spec new --issue <number>/);
+  assert.match(refiner, /do not create|never create.*spec/i);
+  assert.match(readme, /draft → approved → superseded/);
+  assert.match(readme, /approved.*Issue #|Issue.*approved/i);
+  assert.match(codexManifest.interface.longDescription, /draft -> approved -> superseded/);
+  assert.doesNotMatch(JSON.stringify(codexManifest), /draft -> approved -> in-progress -> done/);
+});
+
 test("pull-request-descriptions skill is packaged and discoverable", () => {
   const skillPath = "skills/pull-request-descriptions/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);

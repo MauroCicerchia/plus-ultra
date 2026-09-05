@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "Plus Ultra",
     "shortDescription": "Spec-driven development conventions for coding agents",
-    "longDescription": "Repo conventions for spec-driven development: specs/NNN-slug.md numbering, a spec template, and a draft -> approved -> in-progress -> done lifecycle. Includes Codex lifecycle hooks for command guardrails, verification tracking, formatting, and spec-aware session resume. Built to sit on top of Superpowers.",
+    "longDescription": "Repo conventions for spec-driven development: specs/NNN-slug.md numbering, optional GitHub Issue links, and a draft -> approved -> superseded technical-contract lifecycle. Includes Codex lifecycle hooks for command guardrails, verification tracking, formatting, and spec-aware session resume. Built to sit on top of Superpowers.",
     "developerName": "Mauro Cicerchia",
     "category": "Developer Tools",
     "capabilities": ["Read", "Write"],

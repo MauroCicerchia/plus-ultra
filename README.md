@@ -104,9 +104,10 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
 ## What it adds
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**
-  - *spec-conventions* — `specs/NNN-slug.md` numbering + a spec template (Problem, Goals/Non-goals,
+  - *spec-conventions* — `specs/NNN-slug.md` numbering + optional GitHub Issue frontmatter and a
+    spec template (Problem, Goals/Non-goals,
     Acceptance criteria, Interface contracts, Architecture boundaries, Functional core, Data model,
-    Test plan, Risks) with a `status:` lifecycle (draft → approved → in-progress → done). Plus
+    Test plan, Risks) with a `status:` lifecycle (draft → approved → superseded). Plus
     `docs/` layout and an ADR template.
   - *spec* — portable equivalent of `/plus-ultra:spec`: list specs, create the next-numbered spec,
     or flip a spec's status.
@@ -119,8 +120,9 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
   - *pull-request-descriptions* — drafts reviewer-focused PR bodies with a human-first overview and
     conditional Mermaid diagrams, then connects context, summary, testing, risks, and review guidance.
-  - *pr-review* — reviews a GitHub pull request against the single in-progress spec, posts
-    deduplicated right-side findings, and maintains a canonical tagged review summary. It uses the
+  - *pr-review* — reviews a GitHub pull request against its linked approved technical contract:
+    an approved spec whose optional Issue # matches the PR’s closing Issue is selected first. It posts
+    deduplicated right-side findings and maintains a canonical tagged review summary. It uses the
     current branch’s PR by default; pass a positive PR number to override it. This workflow requires
     GitHub write access through `gh`.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
@@ -148,8 +150,8 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
     description after new commits; it never edits GitHub state.
   - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
     JS/TS/JSON files anywhere in the repo (no-ops if Biome is absent).
-  - *session-start* — reports which spec is `in-progress` (and what's approved/draft) so sessions
-    resume without re-explaining context.
+  - *session-start* — reports approved technical contracts (including a linked Issue #) and drafts
+    so sessions resume without re-explaining context.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
   criteria), `pr-reviewer` (GitHub review publishing and maintenance), `issue-manager`,
   `issue-refiner`, `roadmap-planner` (confirmation-gated GitHub Issue workflows), and `dep-auditor`
