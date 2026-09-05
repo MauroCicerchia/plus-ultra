@@ -441,9 +441,14 @@ test("GitHub Issues workflows are portable, confirmation-gated, and available th
   assert.match(management, /gh auth status/);
   assert.match(management, /ADMIN/);
   assert.match(management, /explicit confirmation/i);
-  assert.match(management, /createIssue/);
-  assert.match(management, /parentIssueId/);
-  assert.match(management, /addSubIssue/);
+  assert.match(management, /v2\.94\.0/);
+  assert.match(management, /gh issue create --parent/);
+  assert.match(management, /gh issue edit <parent> --add-sub-issue <child>/);
+  assert.match(management, /gh issue view <issue> --json parent,subIssues,subIssuesSummary/);
+  assert.match(management, /capabilit(?:y|ies).*absent|absent.*capabilit(?:y|ies)/i);
+  assert.match(management, /GraphQL.*fallback|fallback.*GraphQL/i);
+  assert.match(management, /node IDs only.*?fallback/i);
+  assert.doesNotMatch(management, /Create issues through the GitHub\s+GraphQL/i);
   assert.match(management, /GitHub Projects/i);
   assert.match(management, /not.*GitHub Projects|GitHub Projects.*not/i);
   assert.match(management, /replace.*status|status.*replace/i);
@@ -469,11 +474,22 @@ test("GitHub Issues workflows are portable, confirmation-gated, and available th
   assert.match(refiner, /do not.*edit|never.*edit/i);
 
   const roadmap = readRelative("skills/roadmap-planning/SKILL.md");
+  const normalizedRoadmap = roadmap.replace(/\s+/g, " ");
   assert.match(roadmap, /brief.*issue|issue.*brief/i);
   assert.match(roadmap, /Milestone/);
   assert.match(roadmap, /Epic/);
   assert.match(roadmap, /Story/);
   assert.match(roadmap, /dependencies/i);
   assert.match(roadmap, /explicit confirmation/i);
-  assert.match(roadmap, /do not invent.*dates.*assignees.*estimates.*priorities/i);
+  assert.match(normalizedRoadmap, /do not invent.*dates.*assignees.*estimates.*priorities/i);
+  assert.match(roadmap, /v2\.94\.0/);
+  assert.match(roadmap, /gh issue create --parent/);
+  assert.match(roadmap, /gh issue edit <parent> --add-sub-issue <child>/);
+  assert.match(roadmap, /capabilit(?:y|ies).*absent|absent.*capabilit(?:y|ies)/i);
+  assert.match(normalizedRoadmap, /GraphQL.*fallback|fallback.*GraphQL/i);
+
+  const issueWorkflows = markdownSection(readme, "GitHub Issue workflows");
+  assert.match(issueWorkflows, /v2\.94\.0/);
+  assert.match(issueWorkflows, /native.*hierarch|hierarch.*native/i);
+  assert.match(issueWorkflows, /GraphQL.*fallback|fallback.*GraphQL/i);
 });

@@ -98,6 +98,9 @@ and `/plus-ultra:roadmap-planning <brief | issue-number>`. Every GitHub write re
 explicit confirmation in that execution. These workflows intentionally use neither GitHub Projects
 nor a bundled GitHub MCP.
 
+Issue hierarchy uses native `gh issue` operations on GitHub CLI v2.94.0 and later. On older
+installations, GraphQL is a fallback only for the missing hierarchy operation.
+
 ## What it adds
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**
