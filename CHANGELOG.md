@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/MauroCicerchia/plus-ultra/compare/v0.2.0...v0.2.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **release:** keep release checks version agnostic ([#50](https://github.com/MauroCicerchia/plus-ultra/issues/50)) ([8748b62](https://github.com/MauroCicerchia/plus-ultra/commit/8748b62b41ef842aa5ec4586f89d477f999cacfd))
+
 ## [0.2.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.1.0...v0.2.0) (2026-09-06)
 
 
