@@ -37,6 +37,21 @@ for this workflow, so the marketplace UI remains the supported path.
 
 Superpowers is declared as a dependency and installed automatically from the same marketplace.
 
+### Local Codex dogfooding
+
+To exercise an unreleased working tree without changing its versioned manifests, run:
+
+```
+node scripts/codex-local.mjs refresh
+```
+
+It installs a temporary `plus-ultra-dev` marketplace from `.context/`. Open a new Codex thread
+afterward so the local plugin is loaded. Return to the released plugin with:
+
+```
+node scripts/codex-local.mjs restore
+```
+
 ## Quick start
 
 After installation, tell your coding agent which path you are taking. Superpowers supplies the core
