@@ -371,3 +371,211 @@ test("hook manifests include PR description reminder after Bash commands", () =>
   assert.match(claudeHooks, /pr-description-reminder\.mjs/);
   assert.ok(existsSync(join(repoRoot, "hooks", "pr-description-reminder.mjs")));
 });
+
+test("integration gate blocks the gh stack merge incident for Claude payloads", () => {
+  const output = runHook("integration-gate.mjs", {
+    session_id: "session-1",
+    tool_name: "Bash",
+    tool_input: { command: "gh stack merge --yes --squash" },
+  });
+
+  const decision = JSON.parse(output).hookSpecificOutput;
+  assert.equal(decision.hookEventName, "PreToolUse");
+  assert.equal(decision.permissionDecision, "deny");
+  assert.match(decision.permissionDecisionReason, /gh stack merge/);
+});
+
+test("integration gate blocks direct merge and release operations while allowing review preparation", () => {
+  const codexPayload = (command) => ({
+    hook_event_name: "PreToolUse",
+    cwd: repoRoot,
+    session_id: "session-1",
+    tool_name: "Bash",
+    tool_input: { command },
+  });
+
+  for (const command of [
+    "gh pr merge 42",
+    "gh pr merge 42 --auto",
+    "gh stack merge 42",
+    "gh release create v1.2.3",
+  ]) {
+    const output = runHook("integration-gate.mjs", codexPayload(command));
+    assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "deny", command);
+  }
+
+  for (const command of [
+    "gh pr create --fill",
+    "gh pr edit 42 --title 'Ready for review'",
+    "gh stack submit",
+    "gh pr merge --help",
+    "gh release create v1.2.3 --dry-run",
+  ]) {
+    assert.equal(runHook("integration-gate.mjs", codexPayload(command)), "", command);
+  }
+});
+
+test("integration gate parses nested and wrapped integration commands without matching prose", () => {
+  const payload = (command) => ({
+    hook_event_name: "PreToolUse",
+    cwd: repoRoot,
+    session_id: "session-1",
+    tool_name: "Bash",
+    tool_input: { command },
+  });
+
+  for (const command of [
+    "CI=1 /usr/local/bin/gh pr merge 42",
+    "env CI=1 command gh stack merge --yes --squash",
+    "sudo -u builder gh release create v1.2.3",
+    "bash -c 'gh pr merge 42'",
+    'zsh -c "gh stack merge --yes --squash"',
+    "eval 'gh release create v1.2.3'",
+    "echo $(gh pr merge 42)",
+    "printf `gh stack merge --yes --squash`",
+    "true && gh pr merge 42; echo done",
+    "gh pr create --fill && gh stack merge --yes --squash",
+  ]) {
+    const output = runHook("integration-gate.mjs", payload(command));
+    assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "deny", command);
+  }
+
+  for (const command of [
+    'echo "gh pr merge 42"',
+    "grep -R 'gh stack merge' README.md",
+    "printf '%s\\n' 'gh release create v1.2.3'",
+    "bash -c 'gh pr merge --help'",
+    "eval 'gh release create v1.2.3 --dry-run'",
+  ]) {
+    assert.equal(runHook("integration-gate.mjs", payload(command)), "", command);
+  }
+});
+
+test("integration gate blocks protected, broad, and tag pushes while allowing review branch work", () => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["update-ref", "refs/remotes/origin/trunk", "HEAD"], cwd);
+    runCommand("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"], cwd);
+    runCommand("git", ["tag", "v1.2.3"], cwd);
+    const payload = (command) => ({
+      hook_event_name: "PreToolUse",
+      cwd,
+      session_id: "session-1",
+      tool_name: "Bash",
+      tool_input: { command },
+    });
+
+    for (const command of [
+      "git push origin main",
+      "git push origin master",
+      "git push origin trunk",
+      "git push origin HEAD:trunk",
+      "git push --all origin",
+      "git push --mirror origin",
+      "git push origin --tags",
+      "git push origin --follow-tags",
+      "git push origin refs/tags/v1.2.3",
+      "git push origin tag v1.2.3",
+      "git push origin v1.2.3",
+    ]) {
+      const output = runHook("integration-gate.mjs", payload(command), { cwd });
+      assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "deny", command);
+    }
+
+    for (const command of [
+      "git push origin feature/integration-gate",
+      "git push origin HEAD:feature/integration-gate",
+      "git push origin main:feature/integration-gate",
+      "git tag v1.2.4",
+    ]) {
+      assert.equal(runHook("integration-gate.mjs", payload(command), { cwd }), "", command);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("integration gate blocks recognized mutating GitHub APIs while allowing reads", () => {
+  const payload = (command) => ({
+    hook_event_name: "PreToolUse",
+    cwd: repoRoot,
+    session_id: "session-1",
+    tool_name: "Bash",
+    tool_input: { command },
+  });
+
+  for (const command of [
+    "gh api --method PUT repos/acme/widget/pulls/42/merge",
+    "gh api --hostname api.github.com --method PUT repos/acme/widget/pulls/42/merge",
+    "gh api -X POST repos/acme/widget/pulls/42/auto-merge",
+    "gh api --method POST repos/acme/widget/merge-queue/entries",
+    "gh api --method POST repos/acme/widget/releases",
+    "gh api --method PATCH repos/acme/widget/releases/7",
+    "gh api --method POST repos/acme/widget/git/refs -f ref=refs/tags/v1.2.3",
+    "gh api -X PATCH repos/acme/widget/git/refs/tags/v1.2.3",
+    "gh api graphql -f query='mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+    "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { pullRequest { id } } }'",
+    "gh api graphql -f query='mutation { enqueuePullRequest(input: {}) { clientMutationId } }'",
+    "gh api graphql -f query='mutation { createRelease(input: {}) { release { id } } }'",
+    "gh api graphql -f query='mutation { updateRef(input: {}) { ref { id } } }' -f refName=refs/tags/v1.2.3",
+  ]) {
+    const output = runHook("integration-gate.mjs", payload(command));
+    assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "deny", command);
+  }
+
+  for (const command of [
+    "gh api repos/acme/widget/pulls/42",
+    "gh api --method GET repos/acme/widget/pulls/42/merge",
+    "gh api --method GET repos/acme/widget/releases/latest",
+    "gh api --method POST repos/acme/widget/issues -f title='Ready for review'",
+    "gh api graphql -f query='query { viewer { login } }'",
+    "gh api --method PUT repos/acme/widget/pulls/42/merge --dry-run",
+  ]) {
+    assert.equal(runHook("integration-gate.mjs", payload(command)), "", command);
+  }
+});
+
+test("integration gate fails open for malformed shell input and unavailable local Git references", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "plus-ultra-integration-gate-"));
+  try {
+    const payload = (command) => ({
+      hook_event_name: "PreToolUse",
+      cwd,
+      session_id: "session-1",
+      tool_name: "Bash",
+      tool_input: { command },
+    });
+
+    assert.equal(runHook("integration-gate.mjs", payload("gh pr merge 'unterminated"), { cwd }), "");
+    assert.equal(runHook("integration-gate.mjs", payload("git push origin trunk"), { cwd }), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("integration gate recognizes operational wrappers and leaves escaped prose alone", () => {
+  const payload = (command) => ({
+    hook_event_name: "PreToolUse",
+    cwd: repoRoot,
+    session_id: "session-1",
+    tool_name: "Bash",
+    tool_input: { command },
+  });
+
+  for (const command of [
+    "nice -n 5 gh pr merge 42",
+    "timeout 10 gh release create v1.2.3",
+    "xargs -n 1 gh stack merge --yes --squash",
+  ]) {
+    const output = runHook("integration-gate.mjs", payload(command));
+    assert.equal(JSON.parse(output).hookSpecificOutput.permissionDecision, "deny", command);
+  }
+
+  for (const command of [
+    "echo 'example; gh pr merge 42'",
+    "echo \\`gh pr merge 42\\`",
+    "grep -R 'gh stack merge --yes --squash' README.md",
+  ]) {
+    assert.equal(runHook("integration-gate.mjs", payload(command)), "", command);
+  }
+});
