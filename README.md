@@ -122,12 +122,14 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
     conditional Mermaid diagrams, then connects context, Issue–Spec traceability, summary, testing,
     risks, and review guidance. `Refs #N` is the safe default; `Closes #N` is reserved for a
     verifiably complete `type:story` contract.
-  - *pr-review* — reviews a GitHub pull request against its linked approved technical contract:
-    exactly one approved spec whose optional Issue # matches a PR closing Issue is selected through
-    `closingIssuesReferences` at the remote head. Missing or ambiguous associations remain delegated
-    to #17. It posts deduplicated right-side findings and maintains a canonical tagged review summary.
-    It uses the current branch’s PR by default; pass a positive PR number to override it. This
-    workflow requires GitHub write access through `gh`.
+  - *pr-review* — reviews a GitHub pull request against its approved technical contract using the
+    remote `headRefOid`: a unique `closingIssuesReferences` match first, then an explicit
+    `--spec <NNN|slug>` fallback, strict branch association, and approved-spec discovery. Ambiguous
+    branch or discovery results pause for a path/Issue selection before any write. With no approved
+    spec, it can perform an explicitly accepted limited review (`Spec: none`; no contractual
+    verdict). It posts deduplicated right-side findings and maintains a canonical tagged review
+    summary. It uses the current branch’s PR by default; pass a positive PR number and optionally
+    `--spec <NNN|slug>` as a fallback. This workflow requires GitHub write access through `gh`.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.
@@ -135,8 +137,8 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
 - **Slash commands:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
-  spec's status; `/plus-ultra:pr-review [pr-number]` — publish and maintain a spec-driven PR
-  review; `/plus-ultra:issue-management`, `/plus-ultra:refine-issues <issue-number>`, and
+  spec's status; `/plus-ultra:pr-review [pr-number] [--spec <NNN|slug>]` — publish and maintain a
+  spec-driven PR review; `/plus-ultra:issue-management`, `/plus-ultra:refine-issues <issue-number>`, and
   `/plus-ultra:roadmap-planning <brief | issue-number>` — manage GitHub Issue roadmaps. Claude Code
   only; Codex uses the corresponding portable skills instead.
 - **Guardrail hooks:**
