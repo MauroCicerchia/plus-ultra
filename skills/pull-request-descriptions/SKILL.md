@@ -17,10 +17,12 @@ where reviewers should focus.
    - `git diff origin/main...` or the target branch named by the user
    - related spec, issue, design doc, or acceptance criteria when present
    - test, lint, typecheck, build, or manual verification output from this branch
-2. Separate facts from inference. If the diff does not prove something, phrase it as an assumption
+2. Resolve Traceability when an approved spec has an `issue:` link. Preserve the Issue number and
+   spec path; do not invent either from branch names or commit messages.
+3. Separate facts from inference. If the diff does not prove something, phrase it as an assumption
    or omit it.
-3. Write for the reviewer who has not followed the implementation.
-4. Keep the body concise, but do not hide risk, missing verification, or follow-up work.
+4. Write for the reviewer who has not followed the implementation.
+5. Keep the body concise, but do not hide risk, missing verification, or follow-up work.
 
 ## Recommended Template
 
@@ -35,6 +37,11 @@ Use this shape unless the repository has its own required PR template:
 
 ## Context
 [Why this change is needed. Link or name the spec/issue when applicable.]
+
+## Traceability
+- Issue: #<number>
+- Spec: `specs/<path>` (approved)
+- Refs #<number>
 
 ## Summary
 - [User-visible or maintainer-visible change]
@@ -76,7 +83,26 @@ by the diff, issue/spec, or verified behavior.
   `stateDiagram-v2`.
 
 **Context:** Explain the problem and intent in one short paragraph. Avoid repeating the branch name
-or commit subject. If this PR implements a spec, mention the spec path and status.
+or commit subject.
+
+**Traceability:** Add one group for every independently resolved linked Issue and spec. Write
+`Issue: #<number>` and `Spec: specs/<path>` (approved) when the approved spec is available. For
+each Issue, use exactly one of `Refs #<number>` or `Closes #<number>` and evaluate each Issue
+independently. Use `Refs #<number>` by default, including incremental PRs; assess the resulting
+branch state against its base, not whether a single diff contains every implementation step.
+
+Upgrade one Issue from `Refs #<number>` to `Closes #<number>` only when all of this is demonstrable:
+
+1. The Issue has the `type:story` label; epics never receive a closing keyword.
+2. An approved spec is linked through its `issue:` frontmatter.
+3. The resulting change satisfies the complete scope and acceptance criteria of that Issue and spec.
+4. The final `plus-ultra:pr-review` verdict is `ready` with no blockers relative to that contract.
+5. No required work for that story is explicitly deferred to another PR.
+
+At PR creation, keep `Refs #<number>` until the final review provides the needed evidence. If any
+condition is missing, cannot be demonstrated, or is ambiguous, retain `Refs #<number>` and never
+use `Closes #<number>`. If an Issue is known but no approved linked spec is available, include its
+`Issue: #<number>` and `Refs #<number>` without inventing a Spec line.
 
 **Summary:** Prefer bullets that describe externally meaningful behavior or durable code boundaries.
 Avoid file-by-file narration unless the file organization is the point of the PR.
