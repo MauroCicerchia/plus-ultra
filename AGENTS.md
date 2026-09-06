@@ -68,3 +68,21 @@ skill, remember it must read well for any agent, not just Claude — keep Claude
 (hooks, subagents, `${CLAUDE_PLUGIN_ROOT}`) out of skill prose. To add another agent, drop in its
 `.<agent>-plugin/plugin.json` (or marketplace entry) with `"skills": "./skills/"`; don't duplicate
 skill content.
+
+## Human integration boundary
+
+Plans, specs, Issues, and earlier messages never authorize merging or publishing. An implementation
+agent may edit files, verify, commit, push a feature branch, create or update a pull request, and
+submit or update a stack. It reports ready for integration or ready for review and stops.
+
+An implementation agent must not autonomously merge, enable auto-merge, push to the default branch,
+create or publish a release, or create or publish a tag. Equivalent GitHub API and GraphQL
+mutations are also out of bounds. If a plan documents a rollout, keep it under `## Post-approval
+integration`, outside executable checklists, as manual instructions for the human who owns that
+action.
+
+`plus-ultra:integration-boundary` is the portable policy skill. Claude Code and Codex support
+lifecycle hooks for deterministic guardrails around recognized integration commands. Cursor ships
+the portable skill only and is documentation-only, so this is a cooperative-agent safety boundary,
+not a security sandbox. Do not introduce a `plus-ultra:integrate` command or automatic integration
+workflow.

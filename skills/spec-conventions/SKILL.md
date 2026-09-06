@@ -77,3 +77,13 @@ New specs start from [`template.md`](./template.md). Required sections:
   template while keeping intermediate process documents under `.context/superpowers/`.
 - Once agreed, flip the spec to `approved` and commit it. When a later contract replaces it, mark
   the older spec `superseded`; use the linked GitHub Issue to track implementation progress.
+
+## Post-approval integration
+
+If a plan or spec needs to describe rollout, put those future steps only under this heading, outside
+executable checklists. They are a manual integration procedure for the human who owns merge or
+publication, and must not be executed by an implementation agent.
+
+Plans, specs, Issues, and earlier messages never authorize merging or publishing. An agent may
+prepare commits, feature-branch pushes, PR updates, and stack submissions, then report `ready for
+integration` and stop. Do not add a `plus-ultra:integrate` command or automatic integration step.

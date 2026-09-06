@@ -635,3 +635,59 @@ test("GitHub Issues workflows are portable, confirmation-gated, and available th
   assert.match(issueWorkflows, /native.*hierarch|hierarch.*native/i);
   assert.match(issueWorkflows, /GraphQL.*fallback|fallback.*GraphQL/i);
 });
+
+test("human integration boundary is a durable, portable policy", () => {
+  const specPath = "specs/007-require-human-approval-before-integration.md";
+  const skillPath = "skills/integration-boundary/SKILL.md";
+
+  assert.ok(existsSync(join(repoRoot, specPath)), `${specPath} exists`);
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+
+  const spec = readRelative(specPath);
+  const skill = readRelative(skillPath);
+  const frontmatter = parseFrontmatter(skill);
+  const normalizedSkill = skill.replace(/\s+/g, " ");
+
+  assert.match(spec, /^title: Require human approval before integration$/m);
+  assert.match(spec, /^status: approved$/m);
+  assert.match(spec, /^issue: 52$/m);
+  assert.match(spec, /^created: 2026-09-06$/m);
+  assert.match(spec, /^# 007 — Require human approval before integration$/m);
+  assert.match(spec, /^- \[ \]/m, "acceptance criteria begin unchecked");
+  assert.doesNotMatch(spec, /^- \[x\]/im, "acceptance criteria are not pre-completed");
+
+  assert.equal(frontmatter.name, "integration-boundary");
+  assert.match(frontmatter.description, /Use when/i);
+  assert.match(frontmatter.description, /finish|merge|release|tag|protected push/i);
+  assert.match(normalizedSkill, /plans?.*?specs?.*?issues?.*?earlier messages?.*?never.*?authori[sz].*?integration/i);
+  assert.match(normalizedSkill, /ready for (?:integration|review).*?stop/i);
+  assert.match(normalizedSkill, /commit.*?feature branch.*?pull request.*?stack/i);
+  assert.match(normalizedSkill, /must not.*?merge.*?auto-merge.*?default branch.*?release.*?tag/i);
+  assert.match(normalizedSkill, /no `plus-ultra:integrate` command/i);
+});
+
+test("integration guidance separates manual rollout from executable work across platforms", () => {
+  const conventions = readRelative("skills/spec-conventions/SKILL.md");
+  const readme = readRelative("README.md");
+  const agents = readRelative("AGENTS.md");
+  const normalizedConventions = conventions.replace(/\s+/g, " ");
+  const normalizedReadme = readme.replace(/\s+/g, " ");
+  const normalizedAgents = agents.replace(/\s+/g, " ");
+
+  const postApproval = markdownSection(conventions, "Post-approval integration");
+  assert.match(postApproval, /manual.*?integration/i);
+  assert.match(postApproval, /must not.*?execut(?:e|ed).*?implementation agent/i);
+  assert.match(normalizedConventions, /outside.*?executable checklist/i);
+
+  for (const document of [normalizedReadme, normalizedAgents]) {
+    assert.match(document, /plans?.*?specs?.*?issues?.*?never.*?authori[sz].*?(?:merge|publish)/i);
+    assert.match(document, /ready for (?:integration|review).*?stop/i);
+    assert.match(document, /feature branch.*?pull request.*?stack/i);
+    assert.match(document, /merge.*?auto-merge.*?default branch.*?(?:release|tag)/i);
+  }
+
+  assert.match(normalizedReadme, /Claude.*?Codex.*?hook.*?guardrail/i);
+  assert.match(normalizedReadme, /Cursor.*?(?:portable skill|documentation-only)/i);
+  assert.match(normalizedAgents, /Claude.*?Codex.*?lifecycle hooks/i);
+  assert.match(normalizedAgents, /Cursor.*?(?:portable skill|documentation-only)/i);
+});
