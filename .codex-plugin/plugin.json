@@ -1,6 +1,6 @@
 {
   "name": "plus-ultra",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Spec-driven development conventions on top of Superpowers, with portable skills and Codex lifecycle hooks for guardrails.",
   "author": {
     "name": "Mauro Cicerchia",
