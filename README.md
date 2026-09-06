@@ -119,12 +119,15 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
     immutable data, explicit error values, and side-effect isolation.
   - *conventional-commits* — the commit message format (enforced by the commit-msg-lint hook).
   - *pull-request-descriptions* — drafts reviewer-focused PR bodies with a human-first overview and
-    conditional Mermaid diagrams, then connects context, summary, testing, risks, and review guidance.
+    conditional Mermaid diagrams, then connects context, Issue–Spec traceability, summary, testing,
+    risks, and review guidance. `Refs #N` is the safe default; `Closes #N` is reserved for a
+    verifiably complete `type:story` contract.
   - *pr-review* — reviews a GitHub pull request against its linked approved technical contract:
-    an approved spec whose optional Issue # matches the PR’s closing Issue is selected first. It posts
-    deduplicated right-side findings and maintains a canonical tagged review summary. It uses the
-    current branch’s PR by default; pass a positive PR number to override it. This workflow requires
-    GitHub write access through `gh`.
+    exactly one approved spec whose optional Issue # matches a PR closing Issue is selected through
+    `closingIssuesReferences` at the remote head. Missing or ambiguous associations remain delegated
+    to #17. It posts deduplicated right-side findings and maintains a canonical tagged review summary.
+    It uses the current branch’s PR by default; pass a positive PR number to override it. This
+    workflow requires GitHub write access through `gh`.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.

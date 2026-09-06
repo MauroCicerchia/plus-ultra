@@ -15,17 +15,19 @@ open. This is a writing workflow: it needs authenticated GitHub write access. Us
    branch. Reject zero, negative, non-integer, or extra arguments before any write.
 2. Run `gh auth status`; stop before writes if authentication or GitHub write authorization is not
    available.
-3. Resolve and validate the PR with `gh pr view <number>` (or `gh pr view` for no argument). Fetch
-   remote metadata including its number, base ref, head ref, head repository, state, URL,
-   `headRefOid`, and `closingIssuesReferences`. Stop before writes if the PR cannot be found, is
-   closed, or is not reviewable.
+3. Resolve and validate the PR with `gh pr view <number>` (or `gh pr view` for no argument). First
+   obtain closing Issues with `gh pr view <pr-number> --json closingIssuesReferences`; fetch its
+   number, base ref, head ref, head repository, state, URL, and `headRefOid` in the same or a
+   subsequent PR-metadata request. Stop before writes if the PR cannot be found, is closed, or is
+   not reviewable. Do not parse a closing keyword from the PR body. Do not use GraphQL to discover
+   closing Issues.
 4. From the **remote PR head**, list `specs/` and fetch each candidate spec through the GitHub API
-   at `headRefOid`; do not read the local checkout as the source of truth. Consider only approved
-   specs (`status: approved`) and exclude superseded specs. Select exactly one approved spec whose
-   `issue:` matches a PR `closingIssuesReferences` Issue. If no unique Issue match exists, select
-   the only approved spec when there is exactly one. If selection fails—including zero approved candidates
-   or no approved specs, or unresolved ambiguity—report every approved candidate (if any) and stop before
-   any GitHub writes; for ambiguous candidates, explicitly stop before writes. Read the selected
+   at `headRefOid`; do not read the local checkout as the source of truth. For every closing Issue,
+   collect only approved specs (`status: approved`) whose `issue:` matches that Issue; exclude draft
+   and superseded specs. Select a contract only when exactly one approved spec matches the closing
+   Issues. Do not substitute an unlinked or merely sole approved spec when that canonical match is
+   missing. If zero or several candidates match, report every approved candidate and delegate the
+   missing or ambiguous resolution fallback to #17; stop before any GitHub writes. Read the selected
    approved spec's acceptance criteria, interface contracts, architecture boundaries, functional core,
    test plan, and risks.
 

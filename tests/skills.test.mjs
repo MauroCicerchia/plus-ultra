@@ -101,6 +101,7 @@ test("pull-request-descriptions skill is packaged and discoverable", () => {
 
   for (const expectedSection of [
     "Context",
+    "Traceability",
     "Summary",
     "Testing",
     "Risks",
@@ -127,6 +128,7 @@ test("pull-request-descriptions leads with a human-first overview and conditiona
     "At a glance",
     "Diagram",
     "Context",
+    "Traceability",
     "Summary",
     "Testing",
     "Risks",
@@ -170,6 +172,26 @@ test("pull-request-descriptions leads with a human-first overview and conditiona
   assert.match(readme, /conditional Mermaid diagrams/i);
   assert.match(metadata, /human-first overview/i);
   assert.match(metadata, /conditional Mermaid diagrams/i);
+});
+
+test("pull-request-descriptions preserve Issue-Spec traceability without closing partial stories", () => {
+  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
+  const readme = readRelative("README.md");
+  const normalized = skill.replace(/\s+/g, " ");
+
+  assert.match(skill, /Issue: #<number>/);
+  assert.match(skill, /Spec: `specs\/<path>`/);
+  assert.match(skill, /Refs #<number>/);
+  assert.match(skill, /Closes #<number>/);
+  assert.match(normalized, /exactly one of `Refs #<number>` or `Closes #<number>`.*?each Issue independently/i);
+  assert.match(normalized, /`type:story`/i);
+  assert.match(normalized, /approved.*?spec.*?linked/i);
+  assert.match(normalized, /scope.*?acceptance criteria.*?complete/i);
+  assert.match(normalized, /`ready`.*?no blockers/i);
+  assert.match(normalized, /no required work.*?deferred/i);
+  assert.match(normalized, /state.*?against.*?base/i);
+  assert.match(normalized, /ambigu(?:ity|ous).*?`Refs #<number>`.*?never.*?`Closes #<number>`/i);
+  assert.match(readme, /Refs #N.*?Closes #N|Closes #N.*?Refs #N/i);
 });
 
 test("pull-request-descriptions demonstrates diagram decisions for common review scenarios", () => {
@@ -391,9 +413,15 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /spec.*GitHub API|GitHub API.*spec/i);
   assert.match(skill, /approved spec/i);
   assert.match(skill, /closingIssuesReferences/);
-  assert.match(skill, /before writes if.*ambiguous|ambiguous.*before writes/i);
-  assert.match(skill, /no approved candidates|zero approved candidates|no approved specs|zero approved specs/i);
-  assert.match(skill, /selection fails[\s\S]*stop before\s+(?:any\s+)?GitHub writes|stop before writes.*selection fails/i);
+  assert.match(skill, /gh pr view <pr-number> --json closingIssuesReferences/);
+  assert.match(skill, /exactly one approved spec matches[\s\S]*?closing\s+Issues/i);
+  assert.match(skill, /Do not parse.*?closing keyword/i);
+  assert.match(skill, /Do not use GraphQL.*?discover\s+closing Issues/i);
+  assert.match(skill, /delegate[\s\S]*?#17/i);
+  const normalizedReview = skill.replace(/\s+/g, " ");
+  assert.match(normalizedReview, /before writes if.*ambiguous|ambiguous.*before writes/i);
+  assert.match(normalizedReview, /zero or several candidates match/i);
+  assert.match(normalizedReview, /zero or several candidates match.*?stop before any GitHub writes/i);
   assert.doesNotMatch(skill, /status: in-progress/);
   assert.match(codeReviewer, /status: approved/);
   assert.match(codeReviewer, /explicitly select|ask.*select/i);
@@ -417,6 +445,9 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(agent, /^name: pr-reviewer$/m);
   assert.match(agent, /^tools: .*Bash/m);
   assert.match(agent, /plus-ultra:pr-review/);
+  assert.match(agent, /exactly one approved[\s\S]*?closing\s+Issue/i);
+  assert.match(agent, /Do not parse.*?closing keyword/i);
+  assert.match(agent, /#17/);
 
   assert.match(readme, /plus-ultra:pr-review/);
   assert.match(readme, /\/plus-ultra:pr-review \[pr-number\]/);
