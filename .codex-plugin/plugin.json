@@ -1,6 +1,6 @@
 {
   "name": "plus-ultra",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Spec-driven development conventions on top of Superpowers, with portable skills and Codex lifecycle hooks for guardrails.",
   "author": {
     "name": "Mauro Cicerchia",
@@ -10,7 +10,12 @@
   "homepage": "https://github.com/maurocicerchia/plus-ultra",
   "repository": "https://github.com/maurocicerchia/plus-ultra",
   "license": "MIT",
-  "keywords": ["spec-driven", "tdd", "workflow", "planning"],
+  "keywords": [
+    "spec-driven",
+    "tdd",
+    "workflow",
+    "planning"
+  ],
   "skills": "./skills/",
   "hooks": "./hooks/hooks-codex.json",
   "interface": {
@@ -19,7 +24,10 @@
     "longDescription": "Repo conventions for spec-driven development: specs/NNN-slug.md numbering, optional GitHub Issue links, and a draft -> approved -> superseded technical-contract lifecycle. Includes Codex lifecycle hooks for command guardrails, verification tracking, formatting, and spec-aware session resume. Built to sit on top of Superpowers.",
     "developerName": "Mauro Cicerchia",
     "category": "Developer Tools",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "defaultPrompt": [
       "Create a new plus-ultra spec for this feature.",
       "Review this branch against its approved technical contract."
