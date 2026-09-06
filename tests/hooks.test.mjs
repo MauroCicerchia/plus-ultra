@@ -579,3 +579,120 @@ test("integration gate recognizes operational wrappers and leaves escaped prose 
     assert.equal(runHook("integration-gate.mjs", payload(command)), "", command);
   }
 });
+
+function assertIntegrationDecision(command, denied, cwd = repoRoot) {
+  const output = runHook("integration-gate.mjs", {
+    hook_event_name: "PreToolUse",
+    cwd,
+    tool_name: "Bash",
+    tool_input: { command },
+  }, { cwd });
+  assert.equal(output ? JSON.parse(output).hookSpecificOutput.permissionDecision : "allow",
+    denied ? "deny" : "allow", command);
+}
+
+for (const [name, command, denied] of [
+  ["newline separator", "printf done\ngh pr merge 42", true],
+  ["escaped newline", "gh \\\npr merge 42", true],
+  ["escaped newline inside a word", "g\\\nh pr merge 42", true],
+  ["quoted assignment", "MESSAGE='ship it' gh pr merge 42", true],
+  ["quoted executable path", "'/opt/GitHub CLI/bin/gh' pr merge 42", true],
+  ["env split string", "env -S 'gh pr merge 42'", true],
+  ["env split string equals", "env --split-string='gh pr merge 42'", true],
+  ["sudo assignment", "sudo CI=1 gh pr merge 42", true],
+  ["command lookup", "command -v gh pr merge", false],
+  ["command verbose lookup", "command -V gh pr merge", false],
+  ["comment prose", "true # example; gh pr merge 42", false],
+  ["comment substitution", "# $(gh pr merge 42)", false],
+  ["comment quote before command", "# don't parse this quote\ngh pr merge 42", true],
+  ["comment preview", "gh pr merge 42 # --help", true],
+  ["quoted heredoc prose", "cat <<'EOF'\nexample; gh pr merge 42\nEOF", false],
+  ["heredoc quote before command", "cat <<'EOF'\ndon't parse this quote\nEOF\ngh pr merge 42", true],
+  ["git global config", "git -c color.ui=never push origin main", true],
+  ["git global config equals", "git --config-env=push.default=PUSH_MODE push origin main", true],
+  ["gh global repo", "gh -R acme/widget pr merge 42", true],
+  ["gh global repo equals", "gh --repo=acme/widget release create v1", true],
+  ["release notes help value", "gh release create v1 --notes --help", true],
+  ["release title dry-run value", "gh release create v1 --title --dry-run", true],
+  ["API field help value", "gh api -X PUT repos/acme/widget/pulls/42/merge -f --help", true],
+  ["git push option dry-run value", "git push origin main -o --dry-run", true],
+  ["git short dry-run", "git push -n origin main", false],
+  ["git short dry-run combined", "git push -fn origin main", false],
+  ["API compact raw field", "gh api repos/acme/widget/releases -ftag_name=v1", true],
+  ["API compact typed field", "gh api repos/acme/widget/releases -Ftag_name=v1", true],
+  ["API raw field equals", "gh api repos/acme/widget/releases --raw-field=tag_name=v1", true],
+  ["API typed field equals", "gh api repos/acme/widget/releases --field=tag_name=v1", true],
+  ["API input equals", "gh api repos/acme/widget/releases --input=release.json", true],
+  ["GraphQL read-only output template", "gh api graphql -f query='query { viewer { login } }' --template 'mutation mergePullRequest'", false],
+  ["GraphQL read-only output jq", "gh api graphql -f query='query { viewer { login } }' --jq '\"mutation mergePullRequest\"'", false],
+  ["release short prerelease help", "gh release create v1 -p --help", false],
+  ["GraphQL query string text", "gh api graphql -f query='query { repository(owner: \"acme\", name: \"mutation mergePullRequest\") { id } }'", false],
+  ["GraphQL query operation name", "gh api graphql -f query='query mutation { mergePullRequest: viewer { login } }'", false],
+  ["wildcard ref namespaces", "git push origin 'refs/*:refs/*'", true],
+  ["tag keyword after branch", "git push origin feature/review tag v2", true],
+  ["here-string before command", "cat <<< 'example'; gh pr merge 42", true],
+]) {
+  test(`integration gate review: ${name}`, () => assertIntegrationDecision(command, denied));
+}
+
+test("integration gate review: effective push targets", async (t) => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["update-ref", "refs/remotes/origin/trunk", "HEAD"], cwd);
+    runCommand("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"], cwd);
+    runCommand("git", ["tag", "v1"], cwd);
+    for (const [name, command, denied] of [
+      ["wildcard branches", "git push origin 'refs/heads/*:refs/heads/*'", true],
+      ["matching branches", "git push origin :", true],
+      ["deletion protected branch", "git push --delete origin main", true],
+      ["HEAD on main", "git push origin HEAD", true],
+      ["current main", "git push origin", true],
+      ["implicit main", "git push", true],
+      ["repo option", "git push --repo origin main", true],
+      ["repo equals", "git push --repo=origin main", true],
+      ["known tag destination", "git push origin v1:v1", true],
+      ["known tag deletion", "git push origin :v1", true],
+      ["feature wildcard", "git push origin 'refs/heads/feature/*:refs/heads/feature/*'", false],
+      ["explicit branch matching tag", "git push origin HEAD:refs/heads/v1", false],
+      ["explicit main to feature", "git push origin main:feature/review", false],
+      ["repo feature", "git push --repo=origin HEAD:feature/review", false],
+    ]) {
+      await t.test(name, () => assertIntegrationDecision(command, denied, cwd));
+    }
+    runCommand("git", ["switch", "-c", "feature/review"], cwd);
+    for (const command of ["git push origin HEAD", "git push origin", "git push"]) {
+      await t.test(`feature current: ${command}`, () => assertIntegrationDecision(command, false, cwd));
+    }
+    runCommand("git", ["switch", "-c", "trunk"], cwd);
+    await t.test("HEAD on local default", () => assertIntegrationDecision("git push origin HEAD", true, cwd));
+    await t.test("current local default", () => assertIntegrationDecision("git push origin", true, cwd));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("integration gate review: option and heredoc controls", () => {
+  for (const [command, denied] of [
+    ["cat <<'EOF'\n$(gh pr merge 42)\nEOF", false],
+    ["cat <<EOF\n$(gh pr merge 42)\nEOF", true],
+    ["cat <<-EOF\n\texample; gh pr merge 42\n\tEOF", false],
+    ["cat <<'ONE' <<'TWO'\ngh pr merge 42\nONE\ngh release create v1\nTWO", false],
+    ["env -S 'gh pr merge 42' --help", false],
+    ["gh pr merge 42 --body --help", true],
+    ["git push origin main --dry-run --no-dry-run", true],
+    ["git push origin main -- --dry-run", true],
+    ["gh api --method GET repos/acme/widget/releases --field=per_page=10", false],
+    ["gh api graphql -fquery='mutation { mergePullRequest(input: {}) { clientMutationId } }'", true],
+  ]) assertIntegrationDecision(command, denied);
+});
+
+test("integration gate review: git directory option selects local references", () => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["update-ref", "refs/remotes/origin/trunk", "HEAD"], cwd);
+    runCommand("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"], cwd);
+    assertIntegrationDecision(`git -C '${cwd}' push origin trunk`, true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

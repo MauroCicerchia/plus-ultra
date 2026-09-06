@@ -77,3 +77,93 @@ paths; quoted/search/example prose; and malformed/unavailable-local-Git fail-ope
 - The classifier is intentionally bounded and recognizes explicit command forms rather than trying
   to interpret shell variables, aliases, or arbitrary generated commands. Those indirections fail
   open by design, consistent with the cooperative guardrail boundary.
+
+## Review fixes — 2026-09-06
+
+The review of commit `6920303` exposed lost shell boundaries and option-value confusion in the
+initial classifier. All confirmed review cases now have executable regression coverage.
+
+### Reproduction and RED evidence
+
+Before editing production code, added independently named `integration gate review:` tests and
+ran `node --test --test-name-pattern='integration gate review:' tests/hooks.test.mjs`:
+**54 test nodes; 9 passed; 45 failed**. One failure was the aggregate push-target parent;
+the remaining **44 were specific assertion failures**, with the actual allow/deny decision
+opposite to the expected decision. They cover:
+
+- Newline command separators, backslash-newline continuation (including inside an executable
+  word), quoted assignment values, and executable paths containing spaces.
+- `env -S` and `--split-string=`, sudo assignments, and non-executing `command -v`/`-V` lookups.
+- Comment prose/substitutions, quotes inside comments before a real command, preview words inside
+  comments, quoted heredoc prose, and heredoc quotes before a real command.
+- Git `-c`, `--config-env=`, and `-C`; gh `-R` and `--repo=` before a subcommand.
+- `--help`/`--dry-run` as release notes/title, API field, and push-option values; actual Git `-n`
+  and combined `-fn` dry-run flags.
+- Compact API `-fvalue`/`-Fvalue`, `--raw-field=value`, `--field=value`, and `--input=value` forms,
+  including their implicit POST semantics; GraphQL read-only queries with mutation text in output
+  templates and jq expressions.
+- Wildcard/matching refspecs; `HEAD` and omitted refspecs on `main` and locally discovered `trunk`;
+  `--repo=origin`; paired local-tag refspecs and tag deletions.
+
+The explicit `git push --delete origin main` and `git push --repo origin main` examples already
+passed before the fix, so they remain controls. The related `:v1` tag deletion and `--repo=origin`
+forms failed and were fixed. Other passing controls protect feature pushes, explicit branch
+destinations that share a local tag name, and `main:feature/review` pushes.
+
+### Changes and GREEN evidence
+
+The bounded parser now preserves newlines, removes line continuations, consumes comments and
+heredoc bodies as shell data, and inspects only the substitutions that an unquoted heredoc
+executes. Quoted assignments and executable paths reach normal classification. Wrapper handling
+splits `env -S` into words with a bound of eight splits, consumes sudo assignments, and treats
+`command -v`/`-V` as lookups.
+
+CLI parsing now consumes option values, supports attached and equals forms, respects `--`, and
+recognizes preview flags in command-specific option contexts. Git repository selectors are passed
+only to local reference discovery. Current branch detection uses local `symbolic-ref`; wildcard,
+matching, repository-option, paired-tag, and tag-deletion destinations are classified explicitly.
+GraphQL classification reads the query field and excludes output formatting, strings, and comments.
+
+Targeted GREEN runs after each implementation group:
+
+- Shell boundaries/quotes/comments/heredocs: **11/11 passed**.
+- Wrapper semantics: **5/5 passed**.
+- gh global options/API/preview fixes plus existing API coverage: **13/13 passed**.
+- All original and initial review integration-gate tests: **61/61 passed**.
+
+Self-review then found five adjacent gaps. Added their tests first and observed **5/5 fail** for
+release `-p --help`, GraphQL query string text and operation names, `refs/*:refs/*`, and a `tag`
+keyword following another refspec. After the fixes, the same five tests passed. A separate
+here-string `<<<` regression was also captured **RED (1 failed)** before distinguishing it from
+heredoc `<<`; it and the option/heredoc control group then passed **2/2**. These runs used
+`--test-name-pattern` matching the corresponding `integration gate review:` names.
+
+The control group verifies quoted versus unquoted heredoc substitutions, tab-stripped and multiple
+heredocs, env-split help, merge body values, overridden dry-run flags, `--` termination, explicit
+GET with compact fields, and a compact GraphQL mutation field.
+
+### Final verification after review fixes
+
+- Covering file: `node --test tests/hooks.test.mjs` — **79 tests passed, 0 failed**.
+- Full suite: `node --test tests/*.test.mjs` — **109 tests passed, 0 failed**.
+- `node --check hooks/integration-gate.mjs` and `git diff --check` — passed.
+- Explicit check of `hooks/hooks.json` and `hooks/hooks-codex.json` — gate remains unregistered.
+- `claude plugin validate .` and `claude plugin validate .claude-plugin/plugin.json` — passed.
+  The second path validates this repository's actual root plugin layout; there is no nested
+  `./plus-ultra` plugin directory.
+- Clean Codex installation and hook registration remain part of Task 3's packaging validation;
+  neither installed plugin state nor manifests were changed in this fix.
+
+Git push argument semantics were checked against the [Git push manual](https://git-scm.com/docs/git-push),
+and API method/field semantics against the [gh api manual](https://cli.github.com/manual/gh_api).
+Installed CLI help also confirmed command-specific short options.
+
+### Remaining bounds
+
+The hook remains a cooperative, fail-open classifier: no network access, persistent state,
+dependency, manifest registration, or execution of the inspected command was added. It retains the
+100,000-character/eight-level limits. Shell variables, aliases, generated scripts, arbitrary Git
+push configuration mappings, and API request bodies supplied through files remain outside its
+literal-command classifier. Implicit pushes are inferred from the local current branch; GraphQL
+recognition covers inline mutation documents, not a complete GraphQL execution engine. No reviewed
+regression remains failing.
