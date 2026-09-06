@@ -43,12 +43,21 @@ GitHub access is via the `gh` CLI (no bundled MCP).
   frontmatter/hooks JSON) must pass.
 - Codex packaging should install from a clean temporary `CODEX_HOME`:
   `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin marketplace add "$(pwd)"`, then
-  `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin add plus-ultra@plus-ultra-dev`.
+  `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin add plus-ultra@plus-ultra`.
 - Test hook scripts by piping a sample payload:
   `echo '<json>' | node plus-ultra/hooks/<script>.mjs; echo "exit=$?"`.
   Set `PLUS_ULTRA_HOOK_DEBUG=1` to dump the raw hook payload to stderr.
 - Deny paths should exit 0 with a decision JSON; allow paths exit 0 silent; blockers use the marker
   under `${CLAUDE_PROJECT_DIR}/.claude/plus-ultra/state/<session_id>.json`.
+
+## Installing and updating
+
+- Codex stable install: `codex plugin marketplace add maurocicerchia/plus-ultra --ref main`, then
+  `codex plugin add plus-ultra@plus-ultra`. Update with `codex plugin marketplace upgrade plus-ultra`
+  and run `codex plugin add plus-ultra@plus-ultra` again.
+- Claude update: `claude plugin marketplace update plus-ultra`, then
+  `claude plugin update plus-ultra@plus-ultra`.
+- Cursor users refresh or reinstall from its marketplace; do not invent an unverified CLI command.
 
 ## Multi-agent
 

@@ -10,10 +10,30 @@ conventions and guardrails on top.
 
 ## Install
 
+### Codex
+
 ```
-/plugin marketplace add maurocicerchia/plus-ultra
-/plugin install plus-ultra@plus-ultra
+codex plugin marketplace add maurocicerchia/plus-ultra --ref main
+codex plugin add plus-ultra@plus-ultra
 ```
+
+To update, run `codex plugin marketplace upgrade plus-ultra`, then run
+`codex plugin add plus-ultra@plus-ultra` again.
+
+### Claude Code
+
+```
+claude plugin marketplace add maurocicerchia/plus-ultra
+claude plugin add plus-ultra@plus-ultra
+```
+
+To update, run `claude plugin marketplace update plus-ultra`, then
+`claude plugin update plus-ultra@plus-ultra`.
+
+### Cursor
+
+Refresh or reinstall Plus Ultra from the Cursor marketplace. Cursor has no documented CLI command
+for this workflow, so the marketplace UI remains the supported path.
 
 Superpowers is declared as a dependency and installed automatically from the same marketplace.
 
