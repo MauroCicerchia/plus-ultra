@@ -13,17 +13,20 @@ function readJson(path) {
   return JSON.parse(read(path));
 }
 
-test("release version carriers start at the shared 0.1.0 baseline", () => {
-  assert.equal(read("version.txt").trim(), "0.1.0");
-  assert.deepEqual(readJson(".release-please-manifest.json"), { ".": "0.1.0" });
+test("release version carriers remain synchronized and preserve the 0.1.0 baseline", () => {
+  const version = read("version.txt").trim();
+  assert.match(version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/);
+  assert.deepEqual(readJson(".release-please-manifest.json"), { ".": version });
   for (const path of [
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
     ".cursor-plugin/plugin.json",
   ]) {
-    assert.equal(readJson(path).version, "0.1.0", path);
+    assert.equal(readJson(path).version, version, path);
   }
-  assert.match(read("CHANGELOG.md"), /## \[0\.1\.0\].*Initial development/is);
+  const changelog = read("CHANGELOG.md");
+  assert.ok(changelog.includes(`## [${version}]`));
+  assert.match(changelog, /## \[0\.1\.0\].*Initial development/is);
 });
 
 test("Release Please manages the root plugin as a simple v-prefixed component", () => {
