@@ -403,8 +403,8 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.equal(frontmatter.name, "pr-review");
   assert.match(frontmatter.description, /Use when/i);
   assert.match(frontmatter.description, /pull request|PR|GitHub/i);
-  assert.match(skill, /no argument/i);
-  assert.match(skill, /positive PR number/i);
+  assert.match(skill, /no PR argument/i);
+  assert.match(skill, /positive decimal integer/i);
   assert.match(skill, /gh auth status/i);
   assert.match(skill, /gh pr view/i);
   assert.match(skill, /gh pr diff/i);
@@ -417,11 +417,10 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /exactly one approved spec matches[\s\S]*?closing\s+Issues/i);
   assert.match(skill, /Do not parse.*?closing keyword/i);
   assert.match(skill, /Do not use GraphQL.*?discover\s+closing Issues/i);
-  assert.match(skill, /delegate[\s\S]*?#17/i);
+  assert.match(skill, /explicit.*?selector.*?fallback/i);
   const normalizedReview = skill.replace(/\s+/g, " ");
   assert.match(normalizedReview, /before writes if.*ambiguous|ambiguous.*before writes/i);
-  assert.match(normalizedReview, /zero or several candidates match/i);
-  assert.match(normalizedReview, /zero or several candidates match.*?stop before any GitHub writes/i);
+  assert.match(normalizedReview, /If zero or several match.*?continue/i);
   assert.doesNotMatch(skill, /status: in-progress/);
   assert.match(codeReviewer, /status: approved/);
   assert.match(codeReviewer, /explicitly select|ask.*select/i);
@@ -439,15 +438,15 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(skill, /unanchorable/i);
   assert.match(skill, /Report every mutation/i);
 
-  assert.match(command, /argument-hint: "\[pr-number\]"/);
+  assert.match(command, /argument-hint: "\[pr-number\] \[--spec <NNN\|slug>\]"/);
   assert.match(command, /positive integer/i);
   assert.match(command, /plus-ultra:pr-reviewer/);
   assert.match(agent, /^name: pr-reviewer$/m);
   assert.match(agent, /^tools: .*Bash/m);
   assert.match(agent, /plus-ultra:pr-review/);
-  assert.match(agent, /exactly one approved[\s\S]*?closing\s+Issue/i);
+  assert.match(agent, /canonical.*?closing Issue/i);
   assert.match(agent, /Do not parse.*?closing keyword/i);
-  assert.match(agent, /#17/);
+  assert.match(agent, /headRefOid/);
 
   assert.match(readme, /plus-ultra:pr-review/);
   assert.match(readme, /\/plus-ultra:pr-review \[pr-number\]/);
@@ -456,6 +455,71 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
 
   assert.doesNotMatch(codeReviewer, /\bgh\b/i);
   assert.match(codeReviewer, /Do not modify files/i);
+});
+
+test("pr-review resolves an approved contract deterministically and can publish a limited review", () => {
+  const skill = readRelative("skills/pr-review/SKILL.md");
+  const command = readRelative("commands/pr-review.md");
+  const agent = readRelative("agents/pr-reviewer.md");
+  const readme = readRelative("README.md");
+  const spec = readRelative("specs/003-gracefully-resolve-ambiguous-pr-to-spec-association.md");
+  const commandFrontmatter = parseFrontmatter(command);
+  const normalizedSkill = skill.replace(/\s+/g, " ");
+
+  assert.equal(commandFrontmatter["argument-hint"], "[pr-number] [--spec <NNN|slug>]");
+  for (const invocation of [
+    "pr-review",
+    "pr-review <PR>",
+    "pr-review --spec <NNN|slug>",
+    "pr-review <PR> --spec <NNN|slug>",
+  ]) {
+    assert.match(command, new RegExp(invocation.replace(/[|<>]/g, "\\$&")));
+  }
+  assert.match(normalizedSkill, /only.*?pr-review.*?pr-review <PR>.*?pr-review --spec <NNN\|slug>.*?pr-review <PR> --spec <NNN\|slug>/i);
+  assert.match(normalizedSkill, /reject.*?unknown flag/i);
+  assert.match(normalizedSkill, /duplicate.*?--spec/i);
+  assert.match(normalizedSkill, /zero.*?negative.*?non-integer/i);
+  assert.match(normalizedSkill, /before any network write/i);
+
+  const canonicalIndex = normalizedSkill.indexOf("Canonical closing-Issue match");
+  const explicitIndex = normalizedSkill.indexOf("Explicit selector");
+  const branchIndex = normalizedSkill.indexOf("Branch association");
+  const discoveryIndex = normalizedSkill.indexOf("Approved-spec discovery");
+  assert.ok(canonicalIndex < explicitIndex && explicitIndex < branchIndex && branchIndex < discoveryIndex);
+  assert.match(normalizedSkill, /canonical.*?exactly one.*?select.*?without consulting.*?--spec/i);
+  assert.match(normalizedSkill, /explicit.*?fallback.*?never.*?override.*?canonical/i);
+  assert.match(normalizedSkill, /headRefOid.*?source of truth|source of truth.*?headRefOid/i);
+  assert.match(normalizedSkill, /not.*?local checkout|local checkout.*?not/i);
+  assert.match(normalizedSkill, /gh pr diff.*?headRefOid.*?same remote-head snapshot/i);
+  assert.match(normalizedSkill, /issue-<N>.*?hyphen.*?component/i);
+  assert.match(normalizedSkill, /NNN-slug.*?exact.*?component.*?\//i);
+  assert.match(normalizedSkill, /union.*?deduplicat.*?direct.*?indirect/i);
+  assert.match(normalizedSkill, /one candidate.*?continue.*?multiple.*?selection.*?none.*?discovery/i);
+  assert.match(normalizedSkill, /path.*?Issue #<N>.*?sin Issue.*?before.*?writ/i);
+  assert.match(normalizedSkill, /approved.*?unlinked.*?legacy/i);
+  assert.match(normalizedSkill, /exclude.*?draft.*?superseded/i);
+  assert.match(normalizedSkill, /selector.*?nonexistent.*?ambiguous.*?draft.*?superseded.*?fail-closed/i);
+  assert.match(normalizedSkill, /selector.*?stop without any GitHub write/i);
+  assert.match(normalizedSkill, /selector.*?non-approved.*?missing.*?malformed.*?unknown.*?stop.*?without.*?write/i);
+
+  assert.match(normalizedSkill, /no approved spec.*?review without (?:a )?contract.*?explicit acceptance/i);
+  assert.match(normalizedSkill, /correctness.*?regressions.*?tests.*?engineering[- ]principles/i);
+  assert.match(normalizedSkill, /Spec: none/);
+  assert.match(normalizedSkill, /limited review; no contractual verdict/i);
+  assert.match(normalizedSkill, /do not.*?acceptance criteria.*?do not.*?ready/i);
+  assert.match(normalizedSkill, /only.*?resolve.*?evidence.*?does not depend.*?contract/i);
+
+  assert.match(spec, /^status: approved$/m);
+  assert.match(spec, /^issue: 17$/m);
+  assert.match(spec, /closingIssuesReferences/);
+  assert.match(spec, /headRefOid/);
+  assert.match(agent, /headRefOid/);
+  assert.match(agent, /limited review|without contract/i);
+  assert.match(readme, /--spec <NNN\|slug>/);
+  assert.match(readme, /fallback/i);
+  for (const path of ["skills/pr-review/SKILL.md", "agents/pr-reviewer.md", "README.md"]) {
+    assert.doesNotMatch(readRelative(path), /delegate.*?#17|#17.*?delegate/i, `${path} has no pending #17 delegation`);
+  }
 });
 
 test("GitHub Issues workflows are portable, confirmation-gated, and available through Claude", () => {
