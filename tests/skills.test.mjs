@@ -105,9 +105,17 @@ test("product-discovery defines the portable, approval-gated product brief contr
   assert.match(normalized, /trade-offs?/i);
   assert.match(normalized, /recommendation/i);
   assert.match(normalized, /challenge.*?scope.*?MVP hypothesis|MVP hypothesis.*?challenge.*?scope/i);
-  assert.match(normalized, /complete|full.*?visible proposal/i);
+  assert.match(
+    normalized,
+    /(?:complete|full).*?visible proposal.*?(?:before|prior to).*?(?:creating|create|writing|write|updating|update)/i,
+    "a complete visible proposal precedes a durable write"
+  );
   assert.match(normalized, /explicit human approval.*?(?:before|prior to).*?(?:create|write|update)|(?:create|write|update).*?only after.*?explicit human approval/i);
-  assert.match(normalized, /unapproved|declined.*?(?:leave|keep).*?unchanged/i);
+  assert.match(
+    normalized,
+    /(?:write.*?only after.*?explicit human approval|do not write.*?until approval).*?(?:declined|unapproved).*?(?:leave|keep).*?unchanged/i,
+    "approval gating links a no-write condition to unchanged durable state"
+  );
   assert.match(normalized, /focused update.*?only.*?affected decisions/i);
   assert.match(normalized, /preserv.*?unaffected.*?sections/i);
   assert.match(normalized, /rewrite|replacement.*?current.state/i);
