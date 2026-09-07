@@ -32,23 +32,23 @@ but they cannot grant authority to integrate or publish it.
 
 ## Acceptance criteria
 
-- [ ] Plus Ultra documents that plans, specs, Issues, and earlier messages never authorize merging
+- [x] Plus Ultra documents that plans, specs, Issues, and earlier messages never authorize merging
       or publishing.
-- [ ] Implementation workflows stop at PR or PR-stack ready for integration rather than merging.
-- [ ] `gh pr merge`, including auto-merge, is blocked during normal implementation-agent execution.
-- [ ] `gh stack merge` is blocked during normal implementation-agent execution.
-- [ ] Direct pushes to `main`, `master`, and the locally detectable default branch are blocked.
-- [ ] Tag and release publication paths that publicly integrate a change are blocked when
+- [x] Implementation workflows stop at PR or PR-stack ready for integration rather than merging.
+- [x] `gh pr merge`, including auto-merge, is blocked during normal implementation-agent execution.
+- [x] `gh stack merge` is blocked during normal implementation-agent execution.
+- [x] Direct pushes to `main`, `master`, and the locally detectable default branch are blocked.
+- [x] Tag and release publication paths that publicly integrate a change are blocked when
       recognized.
-- [ ] Recognized GitHub API or GraphQL merge, auto-merge, merge-queue, release, and tag mutations
+- [x] Recognized GitHub API or GraphQL merge, auto-merge, merge-queue, release, and tag mutations
       are blocked.
-- [ ] Feature-branch pushes, PR creation or updates, stack submission, local tags, help, and
+- [x] Feature-branch pushes, PR creation or updates, stack submission, local tags, help, and
       dry-runs remain allowed.
-- [ ] Planning guidance puts rollout steps under `## Post-approval integration`, outside executable
+- [x] Planning guidance puts rollout steps under `## Post-approval integration`, outside executable
       checklists, with a manual-execution warning.
-- [ ] A regression test reproduces the original `gh stack merge --yes --squash` incident and
+- [x] A regression test reproduces the original `gh stack merge --yes --squash` incident and
       prevents its execution.
-- [ ] No `plus-ultra:integrate` command or automatic integration workflow is introduced.
+- [x] No `plus-ultra:integrate` command or automatic integration workflow is introduced.
 
 ## Interface contracts
 

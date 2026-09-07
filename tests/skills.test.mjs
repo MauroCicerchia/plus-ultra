@@ -653,8 +653,10 @@ test("human integration boundary is a durable, portable policy", () => {
   assert.match(spec, /^issue: 52$/m);
   assert.match(spec, /^created: 2026-09-06$/m);
   assert.match(spec, /^# 007 — Require human approval before integration$/m);
-  assert.match(spec, /^- \[ \]/m, "acceptance criteria begin unchecked");
-  assert.doesNotMatch(spec, /^- \[x\]/im, "acceptance criteria are not pre-completed");
+  const acceptanceCriteria = spec.match(/^- \[[ x]\]/gm) ?? [];
+  const checkedCriteria = spec.match(/^- \[x\]/gm) ?? [];
+  assert.equal(acceptanceCriteria.length, 11, "Issue 52 has 11 acceptance criteria");
+  assert.equal(checkedCriteria.length, 11, "all Issue 52 acceptance criteria are checked after verification");
 
   assert.equal(frontmatter.name, "integration-boundary");
   assert.match(frontmatter.description, /Use when/i);
