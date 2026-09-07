@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.3.0...v0.4.0) (2026-09-07)
+
+
+### Features
+
+* **design-artifacts:** add Pencil artifact workflow ([#68](https://github.com/MauroCicerchia/plus-ultra/issues/68)) ([3957cb4](https://github.com/MauroCicerchia/plus-ultra/commit/3957cb48fbd71d5def0ff55a9209683f2abb3692))
+* **product:** add durable product discovery ([#59](https://github.com/MauroCicerchia/plus-ultra/issues/59)) ([fb41811](https://github.com/MauroCicerchia/plus-ultra/commit/fb4181103a2f2994deceafed38accb010ba84238))
+
 ## [0.3.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.2.1...v0.3.0) (2026-09-07)
 
 

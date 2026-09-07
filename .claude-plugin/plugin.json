@@ -2,7 +2,7 @@
   "name": "plus-ultra",
   "displayName": "Plus Ultra",
   "description": "Spec-driven solo dev harness: repo conventions, guardrail hooks, spec-aware session resume, and review subagents on top of Superpowers.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Mauro Cicerchia",
     "email": "maurocicerchia98@gmail.com"
