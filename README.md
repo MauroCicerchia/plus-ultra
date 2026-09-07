@@ -180,8 +180,9 @@ sandbox. There is no `plus-ultra:integrate` command.
     `--spec <NNN|slug>` fallback, strict branch association, and approved-spec discovery. Ambiguous
     branch or discovery results pause for a path/Issue selection before any write. With no approved
     spec, it can perform an explicitly accepted limited review (`Spec: none`; no contractual
-    verdict). It posts deduplicated right-side findings and maintains a canonical tagged review
-    summary. It uses the current branch’s PR by default; pass a positive PR number and optionally
+    verdict). It posts deduplicated right-side findings and maintains a canonical, verdict-first
+    tagged summary: a visible Ready, Changes required, or Limited review status before findings and
+    compact traceability. It uses the current branch’s PR by default; pass a positive PR number and optionally
     `--spec <NNN|slug>` as a fallback. This workflow requires GitHub write access through `gh`.
   - *integration-boundary* — portable policy for ending autonomous work at ready for integration;
     manual merge and publication remain human-owned.

@@ -29,6 +29,14 @@ function markdownSubsection(markdown, heading) {
   return nextHeading === -1 ? content : content.slice(0, nextHeading);
 }
 
+function detailsBlock(markdown, label) {
+  const match = markdown.match(
+    new RegExp(`<details>\\s*<summary>${label}</summary>[\\s\\S]*?</details>`)
+  );
+  assert.ok(match, `${label} is contained in a details block`);
+  return match[0];
+}
+
 function parseFrontmatter(markdown) {
   const match = markdown.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(match, "skill has YAML frontmatter");
@@ -520,6 +528,186 @@ test("pr-review resolves an approved contract deterministically and can publish 
   for (const path of ["skills/pr-review/SKILL.md", "agents/pr-reviewer.md", "README.md"]) {
     assert.doesNotMatch(readRelative(path), /delegate.*?#17|#17.*?delegate/i, `${path} has no pending #17 delegation`);
   }
+});
+
+test("pr-review defines verdict semantics in its publish-and-update summary guidance", () => {
+  const contract = markdownSection(
+    readRelative("skills/pr-review/SKILL.md"),
+    "Publish and update the summary"
+  );
+  const statusStart = contract.indexOf("## Status");
+  const findingsStart = contract.indexOf("## Findings");
+
+  assert.notEqual(statusStart, -1, "Status is in the publish-and-update summary guidance");
+  assert.notEqual(findingsStart, -1, "Findings follows Status in the publish-and-update summary guidance");
+  const status = contract.slice(statusStart, findingsStart);
+
+  assert.match(status, /✅ Ready — no findings or non-blocking findings\./);
+  assert.match(status, /⛔ Changes required — one or more blockers\./);
+  assert.match(status, /⚠️ Limited review/);
+  assert.match(status, /Spec: none/);
+  assert.match(status, /limited review; no contractual verdict/);
+});
+
+test("pr-review makes its publish-and-update summary guidance complete and bounded", () => {
+  const contract = markdownSection(
+    readRelative("skills/pr-review/SKILL.md"),
+    "Publish and update the summary"
+  );
+  const marker = "<!-- plus-ultra:pr-review:summary -->";
+  const markerIndex = contract.indexOf(marker);
+  const titleIndex = contract.indexOf("# Plus Ultra PR Review");
+  const statusIndex = contract.indexOf("## Status");
+  const findingsIndex = contract.indexOf("## Findings");
+  const traceabilityIndex = contract.indexOf("| Issue | Spec | Contract |");
+  const resolutionsHeading = contract.match(/^\s*## .*resolv.*$/im);
+  const resolutionsIndex = resolutionsHeading ? contract.indexOf(resolutionsHeading[0]) : -1;
+  const evidenceIndex = contract.indexOf("<summary>Evidence</summary>");
+  const metadataIndex = contract.indexOf("<summary>Metadata</summary>");
+  const findings = contract.slice(findingsIndex, traceabilityIndex);
+  const evidence = detailsBlock(contract, "Evidence");
+  const metadata = detailsBlock(contract, "Metadata");
+
+  assert.equal(contract.split(marker).length - 1, 1, "the contract has one summary marker");
+  assert.match(contract, /^# Plus Ultra PR Review$/m);
+  assert.doesNotMatch(contract, /^# .*Plus Ultra PR Review.*[✅⛔⚠️]/m);
+  for (const [name, index] of [
+    ["summary marker", markerIndex],
+    ["title", titleIndex],
+    ["status", statusIndex],
+    ["findings", findingsIndex],
+    ["traceability table", traceabilityIndex],
+    ["evidence", evidenceIndex],
+    ["metadata", metadataIndex],
+  ]) {
+    assert.notEqual(index, -1, `${name} is present in publish-and-update summary guidance`);
+  }
+  assert.ok(
+    markerIndex < titleIndex &&
+      titleIndex < statusIndex &&
+      statusIndex < findingsIndex &&
+      findingsIndex < traceabilityIndex &&
+      traceabilityIndex < evidenceIndex &&
+      evidenceIndex < metadataIndex,
+    "publish-and-update summary guidance keeps its required order"
+  );
+
+  if (resolutionsIndex !== -1) {
+    assert.ok(
+      traceabilityIndex < resolutionsIndex && resolutionsIndex < evidenceIndex,
+      "the optional resolutions section follows traceability and precedes evidence"
+    );
+  }
+
+  assert.match(
+    findings,
+    /(?:<Severity>|severity)[\s\S]*?summary-only[\s\S]*?unanchorable/i,
+    "the visible Findings portion identifies unanchorable findings as summary-only"
+  );
+  assert.match(
+    contract.replace(/\s+/g, " "),
+    /(?:resolutions?.{0,120}(?:only if|only when|when).{0,120}(?:exist|non[- ]?empty|one or more)|(?:include|omit).{0,120}resolutions?.{0,120}(?:only if|only when|when).{0,120}(?:exist|non[- ]?empty|one or more))/i,
+    "resolutions are conditional on resolutions existing"
+  );
+  for (const field of ["IDs", "SHAs", "duplicate thread references", "counts"]) {
+    const declaration = metadata
+      .split("\n")
+      .find((line) => new RegExp(field, "i").test(line));
+    assert.ok(declaration, `${field} has a declaration in Metadata`);
+    assert.match(
+      declaration,
+      /metadata/i,
+      `${field} is identified as metadata-only`
+    );
+    assert.match(
+      declaration,
+      /(?:omit|exclude|leave out|include)[\s\S]*(?:empty|non[- ]?empty)|(?:if|when)[\s\S]*(?:empty|non[- ]?empty)/i,
+      `${field} is included only when nonempty`
+    );
+  }
+  assert.match(evidence, /<details>[\s\S]*<summary>Evidence<\/summary>[\s\S]*<\/details>/);
+  assert.match(metadata, /<details>[\s\S]*<summary>Metadata<\/summary>[\s\S]*<\/details>/);
+});
+
+test("pr-review distinguishes legacy approved-contract and limited-review traceability", () => {
+  const contract = markdownSection(
+    readRelative("skills/pr-review/SKILL.md"),
+    "Publish and update the summary"
+  );
+  const traceabilityStart = contract.indexOf("| Issue | Spec | Contract |");
+  const resolutionsHeading = contract.match(/^\s*## .*resolv.*$/im);
+  const resolutionsStart = resolutionsHeading ? contract.indexOf(resolutionsHeading[0]) : -1;
+  const evidenceStart = contract.indexOf("<summary>Evidence</summary>");
+  const traceabilityEnd = resolutionsStart === -1 ? evidenceStart : resolutionsStart;
+  const traceability = contract.slice(traceabilityStart, traceabilityEnd);
+
+  assert.notEqual(traceabilityStart, -1, "the compact traceability table exists");
+  assert.match(
+    traceability,
+    /\| none \| `specs\/<path>` \(approved\) \| Contractual review \|/,
+    "an approved legacy contract without issue: has a distinct traceability row"
+  );
+  assert.match(
+    traceability,
+    /\| none \| none \| Limited review \|/,
+    "a limited review remains distinguishable from a legacy contractual review"
+  );
+});
+
+test("pr-review omits empty severity headings from visible findings", () => {
+  const contract = markdownSection(
+    readRelative("skills/pr-review/SKILL.md"),
+    "Publish and update the summary"
+  );
+  const findingsStart = contract.indexOf("## Findings");
+  const traceabilityStart = contract.indexOf("| Issue | Spec | Contract |");
+  const findings = contract.slice(findingsStart, traceabilityStart);
+  const normalizedFindings = findings.replace(/\s+/g, " ");
+
+  assert.match(
+    normalizedFindings,
+    /group visible findings only beneath the severity headings that are present/i,
+    "findings are grouped only under severities that are present"
+  );
+  assert.match(
+    normalizedFindings,
+    /omit every empty severity heading/i,
+    "empty severity headings are omitted"
+  );
+  assert.doesNotMatch(
+    findings,
+    /###\s+Unanchorable/i,
+    "unanchorable findings do not get a separate visible severity"
+  );
+});
+
+test("pr-review keeps prior resolutions human-readable and thread IDs metadata-only", () => {
+  const contract = markdownSection(
+    readRelative("skills/pr-review/SKILL.md"),
+    "Publish and update the summary"
+  );
+  const resolutionsStart = contract.search(/^\s*## .*resol.*$/im);
+  const evidenceStart = contract.indexOf("<summary>Evidence</summary>");
+  const metadata = detailsBlock(contract, "Metadata");
+  const resolutions = contract.slice(resolutionsStart, evidenceStart);
+  const normalizedResolutions = resolutions.replace(/\s+/g, " ");
+
+  assert.notEqual(resolutionsStart, -1, "the optional resolutions guidance exists");
+  assert.match(
+    normalizedResolutions,
+    /Describe each resolution human-first \(the behavior that is now fixed and the evidence\), not as an internal identifier/i,
+    "prior resolutions lead with behavior and evidence"
+  );
+  assert.match(
+    normalizedResolutions,
+    /Keep thread IDs in Metadata only/i,
+    "thread IDs are excluded from visible resolution descriptions"
+  );
+  assert.ok(
+    normalizedResolutions.indexOf("human-first") < normalizedResolutions.indexOf("thread IDs"),
+    "human-readable resolution guidance precedes ID handling"
+  );
+  assert.match(metadata, /IDs are metadata-only/i, "IDs remain metadata-only");
 });
 
 test("GitHub Issues workflows are portable, confirmation-gated, and available through Claude", () => {
