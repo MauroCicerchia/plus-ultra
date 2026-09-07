@@ -8,6 +8,18 @@ description: Use when a roadmap brief or GitHub issue needs to be broken into mi
 Accept a roadmap brief or an existing issue. If an issue is supplied, read it before planning. Follow
 `plus-ultra:issue-management` for taxonomy, repository access, and mutation safety.
 
+## Durable product context
+
+When `docs/product.md` exists, read it as product context before decomposition. Use its MVP
+hypothesis, core user journeys, non-goals, and success criteria to bound milestones, epics, and
+stories. A repository without a brief remains compatible: continue planning normally and never
+create, edit, write, or mutate `docs/product.md` implicitly.
+
+If proposed roadmap work creates a durable contradiction with a present brief, pause the current
+workflow, invoke `$product-discovery` for a focused rediscovery update; only after its explicit
+human approval, resume the current workflow. This workflow only consumes the approved brief; it does not resolve a
+strategic conflict itself.
+
 ## Decompose before writing
 
 Propose one Milestone, then a tree of Epics and independent Stories. Every Story must state its

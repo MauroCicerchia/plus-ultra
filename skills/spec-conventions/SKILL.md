@@ -8,6 +8,18 @@ description: Use when creating, organizing, tracking, or resuming specs; when Su
 Superpowers owns the *methodology* (brainstorming → writing-plans → subagent TDD → verification).
 This skill owns the *repo conventions* for where that work lives and how its state is tracked.
 
+## Durable product context
+
+When `docs/product.md` exists, read it as product context before brainstorming, feature work, or
+significant design. Use the approved direction to frame the work while leaving the brief unchanged.
+A repository without a brief remains compatible: continue normally and never create, edit, write,
+or mutate `docs/product.md` implicitly.
+
+If proposed brainstorming, feature work, or significant design creates a durable contradiction
+with a present brief, pause the current workflow, invoke `$product-discovery` for a focused
+rediscovery update; only after its explicit human approval, resume the current workflow. This workflow is a read-only
+consumer and does not settle strategic product changes itself.
+
 ## Working artifacts stay local
 
 Override Superpowers' default artifact paths so intermediate process documents do not become

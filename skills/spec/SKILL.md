@@ -10,6 +10,18 @@ Use this skill as the portable equivalent of Claude Code's `/plus-ultra:spec` co
 Follow `plus-ultra:spec-conventions` for numbering and lifecycle rules. GitHub Issues own work
 progress; a spec records only its technical-contract lifecycle.
 
+## Durable product context
+
+When creating a new technical contract, read a present `docs/product.md` as product context before
+shaping the contract. A repository without a brief remains compatible: continue normally and never
+create, edit, write, or mutate `docs/product.md` implicitly. The administrative `list`, `link`, and
+`status` operations continue without a missing brief and do not block on product discovery.
+
+If a new contract creates a durable contradiction with a present brief, pause the current workflow,
+invoke `$product-discovery` for a focused rediscovery update; only after its explicit human
+approval, resume the current workflow. This workflow consumes the brief read-only; it never resolves or writes the strategic
+change.
+
 ## Supported requests
 
 Use this complete grammar:

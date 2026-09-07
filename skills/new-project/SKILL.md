@@ -8,6 +8,19 @@ description: Scaffold a new project with the plus-ultra default stack — a pnpm
 Bootstraps the `plus-ultra:tech-stack` defaults. Confirm the stack with the user first if they
 haven't stated one — this skill fills silence, it doesn't override stated preferences.
 
+## Product discovery gate
+
+Before stack selection or scaffolding, identify whether this is greenfield work. For a greenfield
+project missing `docs/product.md`, invoke `$product-discovery` for initial adaptive discovery;
+explicit human approval of its proposed brief is required before stack selection or scaffolding.
+When `docs/product.md` exists, read the approved brief as product context; it informs stack and
+scaffolding decisions without changing the brief.
+
+An existing repository without a brief remains compatible: continue normally and never create,
+edit, write, or mutate `docs/product.md` implicitly. If proposed scaffolding creates a durable
+contradiction with a present brief, pause the current workflow, invoke `$product-discovery` for a
+focused rediscovery update; only after its explicit human approval, resume the current workflow.
+
 ## Before scaffolding
 
 - Confirm project name and whether they want the full **monorepo** (default) or a **single package**
