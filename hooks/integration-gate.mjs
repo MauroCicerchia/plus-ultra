@@ -298,6 +298,23 @@ function skipOptions(tokens, index, optionsWithValue = new Set()) {
   return cursor;
 }
 
+function skipShellCommandPrefixes(tokens) {
+  const reserved = new Set(["!", "{", "}", "if", "then", "elif", "else", "while", "until", "do"]);
+  let index = 0;
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (token.quoted) break;
+    if (reserved.has(token.value)) {
+      index += 1;
+      continue;
+    }
+    const redirect = token.value.match(/^(?:\d+)?(?:<>|>>|>&|<&|<<-?|>|<)(.*)$/);
+    if (!redirect) break;
+    index += redirect[1] ? 1 : 2;
+  }
+  return tokens.slice(index);
+}
+
 function unwrapCommand(tokens) {
   tokens = [...tokens];
   let index = 0;
@@ -349,6 +366,8 @@ function unwrapCommand(tokens) {
         index + 1,
         new Set(["-n", "--max-args", "-L", "--max-lines", "-s", "--max-chars", "-I", "--replace", "-E", "--eof", "-d", "--delimiter", "-a", "--arg-file", "-P", "--max-procs"])
       );
+    } else if (name === "exec") {
+      index = skipOptions(tokens, index + 1, new Set(["-a"]));
     } else {
       return { tokens, index, name };
     }
@@ -382,6 +401,7 @@ function ghApiIntegration(endpoint, options) {
     return "pull-request merge mutation";
   }
   if (/(?:^|\/)merge-queues?(?:\/|$)/.test(route)) return "merge-queue mutation";
+  if (/(?:^|\/)releases\/generate-notes\/?$/.test(route)) return null;
   if (/(?:^|\/)releases?(?:\/|$)/.test(route)) return "release mutation";
   if (/(?:^|\/)git\/refs(?:\/|$)/.test(route) && /refs\/tags\//i.test(`${route} ${body}`)) {
     return "tag publication mutation";
@@ -583,6 +603,18 @@ function pushOptionEnabled(options, flag) {
   return enabled;
 }
 
+function configuredPushRefspecs(options, remote) {
+  if (!remote) return [];
+  const expected = `remote.${remote}.push`.toLowerCase();
+  return options.flatMap(([flag, value]) => {
+    if (flag !== "-c" || typeof value !== "string") return [];
+    const equals = value.indexOf("=");
+    if (equals === -1 || value.slice(0, equals).toLowerCase() !== expected) return [];
+    const refspec = value.slice(equals + 1);
+    return refspec && !/\s/.test(refspec) ? [refspec] : [];
+  });
+}
+
 function gitIntegration(tokens, index, root) {
   const global = parseOptions(tokens.slice(index + 1).map(({ value }) => value),
     new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--exec-path"]), true);
@@ -602,7 +634,9 @@ function gitIntegration(tokens, index, root) {
     return "tag publication";
   }
 
-  const refspecs = options.some(([flag]) => flag === "--repo") ? positional : positional.slice(1);
+  const selectedRemote = options.filter(([flag]) => flag === "--repo").at(-1)?.[1] ?? positional[0] ?? "";
+  let refspecs = options.some(([flag]) => flag === "--repo") ? positional : positional.slice(1);
+  if (!refspecs.length) refspecs = configuredPushRefspecs(global.options, selectedRemote);
   if (refspecs.some((refspec, cursor) => refspec === "tag" && refspecs[cursor + 1])) return "tag publication";
 
   const branches = protectedBranches(context);
@@ -653,6 +687,8 @@ function shellIntegration(tokens, index, depth, root) {
 function classifyTokens(tokens, depth, root) {
   if (!tokens.length || depth > MAX_PARSE_DEPTH) return null;
 
+  tokens = skipShellCommandPrefixes(tokens);
+  if (!tokens.length) return null;
   const unwrapped = unwrapCommand(tokens);
   const { index, name } = unwrapped;
   tokens = unwrapped.tokens;

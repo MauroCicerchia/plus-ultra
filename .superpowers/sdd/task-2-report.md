@@ -219,3 +219,40 @@ It passed **84 tests, 0 failures**, including all earlier incident, review, and 
 The full repository suite (`node --test tests/*.test.mjs`) then passed **114 tests, 0 failures**.
 The gate remains unregistered; no manifests, dependencies, persistent state, or external command
 execution were added.
+
+## Final review fixes — 2026-09-06
+
+### Root cause and RED evidence
+
+The final review found three independent literal-classification gaps. Before production changes,
+the focused regression command below completed with **0 passed and 3 failed**:
+
+```sh
+node --test --test-name-pattern='integration gate final review:' tests/hooks.test.mjs
+```
+
+- Unquoted leading redirections and shell structural words (`{`, `then`) remained at the head of a
+  token list, and `exec` was not an execution wrapper, so the following `gh` operation was allowed.
+  The regression covers `>/dev/null gh pr merge`, `2>/dev/null gh stack merge`, a brace group, an
+  `if` body, and `exec gh pr merge`, alongside harmless `echo` controls.
+- `git -c remote.origin.push=HEAD:refs/heads/main push origin` on a feature branch ignored the
+  command-line remote push refspec and was allowed. The paired `push upstream` control confirms a
+  config entry is used only for its selected literal remote.
+- `gh api .../releases/generate-notes -f tag_name=v1` was incorrectly caught by the generic
+  mutating-release endpoint rule even though it only prepares release notes.
+
+### Minimal fixes and GREEN evidence
+
+The classifier now skips only unquoted leading shell redirections and structural command prefixes,
+then unwraps `exec` (including its `-a` value). `git push` uses literal, whitespace-free
+`-c remote.<selected-remote>.push=<refspec>` values only when no explicit command refspec is
+present; it does not infer a remote or inspect arbitrary configuration. The exact
+`releases/generate-notes` REST endpoint is exempted before the generic releases mutation rule.
+
+The same focused regression command passed **3/3** after the fixes. Subsequent verification:
+
+- `node --check hooks/integration-gate.mjs` — passed.
+- `node --test tests/hooks.test.mjs` — **87 passed, 0 failed**.
+- `node --test tests/*.test.mjs` — **117 passed, 0 failed**.
+
+The gate remains unregistered; neither hook manifest was changed.

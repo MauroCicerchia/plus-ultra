@@ -738,3 +738,50 @@ test("integration gate re-review: shell and env non-executing flags skip nested 
     "zsh -n -c 'gh pr merge 42'",
   ]) assertIntegrationDecision(command, false);
 });
+
+test("integration gate final review: shell syntax prefixes still reach integration commands", () => {
+  for (const command of [
+    ">/dev/null gh pr merge 42",
+    "2>/dev/null gh stack merge --yes",
+    "{ gh release create v1; }",
+    "if true; then gh stack merge --yes; fi",
+    "exec gh pr merge 42",
+  ]) assertIntegrationDecision(command, true);
+
+  for (const command of [
+    ">/dev/null echo gh pr merge 42",
+    "{ echo gh release create v1; }",
+    "if true; then echo gh stack merge; fi",
+    "exec echo gh pr merge 42",
+  ]) assertIntegrationDecision(command, false);
+});
+
+test("integration gate final review: git -c remote push refspec protects the selected remote", () => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["switch", "-c", "feature/review"], cwd);
+    assertIntegrationDecision(
+      "git -c remote.origin.push=HEAD:refs/heads/main push origin",
+      true,
+      cwd
+    );
+    assertIntegrationDecision(
+      "git -c remote.origin.push=HEAD:refs/heads/main push upstream",
+      false,
+      cwd
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("integration gate final review: generating release notes is preparation-only", () => {
+  assertIntegrationDecision(
+    "gh api repos/acme/widget/releases/generate-notes -f tag_name=v1",
+    false
+  );
+  assertIntegrationDecision(
+    "gh api repos/acme/widget/releases -f tag_name=v1",
+    true
+  );
+});
