@@ -807,6 +807,13 @@ test("integration gate blocks command-scoped Git configuration push refspecs", (
       true,
       cwd
     );
+    for (const count of ["+1", "' 1'"]) {
+      assertIntegrationDecision(
+        `GIT_CONFIG_COUNT=${count} GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:refs/heads/main git push origin`,
+        true,
+        cwd
+      );
+    }
     assertIntegrationDecision(
       "PUSH_REFSPEC=HEAD:refs/heads/main git --config-env=remote.origin.push=PUSH_REFSPEC push origin",
       true,

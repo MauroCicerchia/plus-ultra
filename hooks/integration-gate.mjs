@@ -644,7 +644,7 @@ function commandScopedPushRefspecs(options, tokens, index, remote) {
 
   // Git only reads GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n for n below a valid GIT_CONFIG_COUNT;
   // without it the numbered pairs are inert and the push keeps its normal refspec.
-  const count = /^\d+$/.test(assignments.get("GIT_CONFIG_COUNT")?.trim() ?? "")
+  const count = /^\+?\d+$/.test(assignments.get("GIT_CONFIG_COUNT")?.trim() ?? "")
     ? Math.min(Number(assignments.get("GIT_CONFIG_COUNT").trim()), assignments.size)
     : 0;
   for (let cursor = 0; cursor < count; cursor += 1) {
