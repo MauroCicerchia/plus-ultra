@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.2.1...v0.3.0) (2026-09-07)
+
+
+### Features
+
+* **integration:** require human approval before integration ([#53](https://github.com/MauroCicerchia/plus-ultra/issues/53)) ([8115068](https://github.com/MauroCicerchia/plus-ultra/commit/8115068932893175d53930a3c8ae72a1aeeb6e6b))
+* **pr-review:** define verdict-first summary hierarchy ([#56](https://github.com/MauroCicerchia/plus-ultra/issues/56)) ([b0deecf](https://github.com/MauroCicerchia/plus-ultra/commit/b0deecf8f98711bfe5c37aa3fc5dac081992cb66)), closes [#55](https://github.com/MauroCicerchia/plus-ultra/issues/55)
+* **workflow-risk:** define portable risk contract ([#58](https://github.com/MauroCicerchia/plus-ultra/issues/58)) ([9d7add7](https://github.com/MauroCicerchia/plus-ultra/commit/9d7add7e5f0681c18d4efb112d4544fe3b2f8f8c))
+
 ## [0.2.1](https://github.com/MauroCicerchia/plus-ultra/compare/v0.2.0...v0.2.1) (2026-09-06)
 
 
