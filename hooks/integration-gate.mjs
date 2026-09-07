@@ -642,10 +642,14 @@ function commandScopedPushRefspecs(options, tokens, index, remote) {
     else unresolved = true;
   };
 
-  for (const [name, key] of assignments) {
-    const match = name.match(/^GIT_CONFIG_KEY_(\d+)$/);
-    if (!match || key.toLowerCase() !== expected) continue;
-    add(assignments.get(`GIT_CONFIG_VALUE_${match[1]}`));
+  // Git only reads GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n for n below a valid GIT_CONFIG_COUNT;
+  // without it the numbered pairs are inert and the push keeps its normal refspec.
+  const count = /^\d+$/.test(assignments.get("GIT_CONFIG_COUNT")?.trim() ?? "")
+    ? Math.min(Number(assignments.get("GIT_CONFIG_COUNT").trim()), assignments.size)
+    : 0;
+  for (let cursor = 0; cursor < count; cursor += 1) {
+    if (assignments.get(`GIT_CONFIG_KEY_${cursor}`)?.toLowerCase() !== expected) continue;
+    add(assignments.get(`GIT_CONFIG_VALUE_${cursor}`));
   }
   for (const [flag, value] of options) {
     if (flag !== "--config-env" || typeof value !== "string") continue;

@@ -812,6 +812,13 @@ test("integration gate blocks command-scoped Git configuration push refspecs", (
       true,
       cwd
     );
+    // Without a valid GIT_CONFIG_COUNT covering index 0 the pair is inert and Git pushes the branch.
+    for (const command of [
+      "GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:refs/heads/main git push origin",
+      "GIT_CONFIG_COUNT=0 GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:refs/heads/main git push origin",
+      "GIT_CONFIG_COUNT=bogus GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:refs/heads/main git push origin",
+      "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_1=remote.origin.push GIT_CONFIG_VALUE_1=HEAD:refs/heads/main git push origin",
+    ]) assertIntegrationDecision(command, false, cwd);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
