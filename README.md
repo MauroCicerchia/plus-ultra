@@ -99,6 +99,39 @@ When proposed work creates a durable contradiction with the brief, pause that wo
 focused rediscovery update through `$product-discovery`. Resume only after the resulting update
 has explicit human approval.
 
+## Design artifacts
+
+Use `plus-ultra:design-artifacts` when creating, resolving, approving, reviewing, or revising visual
+designs for Issues, or maintaining the reusable design system. Each design is the durable pair
+`designs/NNN-slug.md` + `designs/NNN-slug.pen`. The manifest records title, status, explicit `issues`,
+the paired Pencil path, surface IDs/names, creation date, and optional `supersedes` sequence.
+List the epic, when applicable, and every covered story in `issues`; hierarchy never implies
+coverage. One pair can describe a journey shared by several explicitly listed stories.
+
+The lifecycle is `draft → approved → superseded`. Approval requires the saved paired file to be
+active in Pencil, verified surface IDs, captures shown for review, and explicit human approval of
+that exact pair. A revision creates the next numbered draft with `supersedes`; the old pair stays
+approved until the replacement is approved. Only then does its manifest become superseded; the
+old `.pen` is preserved unchanged.
+
+Resolution uses exact Issue membership among approved manifests. One match selects its manifest,
+Pencil path, and surfaces; zero returns `none`; multiple return `ambiguous` and pause dependent work
+for explicit human selection. Recency and filenames never choose a winner. Review is read-only
+and reports evidence and findings without approving or repairing the design.
+
+Root `DESIGN.md` contains reusable principles, primitive/semantic/component tokens, typography,
+color, spacing and density, components and states, responsive behavior, motion, and accessibility.
+Its template keeps these system rules separate from concrete screens in `.pen` pairs. Show a
+concrete proposal and obtain explicit human approval before creating or updating `DESIGN.md`;
+that approval does not approve or rewrite a screen pair.
+
+Pencil/pen.dev is optional and external. When it is unavailable, the wrong file is open, or a
+surface cannot be verified, pause the affected visual authoring, review, or approval; existing
+artifact resolution and independent nonvisual work continue. The skill consumes a present
+`docs/product.md` read-only, continues when it is absent, and routes durable contradictions through
+approved product discovery. UI-impact classification (#35), browser verification (#24), and
+workflow orchestration (#22) remain separate concerns.
+
 ## Optional companions
 
 `plus-ultra` stays focused on spec-driven development. For day-to-day projects, it pairs well with
@@ -211,6 +244,8 @@ sandbox. There is no `plus-ultra:integrate` command.
     `--spec <NNN|slug>` as a fallback. This workflow requires GitHub write access through `gh`.
   - *integration-boundary* — portable policy for ending autonomous work at ready for integration;
     manual merge and publication remain human-owned.
+  - *design-artifacts* — numbered Issue-linked Pencil design pairs with explicit human approval,
+    deterministic resolution, preserved revisions, read-only review, and reusable `DESIGN.md` rules.
   - *workflow-risk* — portable FAST / STANDARD / CRITICAL classification contract. It records
     explainable initial and pre-ship recommendations without commands, hooks, or state: Issue #22
     owns future orchestration and persistence, Issue #26 owns conditional Semgrep execution, and

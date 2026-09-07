@@ -1,0 +1,6 @@
+interface:
+  display_name: "Design Artifacts"
+  short_description: "Manage approved visual artifacts and reusable design rules"
+  default_prompt: "Use $design-artifacts to create, resolve, approve, review, or revise design artifacts and DESIGN.md."
+policy:
+  allow_implicit_invocation: true

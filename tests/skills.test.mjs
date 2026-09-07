@@ -174,6 +174,198 @@ test("README documents the durable product-discovery workflow", () => {
   assert.doesNotMatch(readme, /product.discovery[\s\S]{0,100}(?:hook|script|dependency|command)/i, "product-discovery documentation stays portable");
 });
 
+function designArtifactFile(path = "SKILL.md") {
+  const relativePath = `skills/design-artifacts/${path}`;
+  assert.ok(existsSync(join(repoRoot, relativePath)), `${relativePath} exists`);
+  return readRelative(relativePath);
+}
+
+test("design-artifacts ships a discoverable portable skill and optional Pencil capability", () => {
+  const skill = designArtifactFile();
+  const frontmatter = parseFrontmatter(skill);
+  const metadata = designArtifactFile("agents/openai.yaml");
+  assert.equal(frontmatter.name, "design-artifacts");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(frontmatter.description, /design|Pencil|DESIGN\.md/);
+  assert.match(skill, /plus-ultra:design-artifacts/);
+  assert.match(metadata, /display_name: "Design Artifacts"/);
+  assert.match(metadata, /short_description: ".+"/);
+  assert.match(metadata, /default_prompt: "Use \$design-artifacts /);
+  assert.match(metadata, /policy:\n  allow_implicit_invocation: true/);
+  for (const path of ["SKILL.md", "assets/design-artifact.md", "assets/DESIGN.md"]) {
+    assert.doesNotMatch(designArtifactFile(path), /Claude|Codex|CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\/|\.claude|\.codex|subagents?/i, `${path} stays portable`);
+  }
+  assert.match(skill.replace(/\s+/g, " "), /Pencil.*?optional.*?external/i);
+  for (const path of ["commands/design-artifacts.md", "hooks/design-artifacts.mjs", "scripts/design-artifacts.mjs"]) {
+    assert.ok(!existsSync(join(repoRoot, path)), `${path} is not introduced`);
+  }
+});
+
+test("design artifacts define typed paired manifests with explicit Issue coverage", () => {
+  const skill = designArtifactFile();
+  const contract = markdownSection(skill, "Artifact contract").replace(/\s+/g, " ");
+  const template = designArtifactFile("assets/design-artifact.md");
+  assert.match(skill, /DesignStatus = draft \| approved \| superseded/);
+  for (const declaration of [
+    "title: string", "status: DesignStatus", "issues: PositiveInteger[]",
+    "pencil: RelativePenPath", "surfaces: { id: PencilNodeId, name: string }[]",
+    "created: YYYY-MM-DD", 'supersedes?: "NNN"',
+  ]) assert.ok(skill.includes(declaration), `manifest declares ${declaration}`);
+  assert.match(contract, /designs\/NNN-slug\.md.*?designs\/NNN-slug\.pen/);
+  assert.match(contract, /highest.*?number.*?add one|maximum.*?number.*?plus one/i);
+  assert.match(contract, /relative to.*?manifest.*?directory/i);
+  assert.match(contract, /(?:no|reject).*?absolute.*?(?:traversal|\.\.)/i);
+  assert.match(contract, /explicitly.*?epic.*?(?:every|all).*?stor(?:y|ies)/i);
+  assert.match(contract, /(?:never|do not).*?infer.*?(?:remote|hierarchy)/i);
+  assert.match(contract, /positive integers/i);
+  assert.match(contract, /nonempty.*?surfaces/i);
+  assert.match(contract, /(?:unique|distinct).*?IDs/i);
+  for (const key of ["title", "status", "issues", "pencil", "surfaces", "created"]) {
+    assert.match(template, new RegExp(`^${key}:`, "m"), `template provides ${key}`);
+  }
+  assert.match(template, /^status: draft$/m);
+  assert.match(template, /^issues: \[100, 101, 102\]/m);
+  assert.match(template, /^pencil: \.\/NNN-slug\.pen$/m);
+  assert.match(template, /^  - id: /m);
+  assert.match(template, /^    name: /m);
+  assert.match(template, /^# supersedes: "NNN"$/m);
+  for (const heading of ["Scope and Issue coverage", "Surfaces", "Visual decisions", "Review evidence"]) {
+    markdownSection(template, heading);
+  }
+});
+
+test("design resolution selects only exact approved Issue matches and never guesses ambiguity", () => {
+  const skill = designArtifactFile();
+  const resolution = markdownSection(skill, "Resolve an Issue").replace(/\s+/g, " ");
+  assert.match(skill, /DesignResolution =/);
+  for (const result of ["{ result: selected, manifest, pencil, surfaces }", "{ result: none }", "{ result: ambiguous, candidates }"]) {
+    assert.ok(skill.includes(result), `resolution declares ${result}`);
+  }
+  assert.match(resolution, /approved.*?exact.*?issues/i);
+  assert.match(resolution, /ignore.*?draft.*?superseded/i);
+  assert.match(resolution, /(?:zero|0) matches.*?none/i);
+  assert.match(resolution, /(?:one|1) match.*?selected.*?manifest.*?pencil.*?surfaces/i);
+  assert.match(resolution, /(?:multiple|two or more) matches.*?ambiguous.*?candidates.*?explicit.*?selection/i);
+  assert.match(resolution, /(?:never|do not).*?(?:guess|choose).*?recency.*?(?:filename|file order)/i);
+  assert.match(resolution, /(?:read-only|without.*?mutat)/i);
+  assert.match(resolution, /(?:without|does not require).*?Pencil/i);
+});
+
+test("design approval requires verified visual evidence and a distinct explicit human decision", () => {
+  const approval = markdownSection(designArtifactFile(), "Approve a draft").replace(/\s+/g, " ");
+  assert.match(approval, /(?:\.pen|pencil).*?(?:exist|saved)/i);
+  assert.match(approval, /get_app_state.*?active.*?(?:path|file).*?(?:match|same)/i);
+  assert.match(approval, /execute.*?Get.*?(?:every|all).*?(?:surface|IDs)/i);
+  assert.match(approval, /TakeScreenshot.*?(?:every|each|all).*?surface/i);
+  assert.match(approval, /(?:show|present).*?(?:manifest|coverage).*?(?:capture|screenshot)/i);
+  assert.match(approval, /only.*?explicit human approval.*?(?:status|approved)/i);
+  assert.match(approval, /(?:request|plan).*?(?:not|never).*?approval/i);
+  assert.match(approval, /(?:declined|unapproved).*?draft.*?(?:unchanged|no.*?transition)/i);
+  assert.match(approval, /missing.*?surface.*?(?:pause|stop).*?(?:never|do not).*?(?:invent|guess)/i);
+});
+
+test("design revisions preserve the prior pair until replacement approval", () => {
+  const revision = markdownSection(designArtifactFile(), "Revise an approved design").replace(/\s+/g, " ");
+  assert.match(revision, /next.*?number.*?pair.*?draft/i);
+  assert.match(revision, /supersedes.*?(?:previous|prior|old).*?NNN/i);
+  assert.match(revision, /(?:never|do not).*?(?:modify|edit|overwrite).*?approved.*?\.pen/i);
+  assert.match(revision, /prior.*?remains approved.*?until.*?(?:replacement|revision|new).*?(?:approved|approval)/i);
+  assert.match(revision, /(?:only after|once).*?explicit human approval.*?superseded/i);
+  assert.match(revision, /(?:declined|unapproved).*?(?:prior|old).*?unchanged/i);
+  assert.match(revision, /(?:copy|duplicate).*?(?:before|then).*?(?:edit|author)/i);
+});
+
+test("Pencil outages and wrong documents pause only visual work", () => {
+  const capability = markdownSection(designArtifactFile(), "Pencil capability").replace(/\s+/g, " ");
+  assert.match(capability, /get_app_state.*?execute/);
+  assert.match(capability, /(?:unavailable|absent|missing).*?(?:wrong|incorrect).*?(?:file|document).*?pause only.*?authoring.*?review.*?approval/i);
+  assert.match(capability, /resolution.*?nonvisual.*?continue/i);
+  assert.match(capability, /(?:do not|never).*?(?:fabricate|claim|invent).*?(?:capture|screenshot|verification)/i);
+  assert.match(capability, /get_app_state.*?(?:before|prior to).*?(?:mutation|edit)/i);
+  assert.match(capability, /https:\/\/docs\.pencil\.dev\/getting-started\/ai-integration/);
+  assert.match(capability, /https:\/\/docs\.pencil\.dev\/core-concepts\/pen-files/);
+});
+
+test("design-artifacts consumes product context read-only and routes durable contradictions", () => {
+  const context = markdownSection(designArtifactFile(), "Product context").replace(/\s+/g, " ");
+  assert.match(context, /docs\/product\.md.*?exists.*?read.*?read-only/i);
+  assert.match(context, /(?:absent|missing).*?continue.*?(?:never|do not).*?create/i);
+  assert.match(context, /(?:never|do not).*?(?:create|edit|write).*?docs\/product\.md/i);
+  assert.match(context, /durable contradiction.*?pause.*?(?:\$|plus-ultra:)product-discovery.*?focused.*?explicit human approval.*?resume/i);
+});
+
+test("DESIGN.md defines reusable design rules without duplicating concrete screens", () => {
+  const skill = designArtifactFile();
+  const template = designArtifactFile("assets/DESIGN.md");
+  const designSystem = markdownSection(skill, "Maintain DESIGN.md").replace(/\s+/g, " ");
+  const headings = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(headings, [
+    "Principles", "Tokens", "Typography", "Color", "Spacing and density",
+    "Components and states", "Responsive behavior", "Motion", "Accessibility",
+  ]);
+  assert.deepEqual([...template.matchAll(/^### (.+)$/gm)].map((match) => match[1]), [
+    "Primitive tokens", "Semantic tokens", "Component tokens",
+  ]);
+  assert.match(designSystem, /(?:root|root-level).*?DESIGN\.md|DESIGN\.md.*?(?:root|root-level)/i);
+  assert.match(designSystem, /assets\/DESIGN\.md/);
+  assert.match(designSystem, /reusable.*?(?:rules|principles|tokens)/i);
+  assert.match(designSystem, /(?:do not|never).*?duplicat.*?(?:screen|layout).*?\.pen/i);
+  assert.match(designSystem, /(?:show|present).*?proposal.*?explicit human approval.*?(?:write|update|creat)/i);
+  assert.match(designSystem, /(?:declined|unapproved).*?unchanged/i);
+  assert.match(designSystem, /preserv.*?unaffected/i);
+  assert.match(designSystem, /(?:does not|never).*?(?:approve|approval).*?(?:artifact|\.pen)/i);
+});
+
+test("design review is read-only and reports evidence without silently approving or repairing", () => {
+  const review = markdownSection(designArtifactFile(), "Review a design").replace(/\s+/g, " ");
+  assert.match(review, /read-only/i);
+  assert.match(review, /(?:manifest|Issue).*?(?:surface|IDs).*?DESIGN\.md/);
+  assert.match(review, /(?:finding|mismatch).*?(?:path|ID).*?evidence.*?(?:required|proposed).*?change/i);
+  assert.match(review, /(?:do not|never).*?(?:edit|mutat).*?(?:approve|status)/i);
+  assert.match(review, /(?:missing|unavailable).*?(?:evidence|Pencil).*?(?:incomplete|unverified)/i);
+});
+
+test("design resolution worked cases cover story, journey, exclusions, none, and ambiguity", () => {
+  const scenarios = markdownSection(designArtifactFile(), "Resolution examples");
+  const rows = scenarios.split("\n").filter((line) => line.startsWith("| "));
+  const row = (label) => {
+    const match = rows.find((line) => line.startsWith(`| ${label} |`));
+    assert.ok(match, `${label} example exists`);
+    return match;
+  };
+  assert.match(row("Single story"), /184.*?approved.*?\[184\].*?selected/);
+  assert.match(row("Shared journey"), /185.*?approved.*?\[180, 184, 185\].*?selected/);
+  assert.match(row("Excluded statuses"), /184.*?draft.*?superseded.*?none/);
+  assert.match(row("No match"), /186.*?approved.*?\[180, 184, 185\].*?none/);
+  assert.match(row("Ambiguous"), /184.*?approved.*?approved.*?ambiguous.*?explicit selection/);
+});
+
+test("approved spec 011 and README document the bounded design-artifact workflow", () => {
+  const specPath = "specs/011-define-pencil-backed-design-artifacts.md";
+  assert.ok(existsSync(join(repoRoot, specPath)), `${specPath} exists`);
+  const spec = readRelative(specPath);
+  const frontmatter = parseFrontmatter(spec);
+  assert.equal(frontmatter.title, "Define Pencil-backed design artifacts");
+  assert.equal(frontmatter.status, "approved");
+  assert.equal(frontmatter.issue, "16");
+  assert.match(frontmatter.created, /^\d{4}-\d{2}-\d{2}$/);
+  for (const heading of ["Problem", "Goals / Non-goals", "Acceptance criteria", "Interface contracts", "Architecture boundaries", "Functional core", "Data model", "Test plan", "Risks"]) {
+    markdownSection(spec, heading);
+  }
+  for (const issue of ["#35", "#24", "#22"]) assert.ok(spec.includes(issue), `${issue} retains its boundary`);
+  assert.match(spec, /DesignArtifactManifest/);
+  assert.match(spec, /DesignResolution/);
+  const readme = markdownSection(readRelative("README.md"), "Design artifacts").replace(/\s+/g, " ");
+  assert.match(readme, /plus-ultra:design-artifacts/);
+  assert.match(readme, /designs\/NNN-slug\.md.*?designs\/NNN-slug\.pen/);
+  assert.match(readme, /draft.*?approved.*?superseded/);
+  assert.match(readme, /issues.*?epic.*?stor(?:y|ies)/i);
+  assert.match(readme, /exact.*?approved.*?none.*?ambiguous.*?explicit.*?selection/i);
+  assert.match(readme, /explicit human approval/);
+  assert.match(readme, /DESIGN\.md.*?reusable/i);
+  assert.match(readme, /Pencil.*?optional.*?nonvisual.*?continue/i);
+});
+
 test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract", () => {
   const skillPath = "skills/workflow-risk/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
