@@ -58,6 +58,65 @@ function parseFrontmatter(markdown) {
   );
 }
 
+test("product-discovery defines the portable, approval-gated product brief contract", () => {
+  const skillPath = "skills/product-discovery/SKILL.md";
+  const templatePath = "skills/product-discovery/assets/product.md";
+  const metadataPath = "skills/product-discovery/agents/openai.yaml";
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+  assert.ok(existsSync(join(repoRoot, templatePath)), `${templatePath} exists`);
+  assert.ok(existsSync(join(repoRoot, metadataPath)), `${metadataPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const template = readRelative(templatePath);
+  const metadata = readRelative(metadataPath);
+  const frontmatter = parseFrontmatter(skill);
+  const normalized = skill.replace(/\s+/g, " ");
+
+  assert.equal(frontmatter.name, "product-discovery");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(frontmatter.description, /product|discovery|brief/i);
+  assert.match(metadata, /display_name:/);
+  assert.match(metadata, /short_description:/);
+  assert.match(metadata, /default_prompt:/);
+
+  const canonicalSections = [
+    "Target user",
+    "Core problem",
+    "Current alternative",
+    "Value proposition",
+    "MVP hypothesis",
+    "Core user journeys",
+    "Non-goals",
+    "Success criteria",
+    "Product principles and constraints",
+  ];
+  const templateSections = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(templateSections, canonicalSections, "template has exactly the canonical sections in order");
+  assert.equal((template.match(/^# Product brief$/gm) ?? []).length, 1, "template has one title");
+
+  assert.match(normalized, /initial adaptive discovery/i);
+  assert.match(normalized, /focused (?:strategic )?update/i);
+  assert.match(normalized, /read-only (?:consumption )?mode/i);
+  assert.match(normalized, /only .*?product-discovery.*?(?:may|is authorized to).*(?:create|write|strategic(?:ally)? update).*?`?docs\/product\.md`?/i);
+  assert.match(normalized, /conversation.*?(?:repository|context)|repository.*?conversation.*?context/i);
+  assert.match(normalized, /material assumptions?.*?(?:visible|label)|(?:visible|label).*?material assumptions?/i);
+  assert.match(normalized, /one (?:relevant )?decision at a time/i);
+  assert.match(normalized, /two (?:or three|-to-three|to three)|2.?3 alternatives/i);
+  assert.match(normalized, /trade-offs?/i);
+  assert.match(normalized, /recommendation/i);
+  assert.match(normalized, /challenge.*?scope.*?MVP hypothesis|MVP hypothesis.*?challenge.*?scope/i);
+  assert.match(normalized, /complete|full.*?visible proposal/i);
+  assert.match(normalized, /explicit human approval.*?(?:before|prior to).*?(?:create|write|update)|(?:create|write|update).*?only after.*?explicit human approval/i);
+  assert.match(normalized, /unapproved|declined.*?(?:leave|keep).*?unchanged/i);
+  assert.match(normalized, /focused update.*?only.*?affected decisions/i);
+  assert.match(normalized, /preserv.*?unaffected.*?sections/i);
+  assert.match(normalized, /rewrite|replacement.*?current.state/i);
+  assert.match(normalized, /not.*?(?:append|journal|history)|(?:append|journal|history).*?not/i);
+  assert.match(normalized, /without.*?brief.*?read-only|read-only.*?without.*?brief/i);
+  assert.match(normalized, /must not create.*?implicitly|never.*?create.*?implicitly/i);
+  assert.doesNotMatch(skill, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\//i, "skill stays portable");
+});
+
 test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract", () => {
   const skillPath = "skills/workflow-risk/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
