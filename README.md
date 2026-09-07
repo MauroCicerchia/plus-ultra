@@ -136,6 +136,24 @@ nor a bundled GitHub MCP.
 Issue hierarchy uses native `gh issue` operations on GitHub CLI v2.94.0 and later. On older
 installations, GraphQL is a fallback only for the missing hierarchy operation.
 
+## Human integration boundary
+
+Plans, specs, Issues, and earlier messages never authorize merging or publishing. Implementation
+agents may edit, verify, commit, push a feature branch, create or update a pull request, and submit
+or update a stack. They must report the PR or stack as ready for integration (or ready for review)
+and stop.
+
+Agents must not autonomously merge, enable auto-merge, push to the default branch, create or
+publish a release, or create or publish a tag; equivalent GitHub API and GraphQL mutations are also
+out of bounds. A plan can describe these as a future manual rollout under `## Post-approval
+integration`, outside an executable checklist, but that wording is not authorization.
+
+`plus-ultra:integration-boundary` is the portable policy skill for finishing implementation and
+handling merges, releases, tags, or protected pushes. Claude Code and Codex support lifecycle-hook
+guardrails for recognized integration commands. Cursor ships the portable skill only, so this is
+documentation-only there; the policy is a cooperative-agent safety boundary, not a security
+sandbox. There is no `plus-ultra:integrate` command.
+
 ## What it adds
 
 - **Skills (portable, `plus-ultra:*` when installed as a plugin):**
@@ -165,6 +183,8 @@ installations, GraphQL is a fallback only for the missing hierarchy operation.
     verdict). It posts deduplicated right-side findings and maintains a canonical tagged review
     summary. It uses the current branch’s PR by default; pass a positive PR number and optionally
     `--spec <NNN|slug>` as a fallback. This workflow requires GitHub write access through `gh`.
+  - *integration-boundary* — portable policy for ending autonomous work at ready for integration;
+    manual merge and publication remain human-owned.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.
@@ -213,7 +233,8 @@ template) therefore works on Claude Code, Codex, Cursor, and any agent that read
 
 Codex ships the shared skills plus `hooks/hooks-codex.json`, which uses Codex's lifecycle hook
 schema and `${PLUGIN_ROOT}`. Claude Code ships `hooks/hooks.json`, which uses Claude's plugin
-environment. Cursor ships skills only.
+environment. Claude Code and Codex can use lifecycle-hook guardrails for recognized integration
+commands; Cursor ships the portable integration policy skill only and remains documentation-only.
 
 The slash command in `commands/` and Markdown subagents in `agents/` remain Claude Code formats.
 Codex gets equivalent behavior through the portable `spec`, `repo-explorer`, `code-reviewer`, and

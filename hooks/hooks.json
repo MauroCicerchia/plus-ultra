@@ -1,10 +1,15 @@
 {
-  "description": "plus-ultra guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, PR description reminders, Biome auto-format, approved-contract session resume.",
+  "description": "plus-ultra guardrails: human-integration, dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, PR description reminders, Biome auto-format, approved-contract session resume.",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/integration-gate.mjs",
+            "timeout": 10
+          },
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dangerous-command.mjs",
