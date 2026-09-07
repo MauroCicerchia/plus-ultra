@@ -76,9 +76,17 @@ function readBackticks(source, start) {
 function readCommandSubstitution(source, start) {
   let depth = 1;
   let state = "plain";
+  let wordStarted = false;
 
   for (let index = start + 2; index < source.length; index += 1) {
     const char = source[index];
+    if (state === "comment") {
+      if (char === "\n") {
+        state = "plain";
+        wordStarted = false;
+      }
+      continue;
+    }
     if (state === "single") {
       if (char === "'") state = "plain";
       continue;
@@ -92,19 +100,33 @@ function readCommandSubstitution(source, start) {
       continue;
     }
     if (char === "\\") {
+      wordStarted = source[index + 1] !== "\n";
       index += 1;
     } else if (char === "'") {
       state = "single";
+      wordStarted = true;
     } else if (char === '"') {
       state = "double";
+      wordStarted = true;
+    } else if (char === "#" && !wordStarted) {
+      state = "comment";
     } else if (char === "`") {
       index = readBackticks(source, index).end - 1;
     } else if (char === "$" && source[index + 1] === "(") {
       depth += 1;
       index += 1;
+      wordStarted = true;
+    } else if (char === "(") {
+      depth += 1;
+      wordStarted = false;
     } else if (char === ")") {
       depth -= 1;
       if (depth === 0) return { content: source.slice(start + 2, index), end: index + 1 };
+      wordStarted = false;
+    } else if (/\s/.test(char) || ";|&".includes(char)) {
+      wordStarted = false;
+    } else {
+      wordStarted = true;
     }
   }
   throw new Error("unclosed command substitution");
@@ -288,6 +310,7 @@ function unwrapCommand(tokens) {
       index += 1;
       while (tokens[index]?.value.startsWith("-")) {
         const value = tokens[index].value;
+        if (value === "--help") return { tokens, index, name: "" };
         if (value === "--") {
           index += 1;
           break;
@@ -342,8 +365,9 @@ function ghApiIntegration(endpoint, options) {
   const route = endpoint.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").toLowerCase();
   if (endpoint.toLowerCase() === "graphql") {
     const query = fields.filter((field) => field.startsWith("query=")).at(-1)?.slice(6) ?? "";
-    const operation = query.replace(/"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|#[^\n]*/g, " ");
-    if (!/^\s*mutation\b/.test(operation)) return null;
+    const operationName = fields.filter((field) => field.startsWith("operationName=")).at(-1)?.slice("operationName=".length) ?? "";
+    const operation = selectedGraphqlMutation(query, operationName);
+    if (!operation) return null;
     if (/\b(?:mergePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|enqueuePullRequest|dequeuePullRequest)\s*\(/.test(operation)) {
       return "pull-request merge or merge-queue mutation";
     }
@@ -363,6 +387,130 @@ function ghApiIntegration(endpoint, options) {
     return "tag publication mutation";
   }
   return null;
+}
+
+function maskGraphqlDocument(source) {
+  let masked = "";
+  for (let index = 0; index < source.length; index += 1) {
+    if (source.startsWith('"""', index)) {
+      const end = source.indexOf('"""', index + 3);
+      if (end === -1) throw new Error("unclosed GraphQL block string");
+      masked += source.slice(index, end + 3).replace(/[^\n]/g, " ");
+      index = end + 2;
+    } else if (source[index] === '"') {
+      const start = index;
+      for (index += 1; index < source.length; index += 1) {
+        if (source[index] === "\\") {
+          index += 1;
+        } else if (source[index] === '"') {
+          break;
+        }
+      }
+      if (index >= source.length) throw new Error("unclosed GraphQL string");
+      masked += source.slice(start, index + 1).replace(/[^\n]/g, " ");
+    } else if (source[index] === "#") {
+      const end = source.indexOf("\n", index);
+      const stop = end === -1 ? source.length : end;
+      masked += source.slice(index, stop).replace(/[^\n]/g, " ");
+      index = stop - 1;
+    } else {
+      masked += source[index];
+    }
+  }
+  return masked;
+}
+
+function graphqlName(source, index) {
+  const match = source.slice(index).match(/^[_A-Za-z][_0-9A-Za-z]*/);
+  return match ? { value: match[0], end: index + match[0].length } : null;
+}
+
+function skipGraphqlWhitespace(source, index) {
+  while (index < source.length && /\s/.test(source[index])) index += 1;
+  return index;
+}
+
+function graphqlSelectionStart(source, index) {
+  let parentheses = 0;
+  let brackets = 0;
+  for (let cursor = index; cursor < source.length; cursor += 1) {
+    const char = source[cursor];
+    if (char === "(") parentheses += 1;
+    else if (char === ")") parentheses -= 1;
+    else if (char === "[") brackets += 1;
+    else if (char === "]") brackets -= 1;
+    else if (char === "{" && parentheses === 0 && brackets === 0) return cursor;
+  }
+  throw new Error("GraphQL operation without a selection set");
+}
+
+function graphqlSelection(source, start) {
+  let depth = 1;
+  for (let index = start + 1; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}" && --depth === 0) {
+      return { content: source.slice(start + 1, index), end: index + 1 };
+    }
+  }
+  throw new Error("unclosed GraphQL selection set");
+}
+
+function parseGraphqlDocument(source) {
+  const code = maskGraphqlDocument(source);
+  const operations = [];
+  const fragments = new Map();
+  for (let index = 0; index < code.length;) {
+    index = skipGraphqlWhitespace(code, index);
+    if (index >= code.length) break;
+    if (code[index] === "{") {
+      const selection = graphqlSelection(code, index);
+      operations.push({ type: "query", name: "", content: selection.content });
+      index = selection.end;
+      continue;
+    }
+    const definition = graphqlName(code, index);
+    if (!definition) {
+      index += 1;
+      continue;
+    }
+    index = definition.end;
+    const afterKeyword = skipGraphqlWhitespace(code, index);
+    const name = graphqlName(code, afterKeyword);
+    const selectionStart = graphqlSelectionStart(code, afterKeyword);
+    const selection = graphqlSelection(code, selectionStart);
+    if (["query", "mutation", "subscription"].includes(definition.value)) {
+      operations.push({
+        type: definition.value,
+        name: name && name.end <= selectionStart ? name.value : "",
+        content: selection.content,
+      });
+    } else if (definition.value === "fragment" && name) {
+      fragments.set(name.value, selection.content);
+    }
+    index = selection.end;
+  }
+  return { operations, fragments };
+}
+
+function selectedGraphqlMutation(query, operationName) {
+  const { operations, fragments } = parseGraphqlDocument(query);
+  const selected = operationName
+    ? operations.find((operation) => operation.name === operationName)
+    : operations.length === 1 ? operations[0] : null;
+  if (!selected || selected.type !== "mutation") return null;
+
+  const content = [selected.content];
+  const visited = new Set();
+  for (let index = 0; index < content.length; index += 1) {
+    for (const match of content[index].matchAll(/\.\.\.\s*([_A-Za-z][_0-9A-Za-z]*)/g)) {
+      const fragment = fragments.get(match[1]);
+      if (fragment && !visited.has(match[1])) {
+        visited.add(match[1]);
+        content.push(fragment);
+      }
+    }
+  }
+  return content.join(" ");
 }
 
 function ghIntegration(tokens, index) {
@@ -425,6 +573,16 @@ function pushedRefTarget(refspec) {
   return remote ? remote[1] : target;
 }
 
+function pushOptionEnabled(options, flag) {
+  let enabled = false;
+  const negated = `--no-${flag.slice(2)}`;
+  for (const [option] of options) {
+    if (option === flag) enabled = true;
+    if (option === negated) enabled = false;
+  }
+  return enabled;
+}
+
 function gitIntegration(tokens, index, root) {
   const global = parseOptions(tokens.slice(index + 1).map(({ value }) => value),
     new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--exec-path"]), true);
@@ -437,10 +595,10 @@ function gitIntegration(tokens, index, root) {
   const { options, positional } = parseOptions(global.positional.slice(1),
     new Set(["--repo", "--receive-pack", "--exec", "--push-option", "-o", "--recurse-submodules"]));
   if (isPreview(options, true)) return null;
-  if (options.some(([flag]) => ["--all", "--mirror", "--branches"].includes(flag))) {
+  if (["--all", "--mirror", "--branches"].some((flag) => pushOptionEnabled(options, flag))) {
     return "broad branch push";
   }
-  if (options.some(([flag]) => ["--tags", "--follow-tags"].includes(flag))) {
+  if (["--tags", "--follow-tags"].some((flag) => pushOptionEnabled(options, flag))) {
     return "tag publication";
   }
 
@@ -453,9 +611,7 @@ function gitIntegration(tokens, index, root) {
   if (!refspecs.length && current && branches.has(current)) return `push to protected branch ${current}`;
   for (const refspec of refspecs) {
     if (refspec.replace(/^\+/, "") === ":") return "broad branch push";
-    if (refspec.includes("refs/tags/")) return "tag publication";
     const rawTarget = refspec.replace(/^\+/, "").split(":").at(-1);
-    const source = refspec.replace(/^\+/, "").split(":")[0];
     let target = pushedRefTarget(refspec);
     if (!refspec.includes(":") && target === "HEAD") target = current;
     if (branches.has(target)) return `push to protected branch ${target}`;
@@ -463,7 +619,33 @@ function gitIntegration(tokens, index, root) {
       const pattern = new RegExp(`^${target.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
       if ([...branches].some((branch) => pattern.test(branch) || pattern.test(`refs/heads/${branch}`))) return "push matching a protected branch";
     }
-    if (!rawTarget.startsWith("refs/heads/") && (tags.has(target) || tags.has(source))) return "tag publication";
+    if (rawTarget.startsWith("refs/tags/") || (!rawTarget.startsWith("refs/heads/") && tags.has(target))) return "tag publication";
+  }
+  return null;
+}
+
+function shellIntegration(tokens, index, depth, root) {
+  let syntaxOnly = false;
+  for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+    const value = tokens[cursor].value;
+    if (value === "--" || !value.startsWith("-")) return null;
+    if (value === "--help") return null;
+    if (value === "--noexec") {
+      syntaxOnly = true;
+      continue;
+    }
+    if (value === "-o" && tokens[cursor + 1]?.value === "noexec") {
+      syntaxOnly = true;
+      cursor += 1;
+      continue;
+    }
+    if (/^-[^-]+$/.test(value)) {
+      const flags = value.slice(1);
+      if (flags.includes("n")) syntaxOnly = true;
+      if (flags.includes("c")) {
+        return syntaxOnly ? null : classify(tokens[cursor + 1]?.value ?? "", depth + 1, root);
+      }
+    }
   }
   return null;
 }
@@ -476,13 +658,7 @@ function classifyTokens(tokens, depth, root) {
   tokens = unwrapped.tokens;
   if (!name) return null;
   if (["sh", "bash", "zsh"].includes(name)) {
-    for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
-      const value = tokens[cursor].value;
-      if (value === "-c" || (/^-[^-]+$/.test(value) && value.includes("c"))) {
-        return classify(tokens[cursor + 1]?.value ?? "", depth + 1, root);
-      }
-    }
-    return null;
+    return shellIntegration(tokens, index, depth, root);
   }
   if (name === "eval") {
     return classify(tokens.slice(index + 1).map(({ value }) => value).join(" "), depth + 1, root);

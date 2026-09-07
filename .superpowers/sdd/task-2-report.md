@@ -167,3 +167,55 @@ push configuration mappings, and API request bodies supplied through files remai
 literal-command classifier. Implicit pushes are inferred from the local current branch; GraphQL
 recognition covers inline mutation documents, not a complete GraphQL execution engine. No reviewed
 regression remains failing.
+
+## Second re-review fixes — 2026-09-06
+
+### Root cause and RED evidence
+
+The confirmed second re-review cases were parser/classifier token-state defects, not environment
+or Git-discovery failures. Before changing `hooks/integration-gate.mjs`, five independently named
+`integration gate re-review:` tests were added to `tests/hooks.test.mjs` and run with:
+
+```sh
+node --test --test-name-pattern='integration gate re-review:' tests/hooks.test.mjs
+```
+
+The result was **5 tests failed, 0 passed**, each with the expected inverse decision:
+
+- The `$()` reader treated a bare nested subshell `)` and a comment `)` as the outer command
+  substitution close. A merge command later in that still-active substitution was then treated as
+  quoted outer text and allowed.
+- GraphQL classification only accepted documents beginning with `mutation`; a literal document
+  starting with a fragment and selected by `operationName=Integrate` was allowed even though that
+  mutation expanded a `mergePullRequest` fragment. The paired selected query control must allow.
+- Push classification treated any `refs/tags/` occurrence or a source-side local tag as
+  publication, incorrectly denying `refs/tags/v1:refs/heads/feature/review`; its destination-tag
+  counterpart must still deny.
+- Push broad/tag checks used `some()` over all parsed options, so an earlier `--all`, `--mirror`,
+  `--tags`, or `--follow-tags` could not be disabled by a later matching `--no-*` flag.
+- Wrapper/classifier recursion continued through non-executing `env --help`, `bash --help -c`, and
+  shell `-n -c` forms, which do not execute the inspected nested command.
+
+### Minimal fixes and GREEN evidence
+
+- The command-substitution reader now tracks shell word/comment state and nested bare parentheses
+  in addition to nested `$()` forms, preserving the outer substitution boundary.
+- The GraphQL path now masks strings/comments, reads literal top-level definitions, selects the
+  requested operation by `operationName` (or the sole operation), and follows only fragments
+  reachable from a selected mutation before matching recognized integration fields.
+- Git push checks evaluate a destination refspec only: a tag source targeting `refs/heads/...` is
+  allowed, while `refs/tags/...` and known bare tag destinations remain publication. Push option
+  state is ordered, so a later `--no-*` turns off its earlier positive counterpart.
+- `env --help` stops wrapper unwrapping; shell help and `-n`/`--noexec` forms skip `-c` recursion.
+
+After the implementation, the same targeted command passed **5/5**. The complete focused hook
+file was then rerun:
+
+```sh
+node --test tests/hooks.test.mjs
+```
+
+It passed **84 tests, 0 failures**, including all earlier incident, review, and re-review controls.
+The full repository suite (`node --test tests/*.test.mjs`) then passed **114 tests, 0 failures**.
+The gate remains unregistered; no manifests, dependencies, persistent state, or external command
+execution were added.

@@ -696,3 +696,45 @@ test("integration gate review: git directory option selects local references", (
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("integration gate re-review: substitutions ignore nested subshell and comment closing parentheses", () => {
+  for (const command of [
+    'printf "$( (true) ; gh pr merge 42 )"',
+    'printf "$( true # )\ngh pr merge 42 )"',
+  ]) assertIntegrationDecision(command, true);
+});
+
+test("integration gate re-review: GraphQL uses operationName for documents with leading fragments", () => {
+  const document = "fragment IntegrateFields on Mutation { mergePullRequest(input: {}) { clientMutationId } } query Lookup { viewer { login } } mutation Integrate { ...IntegrateFields }";
+  assertIntegrationDecision(`gh api graphql -f query='${document}' -f operationName=Integrate`, true);
+  assertIntegrationDecision(`gh api graphql -f query='${document}' -f operationName=Lookup`, false);
+});
+
+test("integration gate re-review: a tag source can target a feature branch", () => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["tag", "v1"], cwd);
+    assertIntegrationDecision("git push origin refs/tags/v1:refs/heads/feature/review", false, cwd);
+    assertIntegrationDecision("git push origin refs/tags/v1:refs/tags/v1", true, cwd);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("integration gate re-review: later negated push flags override earlier positive flags", () => {
+  for (const command of [
+    "git push --all --no-all origin feature/review",
+    "git push --mirror --no-mirror origin feature/review",
+    "git push --tags --no-tags origin feature/review",
+    "git push --follow-tags --no-follow-tags origin feature/review",
+  ]) assertIntegrationDecision(command, false);
+});
+
+test("integration gate re-review: shell and env non-executing flags skip nested commands", () => {
+  for (const command of [
+    "env --help gh pr merge 42",
+    "bash --help -c 'gh pr merge 42'",
+    "bash -n -c 'gh pr merge 42'",
+    "zsh -n -c 'gh pr merge 42'",
+  ]) assertIntegrationDecision(command, false);
+});
