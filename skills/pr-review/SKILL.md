@@ -149,10 +149,79 @@ review, resolve only findings whose evidence does not depend on a contract. Reso
 
 ## Publish and update the summary
 
-Build one canonical summary containing the summary marker, review scope, spec status, findings by
-severity, unanchorable findings, skipped duplicates, resolutions, and a clear verdict. A no-finding
-summary should say what was reviewed and that no substantiated blocking issues were found. For a
-limited review, use `Spec: none` and `limited review; no contractual verdict` rather than `ready`.
+Build one canonical summary with this verdict-first Markdown contract. The stable summary marker
+must appear once, first; do not substitute a new marker or put an emoji in the title. Copy the
+shape below, replacing placeholders and omitting the explicitly optional or empty content. The
+leading spaces on the template's lower-level headings are valid Markdown indentation and keep this
+contract within this source-of-truth section.
+
+<!-- plus-ultra:pr-review:summary -->
+# Plus Ultra PR Review
+
+ ## Status
+
+Select exactly one visible verdict:
+
+- `✅ Ready — no findings or non-blocking findings.` Use this when there are no findings, or when
+  every current finding is non-blocking.
+- `⛔ Changes required — one or more blockers.` Use this when one or more current findings block
+  the contractual review.
+- `⚠️ Limited review — Spec: none; limited review; no contractual verdict` Use this only for an
+  accepted no-contract review. It must not say `ready`.
+
+State the review scope and the basis for the selected verdict in plain language.
+
+ ## Findings
+
+When there are no current findings, write `No findings.` and say what was reviewed. Otherwise,
+group visible findings only beneath the severity headings that are present; omit every empty
+severity heading and do not add a separate unanchorable category. Each unanchorable finding remains
+visible under its applicable severity and is marked `[summary-only]`, for example:
+
+ ### <Severity>
+
+- **[summary-only] <human finding>** — <failure scenario, affected behavior, and requested fix>.
+  This finding is unanchorable and therefore summary-only.
+
+ ## Traceability
+
+| Issue | Spec | Contract |
+| --- | --- | --- |
+| #<N> | `specs/<path>` (approved) | Contractual review |
+| none | `specs/<path>` (approved) | Contractual review |
+| none | none | Limited review |
+
+Use the second row for an approved legacy contract whose frontmatter has no `issue:` field. For a
+limited review, use the third row with `none` in the Issue and Spec cells and `Limited review` in
+Contract. This keeps a no-Issue contractual review distinct from a no-contract limited review.
+
+ ## Resolutions from the previous review
+
+Include this section only when one or more prior findings were resolved. Describe each resolution
+human-first (the behavior that is now fixed and the evidence), not as an internal identifier. Keep
+thread IDs in Metadata only.
+
+ <details>
+ <summary>Evidence</summary>
+
+- Review scope, remote-head evidence, changed files, tests, and the evidence supporting each
+  visible finding or resolution.
+
+ </details>
+
+ <details>
+ <summary>Metadata</summary>
+
+- IDs are metadata-only; include them only when non-empty.
+- SHAs are metadata-only; include them only when non-empty.
+- Duplicate thread references are metadata-only; include them only when non-empty.
+- Counts are metadata-only; include them only when non-empty.
+
+ </details>
+
+Do not surface IDs, SHAs, duplicate thread references, or counts outside Metadata; omit each when
+empty. This preserves a human-readable canonical comment while retaining exceptional bookkeeping
+when it is useful.
 
 List PR issue comments through `issues/comments` (paginate if needed) and locate summary marker
 comments created by the authenticated reviewer. Update the most recently updated such summary marker
