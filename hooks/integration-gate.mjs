@@ -154,6 +154,7 @@ function parseShell(source, wordsOnly = false) {
   let value = "";
   let started = false;
   let quoted = false;
+  let firstCharacterQuoted = false;
   let state = "plain";
   let heredoc = null;
   const pendingHeredocs = [];
@@ -164,12 +165,13 @@ function parseShell(source, wordsOnly = false) {
         pendingHeredocs.push({ ...heredoc, delimiter: value, quoted });
         heredoc = null;
       } else {
-        tokens.push({ value, quoted });
+        tokens.push({ value, quoted, firstCharacterQuoted });
       }
     }
     value = "";
     started = false;
     quoted = false;
+    firstCharacterQuoted = false;
   };
   const finishCommand = () => {
     finishToken();
@@ -218,16 +220,19 @@ function parseShell(source, wordsOnly = false) {
     if (char === "\\") {
       if (index + 1 >= source.length) throw new Error("trailing escape");
       if (source[index + 1] !== "\n") {
+        if (!started) firstCharacterQuoted = true;
         value += source[index + 1];
         started = true;
         quoted = true;
       }
       index += 1;
     } else if (char === "'") {
+      if (!started) firstCharacterQuoted = true;
       state = "single";
       started = true;
       quoted = true;
     } else if (char === '"') {
+      if (!started) firstCharacterQuoted = true;
       state = "double";
       started = true;
       quoted = true;
@@ -276,6 +281,7 @@ function parseShell(source, wordsOnly = false) {
       finishCommand();
       if ((char === "|" || char === "&") && source[index + 1] === char) index += 1;
     } else {
+      if (!started) firstCharacterQuoted = false;
       value += char;
       started = true;
     }
@@ -303,7 +309,7 @@ function skipShellCommandPrefixes(tokens) {
   let index = 0;
   while (index < tokens.length) {
     const token = tokens[index];
-    if (token.quoted) break;
+    if (token.firstCharacterQuoted) break;
     if (reserved.has(token.value)) {
       index += 1;
       continue;
@@ -668,9 +674,10 @@ function shellIntegration(tokens, index, depth, root) {
       syntaxOnly = true;
       continue;
     }
-    if (value === "-o" && tokens[cursor + 1]?.value === "noexec") {
-      syntaxOnly = true;
-      cursor += 1;
+    if (value === "-o") {
+      const option = tokens[++cursor]?.value;
+      if (option === undefined) return null;
+      if (option === "noexec") syntaxOnly = true;
       continue;
     }
     if (/^-[^-]+$/.test(value)) {

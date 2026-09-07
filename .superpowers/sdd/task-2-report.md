@@ -256,3 +256,39 @@ The same focused regression command passed **3/3** after the fixes. Subsequent v
 - `node --test tests/*.test.mjs` — **117 passed, 0 failed**.
 
 The gate remains unregistered; neither hook manifest was changed.
+
+## Bounded final fixes — 2026-09-06
+
+### Root cause and RED evidence
+
+Two approved literal parser cases were added before changing production code and run with:
+
+```sh
+node --test --test-name-pattern='integration gate bounded final fix:' tests/hooks.test.mjs
+```
+
+The result was **0 passed, 2 failed**, each with the expected inverse decision:
+
+- `bash -o pipefail -c 'gh pr merge 42'` stopped option scanning at the `-o` value, so the
+  following `-c` command was allowed. The same regression also covers bundled short options with
+  `-c` (`bash -ec 'gh pr merge 42'`).
+- `>"/dev/null" gh pr merge 42` marked its token quoted because the *target* was quoted, so the
+  unquoted redirection operator was not skipped and the merge was allowed.
+
+### Minimal fixes and GREEN evidence
+
+Shell option scanning now consumes exactly the value following `-o` before continuing to locate
+`-c`. Shell tokens retain whether their first character was quoted, allowing a redirection with a
+quoted target to remain a prefix without treating a wholly quoted word as a redirection.
+
+The same focused command then passed **2/2**. Fresh follow-up verification passed:
+
+- `node --check hooks/integration-gate.mjs` — passed.
+- `node --test tests/hooks.test.mjs` — **89 passed, 0 failed**.
+- `node --test tests/*.test.mjs` — **119 passed, 0 failed**.
+- `git diff --check` — passed.
+- `rg -n 'integration-gate\\.mjs' hooks/hooks.json hooks/hooks-codex.json` returned no matches;
+  the gate remains unregistered and neither manifest changed.
+
+No parser architecture, additional shell syntax, dependencies, manifests, persistent state, or
+external command execution was added.

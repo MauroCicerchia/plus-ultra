@@ -785,3 +785,14 @@ test("integration gate final review: generating release notes is preparation-onl
     true
   );
 });
+
+test("integration gate bounded final fix: shell -o values do not hide -c commands", () => {
+  for (const command of [
+    "bash -o pipefail -c 'gh pr merge 42'",
+    "bash -ec 'gh pr merge 42'",
+  ]) assertIntegrationDecision(command, true);
+});
+
+test("integration gate bounded final fix: quoted redirection targets remain prefixes", () => {
+  assertIntegrationDecision('>"/dev/null" gh pr merge 42', true);
+});
