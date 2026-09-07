@@ -74,6 +74,31 @@ design, use plus-ultra:spec to create and manage the repository spec, write the 
 plan, implement it with TDD, verify the result, and prepare the pull request.
 ```
 
+## Durable product discovery
+
+For a greenfield project, `plus-ultra:new-project` invokes `$product-discovery` before stack
+selection or scaffolding when `docs/product.md` is missing. Discovery proposes the product brief
+for explicit human approval; only then can stack selection and scaffolding continue.
+
+Only `plus-ultra:product-discovery` may create `docs/product.md` as the initial brief and make
+approved strategic updates to it. Every other workflow treats a present brief as read-only context
+and must not create, edit, or append to it. Existing repositories without a brief remain compatible
+and continue normally; they do not implicitly gain one.
+
+Read-only context keeps related work aligned without turning the brief into a plan or backlog:
+
+- `plus-ultra:roadmap-planning` bounds milestones and stories with the MVP hypothesis, core user
+  journeys, non-goals, and success criteria.
+- `plus-ultra:refine-issues` checks that a story fits the approved product direction.
+- `plus-ultra:spec` reads it while creating a new technical contract; list, link, and status work
+  independently when no brief is present.
+- `plus-ultra:spec-conventions` reads it before brainstorming, feature work, and significant
+  design.
+
+When proposed work creates a durable contradiction with the brief, pause that workflow for a
+focused rediscovery update through `$product-discovery`. Resume only after the resulting update
+has explicit human approval.
+
 ## Optional companions
 
 `plus-ultra` stays focused on spec-driven development. For day-to-day projects, it pairs well with
