@@ -1,10 +1,16 @@
 {
-  "description": "plus-ultra Codex guardrails: dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, PR description reminders, Biome auto-format, approved-contract session resume.",
+  "description": "plus-ultra Codex guardrails: human-integration, dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, PR description reminders, Biome auto-format, approved-contract session resume.",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/integration-gate.mjs",
+            "timeout": 10,
+            "statusMessage": "Requiring human approval for integration"
+          },
           {
             "type": "command",
             "command": "node ${PLUGIN_ROOT}/hooks/dangerous-command.mjs",

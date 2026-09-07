@@ -372,6 +372,29 @@ test("hook manifests include PR description reminder after Bash commands", () =>
   assert.ok(existsSync(join(repoRoot, "hooks", "pr-description-reminder.mjs")));
 });
 
+test("hook manifests register the integration gate before dangerous command", () => {
+  assert.ok(existsSync(join(repoRoot, "hooks", "integration-gate.mjs")));
+
+  for (const path of ["hooks/hooks.json", "hooks/hooks-codex.json"]) {
+    const manifest = JSON.parse(readRelative(path));
+    const bashHooks = manifest.hooks.PreToolUse.find((entry) => entry.matcher === "Bash").hooks;
+    const commands = bashHooks.map((hook) => hook.command);
+    const integrationGateIndex = commands.findIndex((command) =>
+      command.includes("integration-gate.mjs")
+    );
+    const dangerousCommandIndex = commands.findIndex((command) =>
+      command.includes("dangerous-command.mjs")
+    );
+
+    assert.ok(integrationGateIndex >= 0, `${path} must register integration-gate.mjs`);
+    assert.ok(dangerousCommandIndex >= 0, `${path} must register dangerous-command.mjs`);
+    assert.ok(
+      integrationGateIndex < dangerousCommandIndex,
+      `${path} must run integration-gate.mjs before dangerous-command.mjs`
+    );
+  }
+});
+
 test("integration gate blocks the gh stack merge incident for Claude payloads", () => {
   const output = runHook("integration-gate.mjs", {
     session_id: "session-1",
