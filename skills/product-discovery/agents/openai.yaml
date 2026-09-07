@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Discovery"
+  short_description: "Establish or update an approved current-state product brief"
+  default_prompt: "Use $product-discovery to establish or strategically update this product brief."

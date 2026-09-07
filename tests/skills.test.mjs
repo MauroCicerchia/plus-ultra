@@ -58,6 +58,122 @@ function parseFrontmatter(markdown) {
   );
 }
 
+test("product-discovery defines the portable, approval-gated product brief contract", () => {
+  const skillPath = "skills/product-discovery/SKILL.md";
+  const templatePath = "skills/product-discovery/assets/product.md";
+  const metadataPath = "skills/product-discovery/agents/openai.yaml";
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+  assert.ok(existsSync(join(repoRoot, templatePath)), `${templatePath} exists`);
+  assert.ok(existsSync(join(repoRoot, metadataPath)), `${metadataPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const template = readRelative(templatePath);
+  const metadata = readRelative(metadataPath);
+  const frontmatter = parseFrontmatter(skill);
+  const normalized = skill.replace(/\s+/g, " ");
+
+  assert.equal(frontmatter.name, "product-discovery");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(frontmatter.description, /product|discovery|brief/i);
+  assert.match(metadata, /display_name:/);
+  assert.match(metadata, /short_description:/);
+  assert.match(metadata, /default_prompt:/);
+
+  const canonicalSections = [
+    "Target user",
+    "Core problem",
+    "Current alternative",
+    "Value proposition",
+    "MVP hypothesis",
+    "Core user journeys",
+    "Non-goals",
+    "Success criteria",
+    "Product principles and constraints",
+  ];
+  const templateSections = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(templateSections, canonicalSections, "template has exactly the canonical sections in order");
+  assert.equal((template.match(/^# Product brief$/gm) ?? []).length, 1, "template has one title");
+
+  assert.match(normalized, /initial adaptive discovery/i);
+  assert.match(normalized, /focused (?:strategic )?update/i);
+  assert.match(normalized, /read-only (?:consumption )?mode/i);
+  assert.match(normalized, /only .*?product-discovery.*?(?:may|is authorized to).*(?:create|write|strategic(?:ally)? update).*?`?docs\/product\.md`?/i);
+  assert.match(normalized, /conversation.*?(?:repository|context)|repository.*?conversation.*?context/i);
+  assert.match(normalized, /material assumptions?.*?(?:visible|label)|(?:visible|label).*?material assumptions?/i);
+  assert.match(normalized, /one (?:relevant )?decision at a time/i);
+  assert.match(normalized, /two (?:or three|-to-three|to three)|2.?3 alternatives/i);
+  assert.match(normalized, /trade-offs?/i);
+  assert.match(normalized, /recommendation/i);
+  assert.match(normalized, /challenge.*?scope.*?MVP hypothesis|MVP hypothesis.*?challenge.*?scope/i);
+  assert.match(
+    normalized,
+    /(?:complete|full).*?visible proposal.*?(?:before|prior to).*?(?:creating|create|writing|write|updating|update)/i,
+    "a complete visible proposal precedes a durable write"
+  );
+  assert.match(normalized, /explicit human approval.*?(?:before|prior to).*?(?:create|write|update)|(?:create|write|update).*?only after.*?explicit human approval/i);
+  assert.match(
+    normalized,
+    /(?:write.*?only after.*?explicit human approval|do not write.*?until approval).*?(?:declined|unapproved).*?(?:leave|keep).*?unchanged/i,
+    "approval gating links a no-write condition to unchanged durable state"
+  );
+  assert.match(normalized, /focused update.*?only.*?affected decisions/i);
+  assert.match(normalized, /preserv.*?unaffected.*?sections/i);
+  assert.match(normalized, /rewrite|replacement.*?current.state/i);
+  assert.match(normalized, /not.*?(?:append|journal|history)|(?:append|journal|history).*?not/i);
+  assert.match(normalized, /without.*?brief.*?read-only|read-only.*?without.*?brief/i);
+  assert.match(normalized, /must not create.*?implicitly|never.*?create.*?implicitly/i);
+  assert.doesNotMatch(skill, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\//i, "skill stays portable");
+});
+
+test("product-brief consumers preserve read-only ownership and pause for approved rediscovery", () => {
+  const consumers = [
+    { name: "new-project", path: "skills/new-project/SKILL.md" },
+    { name: "roadmap-planning", path: "skills/roadmap-planning/SKILL.md" },
+    { name: "refine-issues", path: "skills/refine-issues/SKILL.md" },
+    { name: "spec", path: "skills/spec/SKILL.md" },
+    { name: "spec-conventions", path: "skills/spec-conventions/SKILL.md" },
+  ];
+
+  for (const consumer of consumers) {
+    const skill = readRelative(consumer.path);
+    const normalized = skill.replace(/\s+/g, " ");
+
+    assert.match(normalized, /(?:read|consume).*?`?docs\/product\.md`?.*(?:brief|context)|(?:brief|context).*?(?:read|consume).*?`?docs\/product\.md`?/i, `${consumer.name} reads a present brief`);
+    assert.match(normalized, /(?:missing|without|absent).*?(?:brief|docs\/product\.md).*?(?:continue|compatible|normal)|(?:continue|compatible|normal).*?(?:missing|without|absent).*?(?:brief|docs\/product\.md)/i, `${consumer.name} remains compatible when the brief is absent`);
+    assert.match(normalized, /(?:must not|never|do not).*?(?:create|edit|write|mutate).*?`?docs\/product\.md`?/i, `${consumer.name} never takes ownership of the brief`);
+    assert.match(normalized, /durable contradiction.*?pause.*?\$product-discovery.*?focused.*?(?:update|rediscovery).*?explicit human approval.*?resume/i, `${consumer.name} pauses for approved focused rediscovery`);
+  }
+
+  const newProject = readRelative("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.match(newProject, /greenfield.*?missing.*?docs\/product\.md.*?\$product-discovery.*?initial adaptive discovery.*?explicit human approval.*?(?:before|prior to).*?stack selection/i, "greenfield scaffolding discovers an approved brief before choosing a stack");
+  assert.match(newProject, /existing repositor(?:y|ies).*?(?:must not|never|do not).*?(?:create|edit|write).*?docs\/product\.md/i, "existing repositories do not implicitly gain a brief");
+  assert.match(newProject, /docs\/product\.md.*?exists.*?read.*?approved brief.*?product context.*?informs.*?stack.*?scaffolding/i, "an existing approved brief informs stack and scaffolding decisions");
+
+  const roadmap = readRelative("skills/roadmap-planning/SKILL.md").replace(/\s+/g, " ");
+  assert.match(roadmap, /MVP hypothesis.*?core user journeys.*?non-goals.*?success criteria.*?bound.*?milestones.*?epics.*?stories/i, "roadmaps are bounded by every required product-brief dimension");
+
+  const refiner = readRelative("skills/refine-issues/SKILL.md").replace(/\s+/g, " ");
+  assert.match(refiner, /proposed story.*?fits.*?approved direction/i, "refinement checks a story against approved product direction");
+
+  const spec = readRelative("skills/spec/SKILL.md").replace(/\s+/g, " ");
+  assert.match(spec, /new.*?(?:read|consume).*?docs\/product\.md/i, "new technical contracts consume a present brief");
+  assert.match(spec, /(?:list|link|status).*?(?:continue|do not block|compatible).*?(?:without|missing|absent).*?(?:brief|docs\/product\.md)/i, "administrative spec operations remain available without a brief");
+
+  const conventions = readRelative("skills/spec-conventions/SKILL.md").replace(/\s+/g, " ");
+  assert.match(conventions, /docs\/product\.md.*?exists.*?before.*?brainstorming.*?feature work.*?significant design/i, "product context is applied before brainstorming, feature work, and significant design");
+});
+
+test("README documents the durable product-discovery workflow", () => {
+  const readme = readRelative("README.md").replace(/\s+/g, " ");
+
+  assert.match(readme, /greenfield.*?(?:before|prior to).*?(?:stack selection|scaffolding).*?\$?product-discovery/i);
+  assert.match(readme, /only.*?product-discovery.*?(?:create|write|strategic(?:ally)? update).*?docs\/product\.md/i);
+  assert.match(readme, /existing repositor(?:y|ies).*?(?:without|missing).*?(?:brief|docs\/product\.md).*?(?:continue|compatible)/i);
+  assert.match(readme, /read-only.*?(?:roadmap|refin(?:e|ement)|spec|design|feature)/i);
+  assert.match(readme, /durable contradiction.*?focused.*?(?:rediscovery|update).*?explicit human approval/i);
+  assert.doesNotMatch(readme, /product.discovery[\s\S]{0,100}(?:hook|script|dependency|command)/i, "product-discovery documentation stays portable");
+});
+
 test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract", () => {
   const skillPath = "skills/workflow-risk/SKILL.md";
   assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
