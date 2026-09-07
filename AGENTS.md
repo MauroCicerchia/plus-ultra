@@ -39,7 +39,7 @@ GitHub access is via the `gh` CLI (no bundled MCP).
 
 ## Before committing
 
-- `claude plugin validate .` (marketplace) and `claude plugin validate ./plus-ultra` (plugin +
+- `claude plugin validate .` (marketplace) and `claude plugin validate .claude-plugin/plugin.json` (plugin +
   frontmatter/hooks JSON) must pass.
 - Codex packaging should install from a clean temporary `CODEX_HOME`:
   `CODEX_HOME="$(pwd)/.context/codex-home" codex plugin marketplace add "$(pwd)"`, then
