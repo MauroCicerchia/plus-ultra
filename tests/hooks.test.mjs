@@ -798,6 +798,25 @@ test("integration gate final review: git -c remote push refspec protects the sel
   }
 });
 
+test("integration gate blocks command-scoped Git configuration push refspecs", () => {
+  const cwd = makeGitProject();
+  try {
+    runCommand("git", ["switch", "-c", "feature/review"], cwd);
+    assertIntegrationDecision(
+      "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:refs/heads/main git push origin",
+      true,
+      cwd
+    );
+    assertIntegrationDecision(
+      "PUSH_REFSPEC=HEAD:refs/heads/main git --config-env=remote.origin.push=PUSH_REFSPEC push origin",
+      true,
+      cwd
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("integration gate final review: generating release notes is preparation-only", () => {
   assertIntegrationDecision(
     "gh api repos/acme/widget/releases/generate-notes -f tag_name=v1",

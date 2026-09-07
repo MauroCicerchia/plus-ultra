@@ -621,6 +621,41 @@ function configuredPushRefspecs(options, remote) {
   });
 }
 
+function commandAssignments(tokens, index) {
+  const assignments = new Map();
+  for (const { value } of tokens.slice(0, index)) {
+    if (!isAssignment(value)) continue;
+    const equals = value.indexOf("=");
+    assignments.set(value.slice(0, equals), value.slice(equals + 1));
+  }
+  return assignments;
+}
+
+function commandScopedPushRefspecs(options, tokens, index, remote) {
+  if (!remote) return { refspecs: [], unresolved: false };
+  const expected = `remote.${remote}.push`.toLowerCase();
+  const assignments = commandAssignments(tokens, index);
+  const refspecs = [];
+  let unresolved = false;
+  const add = (value) => {
+    if (value && !/\s/.test(value)) refspecs.push(value);
+    else unresolved = true;
+  };
+
+  for (const [name, key] of assignments) {
+    const match = name.match(/^GIT_CONFIG_KEY_(\d+)$/);
+    if (!match || key.toLowerCase() !== expected) continue;
+    add(assignments.get(`GIT_CONFIG_VALUE_${match[1]}`));
+  }
+  for (const [flag, value] of options) {
+    if (flag !== "--config-env" || typeof value !== "string") continue;
+    const equals = value.indexOf("=");
+    if (equals === -1 || value.slice(0, equals).toLowerCase() !== expected) continue;
+    add(assignments.get(value.slice(equals + 1)));
+  }
+  return { refspecs, unresolved };
+}
+
 function gitIntegration(tokens, index, root) {
   const global = parseOptions(tokens.slice(index + 1).map(({ value }) => value),
     new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--exec-path"]), true);
@@ -642,7 +677,11 @@ function gitIntegration(tokens, index, root) {
 
   const selectedRemote = options.filter(([flag]) => flag === "--repo").at(-1)?.[1] ?? positional[0] ?? "";
   let refspecs = options.some(([flag]) => flag === "--repo") ? positional : positional.slice(1);
-  if (!refspecs.length) refspecs = configuredPushRefspecs(global.options, selectedRemote);
+  if (!refspecs.length) {
+    const commandScoped = commandScopedPushRefspecs(global.options, tokens, index, selectedRemote);
+    if (commandScoped.unresolved) return "configured push refspec";
+    refspecs = [...configuredPushRefspecs(global.options, selectedRemote), ...commandScoped.refspecs];
+  }
   if (refspecs.some((refspec, cursor) => refspec === "tag" && refspecs[cursor + 1])) return "tag publication";
 
   const branches = protectedBranches(context);
