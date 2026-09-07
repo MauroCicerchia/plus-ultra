@@ -58,6 +58,173 @@ function parseFrontmatter(markdown) {
   );
 }
 
+test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract", () => {
+  const skillPath = "skills/workflow-risk/SKILL.md";
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const spec = readRelative("specs/009-classify-workflow-risk.md");
+  const readme = readRelative("README.md");
+  const frontmatter = parseFrontmatter(skill);
+  const normalized = skill.replace(/\s+/g, " ");
+  const precedence = markdownSection(skill, "Classification precedence").replace(/\s+/g, " ");
+  const standardOutput = markdownSection(skill, "Standard output").replace(/\s+/g, " ");
+  const baselineRigor = markdownSection(skill, "Baseline rigor").replace(/\s+/g, " ");
+  const scenarios = markdownSection(skill, "Worked classification scenarios").replace(/\s+/g, " ");
+
+  assert.equal(frontmatter.name, "workflow-risk");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(readme, /workflow-risk/);
+  assert.match(spec, /^title: Classify workflow risk$/m);
+  assert.match(spec, /^status: approved$/m);
+  assert.match(spec, /^issue: 23$/m);
+  assert.match(spec, /^created: 2026-09-07$/m);
+
+  assert.match(skill, /WorkflowLevel\s*=\s*FAST\s*\|\s*STANDARD\s*\|\s*CRITICAL/);
+  assert.match(skill, /Phase\s*=\s*initial\s*\|\s*pre-ship/);
+  const dimensions = [
+    "authentication",
+    "authorization",
+    "security-boundary",
+    "payments",
+    "database-migration",
+    "destructive-data",
+    "concurrency",
+    "persistence-integrity",
+    "critical-infrastructure",
+  ];
+  const dimensionDefinition = skill.match(/RiskDimension\s*=\s*([\s\S]*?)\n```/);
+  assert.ok(dimensionDefinition, "RiskDimension is defined in a code block");
+  assert.deepEqual(
+    dimensionDefinition[1].match(/[a-z]+(?:-[a-z]+)*/g),
+    dimensions,
+    "RiskDimension has the exact nine-dimension vocabulary"
+  );
+
+  for (const field of [
+    "phase",
+    "prior level",
+    "suggested level",
+    "effective level",
+    "detected/new dimensions",
+    "evidence",
+    "required verification",
+    "explicit override",
+  ]) {
+    assert.match(normalized, new RegExp(field, "i"), `output contains ${field}`);
+  }
+  for (const [rule, outcome] of [
+    ["1", "known critical trigger.*?CRITICAL"],
+    ["2", "FAST.*?every restriction"],
+    ["3", "uncertainty.*?without critical evidence.*?STANDARD"],
+    ["4", "pre-ship.*?max.*?prior.*?current.*?dimensions.*?accumulate"],
+    ["5", "only.*?explicit override.*?(?:lower|remove).*?visible.*?baseline guardrails"],
+    ["6", "missing prior.*?must not.*?downgrade"],
+  ]) {
+    assert.match(precedence, new RegExp(`${rule}\\. .*?${outcome}`, "i"), `precedence rule ${rule}`);
+  }
+  assert.ok(
+    precedence.indexOf("1.") < precedence.indexOf("2.") &&
+      precedence.indexOf("2.") < precedence.indexOf("3.") &&
+      precedence.indexOf("3.") < precedence.indexOf("4.") &&
+      precedence.indexOf("4.") < precedence.indexOf("5.") &&
+      precedence.indexOf("5.") < precedence.indexOf("6."),
+    "precedence rules retain their ordered outcomes"
+  );
+  assert.match(standardOutput, /pre-ship.*?maximum of prior and current classification.*?dimensions accumulate/i);
+  assert.match(standardOutput, /only an explicit override.*?(?:lower|remove).*?override visible.*?baseline guardrails/i);
+  assert.match(baselineRigor, /CRITICAL.*?de-duplicated union.*?every detected\/new dimension/i);
+
+  assert.match(normalized, /FAST.*?small.*?localized.*?focused verification.*?commit guardrails.*?optional review.*?no required durable artifact/i);
+  assert.match(normalized, /STANDARD.*?Issue.*?design.*?spec.*?plan.*?TDD.*?relevant suite.*?review.*?PR/i);
+  assert.match(normalized, /CRITICAL.*?all STANDARD.*?approved spec.*?mandatory review.*?de-duplicated union/i);
+
+  for (const [dimension, checks] of [
+    ["authentication", ["permitted", "denied", "sessions", "roles", "tenancy", "integration", "security review"]],
+    ["authorization", ["permitted", "denied", "sessions", "roles", "tenancy", "integration", "security review"]],
+    ["security-boundary", ["abuse", "trust-boundary", "Semgrep when available"]],
+    ["payments", ["idempotency", "retries", "duplicates", "amounts", "currencies", "rounding", "reconciliation"]],
+    ["database-migration", ["representative fixtures", "compatibility", "roll-forward", "rollback", "data safety"]],
+    ["destructive-data", ["authorization", "confirmation", "scope", "recovery", "partial failures"]],
+    ["concurrency", ["races", "ordering", "retries", "concurrent integration"]],
+    ["persistence-integrity", ["atomicity", "invariants", "restarts", "idempotency", "partial failures"]],
+    ["critical-infrastructure", ["configuration", "permissions", "integration", "degradation", "recovery", "rollback"]],
+  ]) {
+    const section = markdownSubsection(skill, dimension).replace(/\s+/g, " ");
+    for (const check of checks) assert.match(section, new RegExp(check, "i"), `${dimension}: ${check}`);
+  }
+
+  const typeOnlyText = "WorkflowLevel = FAST | STANDARD | CRITICAL";
+  assert.doesNotMatch(typeOnlyText, /\*\*FAST→STANDARD:\*\*/, "type-only text is not a transition scenario");
+  function workedScenario(label) {
+    const marker = `**${label}:**`;
+    const start = scenarios.indexOf(marker);
+    assert.notEqual(start, -1, `${label} exists in worked scenarios`);
+    const end = scenarios.indexOf(" - **", start + marker.length);
+    return scenarios.slice(start + marker.length, end === -1 ? undefined : end);
+  }
+  function assertRetainedPriorScenario(text) {
+    assert.match(text, /smaller pre-ship diff/i);
+    assert.match(text, /CRITICAL prior level/i);
+    assert.match(text, /remains CRITICAL/i);
+    assert.match(text, /prior dimensions/i);
+  }
+
+  assert.match(
+    workedScenario("FAST-localized change"),
+    /small.*?localized.*?no critical (?:trigger|new risk).*?(?:is|results) FAST/i,
+    "localized FAST scenario proves eligibility and outcome"
+  );
+  assert.match(
+    workedScenario("Ambiguous STANDARD"),
+    /incompletely understood.*?(?:is|results) STANDARD/i,
+    "ambiguous scenario selects STANDARD"
+  );
+  assert.match(
+    workedScenario("One CRITICAL dimension"),
+    /tenancy authorization.*?CRITICAL.*?authorization controls/i,
+    "one critical dimension selects CRITICAL with its controls"
+  );
+  assert.match(
+    workedScenario("Multiple CRITICAL dimensions"),
+    /payment migration.*?CRITICAL.*?de-duplicated union.*?payments.*?database-migration controls/i,
+    "multiple critical dimensions retain both dimensions and union controls"
+  );
+  assert.match(
+    workedScenario("FAST→STANDARD"),
+    /previously localized.*?expands.*?becomes STANDARD at pre-ship/i,
+    "FAST→STANDARD names its source condition and outcome in the worked scenarios"
+  );
+  assert.match(
+    workedScenario("STANDARD→CRITICAL"),
+    /standard change.*?security-boundary trigger.*?becomes CRITICAL at pre-ship/i,
+    "STANDARD→CRITICAL names its source condition and outcome in the worked scenarios"
+  );
+  assertRetainedPriorScenario(workedScenario("Smaller diff retaining prior level"));
+  assert.throws(
+    () => assertRetainedPriorScenario("A smaller pre-ship diff after a CRITICAL prior level remains FAST."),
+    /remains CRITICAL|prior dimensions/,
+    "retained-prior validator rejects a FAST downgrade without prior dimensions"
+  );
+  assert.match(
+    workedScenario("Explicit override"),
+    /lowers a level or removes dimensions.*?visible.*?baseline guardrails/i,
+    "explicit override remains visible and preserves baseline guardrails"
+  );
+  assert.match(
+    workedScenario("Missing prior classification"),
+    /pre-ship.*?no known critical (?:evidence|trigger).*?remains STANDARD.*?(?:no|does not infer a) silent downgrade.*?known critical trigger.*?remains CRITICAL/i,
+    "missing prior classification remains STANDARD only without critical evidence and preserves CRITICAL precedence"
+  );
+  assert.match(normalized, /significant UI impact.*?prevents.*?FAST.*?never.*?critical dimension/i);
+  assert.match(normalized, /#35.*?UI classification/i);
+  assert.match(normalized, /#22.*?(?:orchestration|persistence)/i);
+  assert.match(normalized, /#26.*?Semgrep.*?when available/i);
+  assert.match(normalized, /no commands.*?hooks.*?state/i);
+  assert.match(readme, /#22[\s\S]*?#26[\s\S]*?#35/);
+  assert.doesNotMatch(readme, /workflow-risk[^\n]*(?:command|hook|state)/i);
+});
+
 test("spec lifecycle links optional GitHub Issues without owning work state", () => {
   const template = readRelative("skills/spec-conventions/template.md");
   const conventions = readRelative("skills/spec-conventions/SKILL.md");

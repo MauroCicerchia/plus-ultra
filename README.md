@@ -186,6 +186,11 @@ sandbox. There is no `plus-ultra:integrate` command.
     `--spec <NNN|slug>` as a fallback. This workflow requires GitHub write access through `gh`.
   - *integration-boundary* — portable policy for ending autonomous work at ready for integration;
     manual merge and publication remain human-owned.
+  - *workflow-risk* — portable FAST / STANDARD / CRITICAL classification contract. It records
+    explainable initial and pre-ship recommendations without commands, hooks, or state: Issue #22
+    owns future orchestration and persistence, Issue #26 owns conditional Semgrep execution, and
+    Issue #35 exclusively owns UI classification. Significant UI impact prevents FAST but never
+    creates a critical risk dimension.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.
