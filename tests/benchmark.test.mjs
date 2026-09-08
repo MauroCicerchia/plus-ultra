@@ -1,5 +1,20 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   aggregateMeasurements,
@@ -17,6 +32,8 @@ import {
 const exact = (value) => ({ value, label: "exact" });
 const observed = (value) => ({ value, label: "observed" });
 const hash = "a".repeat(64);
+const testRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const benchmarkCli = join(testRoot, "scripts", "benchmark-workflows.mjs");
 
 function sample(overrides = {}) {
   return {
@@ -590,4 +607,671 @@ test("assessComparability adds operating system and architecture for elapsed tim
     comparable: false,
     drift: ["operating_system", "architecture"],
   });
+});
+
+const canonicalScenarios = [
+  ["product-discovery", ["product-discovery"]],
+  ["spec-refinement", ["spec-refinement"]],
+  ["fast-implementation", ["fast-implementation"]],
+  ["standard-implementation", ["standard-implementation"]],
+  ["pr-review-cycle", ["first-pr-review", "pr-re-review"]],
+];
+
+function writeJson(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function runGit(root, args) {
+  const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
+function fakeCodexSource() {
+  return `#!/usr/bin/env node
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+
+const args = process.argv.slice(2);
+if (args[0] === "--version") {
+  process.stdout.write("codex-cli 1.2.3\\n");
+  process.exit(0);
+}
+if (args.join(" ") === "plugin marketplace list --json") {
+  process.stdout.write(JSON.stringify({ marketplaces: [{
+    name: "plus-ultra-dev",
+    root: process.env.FAKE_CODEX_MARKETPLACE_ROOT,
+  }] }) + "\\n");
+  process.exit(0);
+}
+if (args.join(" ") === "plugin list --marketplace plus-ultra-dev --json") {
+  process.stdout.write(JSON.stringify({ installed: [{
+    pluginId: "plus-ultra@plus-ultra-dev",
+    installed: true,
+    enabled: true,
+  }] }) + "\\n");
+  process.exit(0);
+}
+const record = {
+  args,
+  cwd: process.cwd(),
+  phase: process.env.PLUS_ULTRA_BENCHMARK_PHASE,
+  scenario: process.env.PLUS_ULTRA_BENCHMARK_SCENARIO,
+  sample: Number(process.env.PLUS_ULTRA_BENCHMARK_SAMPLE),
+  turn: Number(process.env.PLUS_ULTRA_BENCHMARK_TURN),
+};
+appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify(record) + "\\n");
+const prompt = args.at(-1);
+if (prompt.includes("CLEAN_CREATED_THREAD")) {
+  const cleanup = spawnSync("gh", ["delete-thread", "benchmark-created"], {
+    encoding: "utf8",
+    env: process.env,
+  });
+  if (cleanup.status !== 0) {
+    process.stderr.write(cleanup.stderr);
+    process.exit(cleanup.status ?? 9);
+  }
+}
+writeFileSync("result.txt", record.phase + " complete\\n");
+if (
+  process.env.FAKE_CODEX_FAIL_PHASE === record.phase &&
+  record.sample === Number(process.env.FAKE_CODEX_FAIL_SAMPLE ?? "1") &&
+  record.turn === 1
+) {
+  process.stderr.write("synthetic failure at /private/fixture/repository\\n");
+  process.exit(7);
+}
+const adaptive = process.env.FAKE_CODEX_ADAPTIVE_PHASE === record.phase;
+const input = adaptive ? [100, 200, 150][record.sample - 1] : 100;
+const threadId = record.scenario + "-sample-" + record.sample;
+if (!args.includes("resume")) {
+  process.stdout.write(JSON.stringify({ type: "thread.started", thread_id: threadId }) + "\\n");
+}
+process.stdout.write(JSON.stringify({
+  type: "item.completed",
+  item: { id: "message-" + record.turn, type: "agent_message", text: "model response /private/secret" },
+}) + "\\n");
+process.stdout.write(JSON.stringify({
+  type: "turn.completed",
+  usage: { input_tokens: input, cached_input_tokens: 25, output_tokens: 20, reasoning_output_tokens: 5 },
+}) + "\\n");
+`;
+}
+
+function fakeGhSource() {
+  return `#!/usr/bin/env node
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+appendFileSync(process.env.PLUS_ULTRA_BENCHMARK_GH_LOG, JSON.stringify(args) + "\\n");
+if (args[0] !== "delete-thread" || args.length !== 2) {
+  process.stderr.write("unknown fake gh operation\\n");
+  process.exit(8);
+}
+const state = JSON.parse(readFileSync(process.env.PLUS_ULTRA_BENCHMARK_GH_STATE, "utf8"));
+if (!state.created_thread_ids.includes(args[1])) {
+  process.stderr.write("refusing to delete an unrelated thread\\n");
+  process.exit(9);
+}
+state.threads = state.threads.filter((id) => id !== args[1]);
+writeFileSync(process.env.PLUS_ULTRA_BENCHMARK_GH_STATE, JSON.stringify(state));
+`;
+}
+
+const temporaryBenchmarkRepositories = new Set();
+
+function createBenchmarkRepository() {
+  const root = mkdtempSync(join(tmpdir(), "plus-ultra-benchmark-test-"));
+  temporaryBenchmarkRepositories.add(root);
+  mkdirSync(join(root, "hooks"), { recursive: true });
+  mkdirSync(join(root, "skills", "example"), { recursive: true });
+  mkdirSync(join(root, "specs"), { recursive: true });
+  mkdirSync(join(root, "benchmarks", "fixtures", "reading-list"), { recursive: true });
+  mkdirSync(join(root, "benchmarks", "prompts"), { recursive: true });
+  mkdirSync(join(root, "benchmarks", "fake-github"), { recursive: true });
+  mkdirSync(join(root, ".codex-plugin"), { recursive: true });
+  writeFileSync(join(root, ".gitignore"), "/.context/\n");
+  writeFileSync(join(root, "AGENTS.md"), "fixture agent instructions\n");
+  writeFileSync(join(root, "hooks", "session-start.mjs"), "// visible session context\n");
+  writeFileSync(join(root, "skills", "example", "SKILL.md"), "# Example skill\n");
+  writeFileSync(join(root, "specs", "fixture.md"), "# Durable artifact\n");
+  writeFileSync(join(root, "benchmarks", "fixtures", "reading-list", "README.md"), "fixture\n");
+  writeJson(join(root, ".codex-plugin", "plugin.json"), { name: "plus-ultra", version: "0.0.0" });
+  for (const [scenarioId, phases] of canonicalScenarios) {
+    const phaseDefinitions = phases.map((phase) => {
+      const firstPrompt = `${scenarioId}-${phase}-work.md`;
+      const turns = [{ prompt: `benchmarks/prompts/${firstPrompt}` }];
+      writeFileSync(
+        join(root, "benchmarks", "prompts", firstPrompt),
+        `WRITE_RESULT ${phase}\n`
+      );
+      if (["product-discovery", "spec-refinement"].includes(phase)) {
+        const approvalPrompt = `${scenarioId}-${phase}-approval.md`;
+        writeFileSync(
+          join(root, "benchmarks", "prompts", approvalPrompt),
+          "APPROVE_AND_RESUME CLEAN_CREATED_THREAD\n"
+        );
+        turns.push({ prompt: `benchmarks/prompts/${approvalPrompt}`, resume: true });
+      }
+      return {
+        phase,
+        turns,
+        postconditions: [{ type: "file_contains", path: "result.txt", text: `${phase} complete` }],
+      };
+    });
+    writeJson(join(root, "benchmarks", "scenarios", `${scenarioId}.json`), {
+      schema_version: 1,
+      id: scenarioId,
+      fixture: "benchmarks/fixtures/reading-list",
+      phases: phaseDefinitions,
+    });
+  }
+  writeJson(join(root, "benchmarks", "fake-github", "state.json"), {
+    created_thread_ids: ["benchmark-created"],
+    threads: ["benchmark-created", "unrelated-thread"],
+  });
+  const gh = join(root, "benchmarks", "fake-github", "gh");
+  writeFileSync(gh, fakeGhSource());
+  chmodSync(gh, 0o755);
+  const codex = join(root, "fake-codex");
+  writeFileSync(codex, fakeCodexSource());
+  chmodSync(codex, 0o755);
+
+  runGit(root, ["init", "--initial-branch=main"]);
+  runGit(root, ["config", "user.name", "Benchmark tests"]);
+  runGit(root, ["config", "user.email", "benchmark@example.test"]);
+  runGit(root, ["add", "--all"]);
+  runGit(root, ["commit", "-m", "test: create benchmark fixture"]);
+  refreshBenchmarkStage(root);
+  return { root, codex, log: join(root, ".context", "fake-codex.jsonl") };
+}
+
+test.after(() => {
+  for (const root of temporaryBenchmarkRepositories) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function refreshBenchmarkStage(root) {
+  const marketplace = join(root, ".context", "codex-dev-marketplace");
+  const stage = join(marketplace, "plugins", "plus-ultra");
+  mkdirSync(stage, { recursive: true });
+  const paths = runGit(root, ["ls-files", "-z"]).split("\0").filter(Boolean);
+  for (const path of paths) {
+    const destination = join(stage, path);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(root, path), destination);
+  }
+  writeJson(join(marketplace, ".agents", "plugins", "marketplace.json"), {
+    name: "plus-ultra-dev",
+    plugins: [{ name: "plus-ultra", source: { source: "url", url: "./plugins/plus-ultra" } }],
+  });
+}
+
+function runBenchmarkCli(repository, args, extraEnv = {}) {
+  mkdirSync(dirname(repository.log), { recursive: true });
+  return spawnSync(process.execPath, [benchmarkCli, ...args], {
+    cwd: repository.root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CODEX_BIN: repository.codex,
+      FAKE_CODEX_LOG: repository.log,
+      FAKE_CODEX_MARKETPLACE_ROOT: join(repository.root, ".context", "codex-dev-marketplace"),
+      PLUS_ULTRA_BENCHMARK_RUN_ID: "integration-run",
+      ...extraEnv,
+    },
+  });
+}
+
+function cliJson(result) {
+  assert.notEqual(result.stdout.trim(), "", result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test("benchmark CLI validates immutable inputs and inventories ranked contributors", () => {
+  const repository = createBenchmarkRepository();
+
+  const validation = runBenchmarkCli(repository, ["validate"]);
+  assert.equal(validation.status, 0, validation.stderr);
+  assert.equal(cliJson(validation).scenario_count, 5);
+  assert.deepEqual(cliJson(validation).phases, [
+    "product-discovery",
+    "spec-refinement",
+    "fast-implementation",
+    "standard-implementation",
+    "first-pr-review",
+    "pr-re-review",
+  ]);
+
+  const inventory = runBenchmarkCli(repository, ["inventory"]);
+  assert.equal(inventory.status, 0, inventory.stderr);
+  const contributors = cliJson(inventory).contributors;
+  assert.deepEqual(
+    [...contributors].sort((left, right) => right.bytes - left.bytes || left.name.localeCompare(right.name)),
+    contributors
+  );
+  assert.deepEqual(
+    new Set(contributors.map(({ name }) => name)),
+    new Set([
+      "AGENTS.md",
+      "session-start injection",
+      "invoked skill bodies",
+      "durable artifacts",
+      "prompts",
+      "tool payloads",
+      "verification/review outputs",
+    ])
+  );
+});
+
+test("validate refuses dirty source trees and stale managed development stages", () => {
+  const repository = createBenchmarkRepository();
+  writeFileSync(join(repository.root, "AGENTS.md"), "dirty\n");
+
+  const dirty = runBenchmarkCli(repository, ["validate"]);
+  assert.equal(dirty.status, 1);
+  assert.match(dirty.stderr, /clean source tree/i);
+
+  runGit(repository.root, ["add", "AGENTS.md"]);
+  runGit(repository.root, ["commit", "-m", "test: change tracked source"]);
+  const stale = runBenchmarkCli(repository, ["validate"]);
+  assert.equal(stale.status, 1);
+  assert.match(stale.stderr, /codex-local\.mjs refresh/i);
+});
+
+test("validate requires Codex to have the managed development snapshot installed", () => {
+  const repository = createBenchmarkRepository();
+
+  const validation = runBenchmarkCli(repository, ["validate"], {
+    FAKE_CODEX_MARKETPLACE_ROOT: join(repository.root, ".context", "foreign-marketplace"),
+  });
+
+  assert.equal(validation.status, 1);
+  assert.match(validation.stderr, /plus-ultra-dev.*codex-local\.mjs refresh/i);
+});
+
+test("validate rejects extra files left in a stale managed plugin tree", () => {
+  const repository = createBenchmarkRepository();
+  writeFileSync(
+    join(
+      repository.root,
+      ".context",
+      "codex-dev-marketplace",
+      "plugins",
+      "plus-ultra",
+      "removed-source-file.md"
+    ),
+    "stale\n"
+  );
+
+  const validation = runBenchmarkCli(repository, ["validate"]);
+
+  assert.equal(validation.status, 1);
+  assert.match(validation.stderr, /does not match source.*codex-local\.mjs refresh/i);
+});
+
+test("validate rejects a non-executable fake gh before PATH can fall through", () => {
+  const repository = createBenchmarkRepository();
+  const fakeGh = join(repository.root, "benchmarks", "fake-github", "gh");
+  chmodSync(fakeGh, 0o644);
+  runGit(repository.root, ["add", "benchmarks/fake-github/gh"]);
+  runGit(repository.root, ["commit", "-m", "test: make fake gh non-executable"]);
+  refreshBenchmarkStage(repository.root);
+
+  const fallbackDirectory = join(repository.root, ".context", "fallback-bin");
+  const fallbackGh = join(fallbackDirectory, "gh");
+  const marker = join(repository.root, ".context", "real-gh-was-called");
+  mkdirSync(fallbackDirectory, { recursive: true });
+  writeFileSync(fallbackGh, '#!/bin/sh\nprintf reached > "$FALLBACK_GH_MARKER"\n');
+  chmodSync(fallbackGh, 0o755);
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "product-discovery"],
+    {
+      FALLBACK_GH_MARKER: marker,
+      PATH: `${fallbackDirectory}:${process.env.PATH}`,
+    }
+  );
+
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /fake gh.*executable/i);
+  assert.equal(existsSync(marker), false);
+});
+
+test("validate rejects canonical phases assigned to the wrong scenarios", () => {
+  const repository = createBenchmarkRepository();
+  const manifests = canonicalScenarios.map(([id]) => {
+    const path = join(repository.root, "benchmarks", "scenarios", `${id}.json`);
+    return { path, value: JSON.parse(readFileSync(path, "utf8")) };
+  });
+  const phases = manifests.flatMap(({ value }) => value.phases);
+  const wrongOwnership = [[phases[0], phases[1]], [phases[2]], [phases[3]], [phases[4]], [phases[5]]];
+  for (let index = 0; index < manifests.length; index += 1) {
+    writeJson(manifests[index].path, { ...manifests[index].value, phases: wrongOwnership[index] });
+  }
+  runGit(repository.root, ["add", "benchmarks/scenarios"]);
+  runGit(repository.root, ["commit", "-m", "test: misassign benchmark phases"]);
+  refreshBenchmarkStage(repository.root);
+
+  const validation = runBenchmarkCli(repository, ["validate"]);
+
+  assert.equal(validation.status, 1);
+  assert.match(validation.stderr, /phase ownership/i);
+});
+
+test("run resumes approval turns, isolates clones, cleans exact fake threads, and adds an adaptive third sample", () => {
+  const repository = createBenchmarkRepository();
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "product-discovery"],
+    { FAKE_CODEX_ADAPTIVE_PHASE: "product-discovery" }
+  );
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+  const summary = JSON.parse(readFileSync(output.summary, "utf8"));
+  const phase = summary.phases.find(({ phase: name }) => name === "product-discovery");
+  assert.equal(phase.samples.length, 3);
+  const invocations = readFileSync(repository.log, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(invocations.length, 6);
+  for (let index = 0; index < invocations.length; index += 2) {
+    const initial = invocations[index];
+    const resumed = invocations[index + 1];
+    assert.equal(initial.args.includes("resume"), false);
+    assert.equal(resumed.args.includes("resume"), true);
+    assert.equal(resumed.args.includes(`product-discovery-sample-${initial.sample}`), true);
+    assert.notEqual(initial.cwd, repository.root);
+    assert.equal(initial.cwd.startsWith(repository.root), false);
+    assert.deepEqual(initial.args.slice(0, 8), [
+      "exec",
+      "--json",
+      "--model",
+      "gpt-test",
+      "--config",
+      'model_reasoning_effort="medium"',
+      "--sandbox",
+      "workspace-write",
+    ]);
+  }
+  const sampleDirs = readdirSync(join(dirname(output.summary), "scenarios", "product-discovery"));
+  assert.equal(sampleDirs.length, 3);
+  for (const sampleDir of sampleDirs) {
+    const state = JSON.parse(
+      readFileSync(
+        join(dirname(output.summary), "scenarios", "product-discovery", sampleDir, "fake-github-state.json"),
+        "utf8"
+      )
+    );
+    assert.deepEqual(state.threads, ["unrelated-thread"]);
+  }
+});
+
+test("adaptive sampling adds a third run only to the variable phase", () => {
+  const repository = createBenchmarkRepository();
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "pr-review-cycle"],
+    { FAKE_CODEX_ADAPTIVE_PHASE: "pr-re-review" }
+  );
+
+  assert.equal(run.status, 0, run.stderr);
+  const summary = JSON.parse(readFileSync(cliJson(run).summary, "utf8"));
+  assert.equal(
+    summary.phases.find(({ phase }) => phase === "first-pr-review").samples.length,
+    2
+  );
+  assert.equal(
+    summary.phases.find(({ phase }) => phase === "pr-re-review").samples.length,
+    3
+  );
+});
+
+test("run remains incomplete when a required adaptive third sample fails", () => {
+  const repository = createBenchmarkRepository();
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "fast-implementation"],
+    {
+      FAKE_CODEX_ADAPTIVE_PHASE: "fast-implementation",
+      FAKE_CODEX_FAIL_PHASE: "fast-implementation",
+      FAKE_CODEX_FAIL_SAMPLE: "3",
+    }
+  );
+
+  assert.equal(run.status, 1);
+  const summary = JSON.parse(readFileSync(cliJson(run).summary, "utf8"));
+  assert.equal(summary.status, "incomplete");
+  assert.equal(summary.executed_scenarios[0].status, "failed");
+  assert.equal(
+    summary.phases.find(({ phase }) => phase === "fast-implementation").samples[2].status,
+    "failed"
+  );
+});
+
+test("run retains failed repositories and continues with unrelated scenarios", () => {
+  const repository = createBenchmarkRepository();
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_FAIL_PHASE: "fast-implementation" }
+  );
+  assert.equal(run.status, 1);
+  const output = cliJson(run);
+  const summary = JSON.parse(readFileSync(output.summary, "utf8"));
+  assert.equal(summary.status, "incomplete");
+  assert.equal(
+    summary.phases.find(({ phase }) => phase === "fast-implementation").samples[0].status,
+    "failed"
+  );
+  assert.equal(
+    summary.phases.find(({ phase }) => phase === "standard-implementation").samples.length,
+    2
+  );
+  const failed = summary.phases
+    .flatMap(({ samples }) => samples)
+    .find(({ status }) => status === "failed");
+  assert.equal(failed.repository.startsWith(dirname(output.summary)), true);
+  assert.equal(existsSync(failed.repository), true);
+  assert.equal(existsSync(join(failed.repository, "result.txt")), true);
+});
+
+test("record refuses an incomplete scenario run", () => {
+  const repository = createBenchmarkRepository();
+  const run = runBenchmarkCli(repository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "fast-implementation",
+  ]);
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+
+  const record = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    output.summary,
+    "--baseline",
+    join(repository.root, "baseline.json"),
+  ]);
+  assert.equal(record.status, 1);
+  assert.match(record.stderr, /all five scenarios|six phase/i);
+  assert.equal(existsSync(join(repository.root, "baseline.json")), false);
+});
+
+test("record refuses a run missing its required adaptive third sample", () => {
+  const repository = createBenchmarkRepository();
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_ADAPTIVE_PHASE: "fast-implementation" }
+  );
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+  const summary = JSON.parse(readFileSync(output.summary, "utf8"));
+  summary.phases.find(({ phase }) => phase === "fast-implementation").samples.pop();
+  writeJson(output.summary, summary);
+
+  const record = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    output.summary,
+    "--baseline",
+    join(repository.root, ".context", "incomplete-adaptive.json"),
+  ]);
+
+  assert.equal(record.status, 1);
+  assert.match(record.stderr, /third sample/i);
+});
+
+test("record writes a complete allow-listed baseline without transient run content", () => {
+  const repository = createBenchmarkRepository();
+  const run = runBenchmarkCli(repository, ["run", "--model", "gpt-test", "--reasoning", "medium"]);
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+  const baselinePath = join(repository.root, ".context", "recorded-baseline.json");
+
+  const record = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    output.summary,
+    "--baseline",
+    baselinePath,
+  ]);
+  assert.equal(record.status, 0, record.stderr);
+  const recorded = readFileSync(baselinePath, "utf8");
+  for (const forbidden of [
+    "WRITE_RESULT",
+    "APPROVE_AND_RESUME",
+    "model response",
+    "command_output",
+    "stderr",
+    "thread_id",
+    "integration-run",
+    repository.root,
+    "/private/secret",
+  ]) {
+    assert.equal(recorded.includes(forbidden), false, forbidden);
+  }
+  const value = JSON.parse(recorded);
+  assert.equal(value.phases.length, 6);
+  assert.equal(Object.hasOwn(value.phases[0], "samples"), false);
+});
+
+test("record recomputes aggregates and budgets from successful samples", () => {
+  const repository = createBenchmarkRepository();
+  const run = runBenchmarkCli(repository, ["run", "--model", "gpt-test", "--reasoning", "medium"]);
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+  const summary = JSON.parse(readFileSync(output.summary, "utf8"));
+  const phase = summary.phases.find(({ phase }) => phase === "fast-implementation");
+  phase.aggregate.input_tokens.value = 999_999;
+  summary.budgets["fast-implementation"].input_tokens = 1;
+  writeJson(output.summary, summary);
+  const baselinePath = join(repository.root, ".context", "recomputed-baseline.json");
+
+  const record = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    output.summary,
+    "--baseline",
+    baselinePath,
+  ]);
+
+  assert.equal(record.status, 0, record.stderr);
+  const recorded = JSON.parse(readFileSync(baselinePath, "utf8"));
+  const recordedPhase = recorded.phases.find(({ phase }) => phase === "fast-implementation");
+  assert.equal(recordedPhase.aggregate.input_tokens.value, 100);
+  assert.equal(recorded.budgets["fast-implementation"].input_tokens, 1000);
+});
+
+test("record rejects extra successful or failed sample attempts", () => {
+  const repository = createBenchmarkRepository();
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_ADAPTIVE_PHASE: "fast-implementation" }
+  );
+  assert.equal(run.status, 0, run.stderr);
+  const output = cliJson(run);
+  const original = JSON.parse(readFileSync(output.summary, "utf8"));
+
+  const extraSuccess = structuredClone(original);
+  const adaptivePhase = extraSuccess.phases.find(
+    ({ phase }) => phase === "fast-implementation"
+  );
+  adaptivePhase.samples.push({ ...structuredClone(adaptivePhase.samples[2]), sample: 4 });
+  const extraSuccessPath = join(repository.root, ".context", "extra-success-summary.json");
+  writeJson(extraSuccessPath, extraSuccess);
+
+  const extraFailure = structuredClone(original);
+  extraFailure.phases
+    .find(({ phase }) => phase === "product-discovery")
+    .samples.push({ status: "failed", sample: 3, error: "unexpected retry" });
+  const extraFailurePath = join(repository.root, ".context", "extra-failure-summary.json");
+  writeJson(extraFailurePath, extraFailure);
+
+  const extraSuccessRecord = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    extraSuccessPath,
+    "--baseline",
+    join(repository.root, ".context", "extra-success-baseline.json"),
+  ]);
+  const extraFailureRecord = runBenchmarkCli(repository, [
+    "record",
+    "--run",
+    extraFailurePath,
+    "--baseline",
+    join(repository.root, ".context", "extra-failure-baseline.json"),
+  ]);
+
+  assert.equal(extraSuccessRecord.status, 1);
+  assert.match(extraSuccessRecord.stderr, /exactly three successful samples/i);
+  assert.equal(extraFailureRecord.status, 1);
+  assert.match(extraFailureRecord.stderr, /failed sample attempts/i);
+});
+
+test("compare reports metric deltas, budget status, and environment drift without gating", () => {
+  const repository = createBenchmarkRepository();
+  const baselinePath = join(repository.root, ".context", "baseline.json");
+  const candidatePath = join(repository.root, ".context", "candidate.json");
+  writeJson(baselinePath, baseline());
+  const candidate = baseline({
+    phases: [
+      {
+        phase: "fast-implementation",
+        aggregate: sample({ input_tokens: exact(1500), elapsed_ms: observed(700) }),
+      },
+    ],
+    environment: {
+      codex_version: "1.2.3",
+      operating_system: "linux",
+      architecture: "x64",
+    },
+  });
+  writeJson(candidatePath, candidate);
+
+  const comparison = runBenchmarkCli(repository, [
+    "compare",
+    "--baseline",
+    baselinePath,
+    "--candidate",
+    candidatePath,
+  ]);
+  assert.equal(comparison.status, 0, comparison.stderr);
+  const output = cliJson(comparison);
+  const input = output.phases[0].metrics.input_tokens;
+  const elapsed = output.phases[0].metrics.elapsed_ms;
+  assert.deepEqual(input, { comparable: true, baseline: 100, candidate: 1500, delta: 1400, budget: 1000, status: "over" });
+  assert.equal(elapsed.comparable, false);
+  assert.deepEqual(elapsed.drift, ["operating_system", "architecture"]);
 });
