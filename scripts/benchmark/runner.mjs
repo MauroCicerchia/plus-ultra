@@ -272,6 +272,7 @@ function readScenarioManifests(root) {
     if (!existsSync(fixture) || !statSync(fixture).isDirectory()) {
       fail("invalid_scenario", `${value.id} fixture directory is missing`);
     }
+    validateWorkflow(value.workflow, value.id);
     for (const phase of value.phases) {
       if (
         !EXPECTED_PHASES.includes(phase?.phase) ||
@@ -293,6 +294,7 @@ function readScenarioManifests(root) {
         if (turn.resume === true && index === 0) {
           fail("invalid_scenario", `${phase.phase} cannot resume its first turn`);
         }
+        validatePostconditions(turn.postconditions ?? [], `${phase.phase} turn ${index + 1}`);
       }
       validatePostconditions(phase.postconditions ?? [], phase.phase);
     }
@@ -316,6 +318,31 @@ function readScenarioManifests(root) {
   return manifests.map(({ path, value }) => ({ ...value, manifest_path: path }));
 }
 
+function validateWorkflow(workflow, scenario) {
+  if (workflow === undefined) return;
+  if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) {
+    fail("invalid_scenario", `${scenario} workflow must be an object`);
+  }
+  for (const field of ["allowed_changes", "required_changes"]) {
+    if (workflow[field] === undefined) continue;
+    if (
+      !Array.isArray(workflow[field]) ||
+      workflow[field].length === 0 ||
+      workflow[field].some((path) => typeof path !== "string" || path.length === 0) ||
+      new Set(workflow[field]).size !== workflow[field].length
+    ) {
+      fail("invalid_scenario", `${scenario} ${field} must contain unique relative paths`);
+    }
+    for (const path of workflow[field]) pathInside("/fixture", path, `${scenario} ${field}`);
+  }
+  if (
+    workflow.allowed_changes &&
+    workflow.required_changes?.some((path) => !workflow.allowed_changes.includes(path))
+  ) {
+    fail("invalid_scenario", `${scenario} required_changes must be allowed`);
+  }
+}
+
 function validatePostconditions(postconditions, phase) {
   if (!Array.isArray(postconditions)) {
     fail("invalid_scenario", `${phase} postconditions must be an array`);
@@ -324,12 +351,12 @@ function validatePostconditions(postconditions, phase) {
     if (
       !condition ||
       typeof condition !== "object" ||
-      !["file_exists", "file_contains", "command"].includes(condition.type)
+      !["file_absent", "file_exists", "file_contains", "command"].includes(condition.type)
     ) {
       fail("invalid_scenario", `${phase} contains an invalid postcondition`);
     }
     if (
-      ["file_exists", "file_contains"].includes(condition.type) &&
+      ["file_absent", "file_exists", "file_contains"].includes(condition.type) &&
       typeof condition.path !== "string"
     ) {
       fail("invalid_scenario", `${phase} file postcondition requires a path`);
@@ -571,7 +598,10 @@ function responsesFromJsonl(source) {
 
 function checkPostconditions(repository, postconditions, environment) {
   for (const condition of postconditions ?? []) {
-    if (condition.type === "file_exists") {
+    if (condition.type === "file_absent") {
+      const target = pathInside(repository, condition.path, "postcondition path");
+      if (existsSync(target)) return `Expected ${condition.path} to remain absent`;
+    } else if (condition.type === "file_exists") {
       const target = pathInside(repository, condition.path, "postcondition path");
       if (!existsSync(target)) return `Expected ${condition.path} to exist`;
     } else if (condition.type === "file_contains") {
@@ -590,6 +620,32 @@ function checkPostconditions(repository, postconditions, environment) {
         return "Postcondition command output did not match";
       }
     }
+  }
+  return null;
+}
+
+function changedPaths(repository) {
+  const tracked = git(repository, ["diff", "--name-only", "-z", "HEAD"]).stdout
+    .split("\0")
+    .filter(Boolean);
+  const untracked = git(repository, ["ls-files", "--others", "--exclude-standard", "-z"]).stdout
+    .split("\0")
+    .filter(Boolean);
+  return [...new Set([...tracked, ...untracked])].sort();
+}
+
+function checkWorkflowChanges(repository, workflow) {
+  if (!workflow) return null;
+  const changed = changedPaths(repository);
+  const unexpected = workflow.allowed_changes
+    ? changed.filter((path) => !workflow.allowed_changes.includes(path))
+    : [];
+  if (unexpected.length > 0) {
+    return `Changes outside the allowed workflow scope: ${unexpected.join(", ")}`;
+  }
+  const missing = workflow.required_changes?.filter((path) => !changed.includes(path)) ?? [];
+  if (missing.length > 0) {
+    return `Required workflow changes are missing: ${missing.join(", ")}`;
   }
   return null;
 }
@@ -693,12 +749,17 @@ function runPhaseAttempt(context, scenario, phase, sampleNumber) {
         break;
       }
       threadId ??= threadIdFromJsonl(result.stdout ?? "");
+      phaseFailure = checkPostconditions(repository, turn.postconditions, environment);
+      if (phaseFailure) break;
     }
     const jsonl = outputs.filter(Boolean).join("\n");
     const stderr = errors.join("");
     writeFileSync(join(sampleDirectory, `${phase.phase}.jsonl`), jsonl);
     writeFileSync(join(sampleDirectory, `${phase.phase}.stderr.txt`), stderr);
     writeFileSync(join(sampleDirectory, `${phase.phase}.response.txt`), responsesFromJsonl(jsonl));
+    if (!phaseFailure) {
+      phaseFailure = checkWorkflowChanges(repository, scenario.workflow);
+    }
     if (!phaseFailure) {
       phaseFailure = checkPostconditions(repository, phase.postconditions, environment);
     }

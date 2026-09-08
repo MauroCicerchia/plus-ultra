@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -674,6 +675,9 @@ if (prompt.includes("CLEAN_CREATED_THREAD")) {
   }
 }
 writeFileSync("result.txt", record.phase + " complete\\n");
+if (process.env.FAKE_CODEX_OUT_OF_SCOPE_PHASE === record.phase) {
+  writeFileSync("outside-workflow-scope.txt", "unexpected\\n");
+}
 if (
   process.env.FAKE_CODEX_FAIL_PHASE === record.phase &&
   record.sample === Number(process.env.FAKE_CODEX_FAIL_SAMPLE ?? "1") &&
@@ -696,6 +700,370 @@ process.stdout.write(JSON.stringify({
   type: "turn.completed",
   usage: { input_tokens: input, cached_input_tokens: 25, output_tokens: 20, reasoning_output_tokens: 5 },
 }) + "\\n");
+`;
+}
+
+const canonicalTagFilteringTestSource = `import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { formatEntry } from "../src/format.mjs";
+import { addEntry, filterByTag } from "../src/library.mjs";
+
+test("supports repeatable normalized tags through the CLI", () => {
+  const original = [{ id: 9, title: "Dune", read: false }];
+  assert.throws(() => addEntry(original, "   "), /title is required/);
+  const updated = addEntry(original, "The Left Hand", ["Sci-Fi", " fiction ", "sci-fi"]);
+  assert.deepEqual(updated.at(-1), {
+    id: 10,
+    title: "The Left Hand",
+    read: false,
+    tags: ["fiction", "sci-fi"],
+  });
+  assert.deepEqual(original, [{ id: 9, title: "Dune", read: false }]);
+  const beforeFilter = JSON.parse(JSON.stringify(updated));
+  const filtered = filterByTag(updated, "SCI-FI");
+  assert.deepEqual(filtered, [updated.at(-1)]);
+  assert.notEqual(filtered, updated);
+  assert.deepEqual(updated, beforeFilter);
+  assert.equal(formatEntry(original[0]), "[ ] 9 Dune");
+  assert.equal(formatEntry(updated.at(-1)), "[ ] 10 The Left Hand #fiction #sci-fi");
+
+  const directory = mkdtempSync(join(tmpdir(), "reading-list-tags-"));
+  try {
+    const dataPath = join(directory, "entries.json");
+    writeFileSync(dataPath, JSON.stringify(original));
+    const environment = { ...process.env, READING_LIST_FILE: dataPath };
+    const add = spawnSync(process.execPath, ["src/cli.mjs", "add", "Kindred", "--tag", "Sci-Fi", "--tag", "classic", "--tag", "sci-fi"], { encoding: "utf8", env: environment });
+    assert.equal(add.status, 0, add.stderr);
+    assert.equal(add.stdout, "Added 10\\n");
+    const saved = JSON.parse(readFileSync(dataPath, "utf8"));
+    assert.deepEqual(saved.at(-1).tags, ["classic", "sci-fi"]);
+    const list = spawnSync(process.execPath, ["src/cli.mjs", "list", "--tag", "SCI-FI"], { encoding: "utf8", env: environment });
+    assert.equal(list.status, 0, list.stderr);
+    assert.equal(list.stdout, "[ ] 10 Kindred #classic #sci-fi\\n");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+`;
+
+function versionedFakeCodexSource() {
+  const taggedLibrary = `import { normalizeTitle } from "./format.mjs";
+
+function normalizeTag(value) {
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) throw new Error("tag is required");
+  return normalized;
+}
+
+export function addEntry(entries, title, tags = []) {
+  const normalized = normalizeTitle(title);
+  if (!normalized) throw new Error("title is required");
+  const nextId = entries.reduce((largest, entry) => Math.max(largest, entry.id), 0) + 1;
+  const normalizedTags = [...new Set(tags.map(normalizeTag))].sort();
+  const entry = { id: nextId, title: normalized, read: false };
+  return [...entries, normalizedTags.length > 0 ? { ...entry, tags: normalizedTags } : entry];
+}
+
+export function markRead(entries, id) {
+  const numericId = Number(id);
+  if (!Number.isInteger(numericId)) throw new Error("id must be an integer");
+  let found = false;
+  const updated = entries.map((entry) => {
+    if (entry.id !== numericId) return entry;
+    found = true;
+    return { ...entry, read: true };
+  });
+  if (!found) throw new Error("entry " + id + " was not found");
+  return updated;
+}
+
+export function filterByTag(entries, tag) {
+  const normalized = normalizeTag(tag);
+  return entries.filter((entry) => (entry.tags ?? []).includes(normalized));
+}
+`;
+  const taggedFormat = `export function normalizeTitle(value) {
+  if (typeof value !== "string") throw new TypeError("title must be a string");
+  return value.trim().replace(/ {2,}/g, " ");
+}
+
+export function formatEntry(entry) {
+  const tags = [...(entry.tags ?? [])].sort().map((tag) => " #" + tag).join("");
+  return (entry.read ? "[x]" : "[ ]") + " " + entry.id + " " + entry.title + tags;
+}
+`;
+  const taggedCli = `#!/usr/bin/env node
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { formatEntry } from "./format.mjs";
+import { addEntry, filterByTag, markRead } from "./library.mjs";
+
+const dataPath = resolve(process.env.READING_LIST_FILE ?? ".reading-list.json");
+const load = () => {
+  if (!existsSync(dataPath)) return [];
+  const value = JSON.parse(readFileSync(dataPath, "utf8"));
+  if (!Array.isArray(value)) throw new Error("reading-list data must be an array");
+  return value;
+};
+const save = (entries) => writeFileSync(dataPath, JSON.stringify(entries, null, 2) + "\\n");
+const usage = () => "Usage: reading-list <add <title> [--tag <tag>...]|list [--tag <tag>]|read <id>>";
+
+export function main(args = process.argv.slice(2)) {
+  const [command, ...rest] = args;
+  const entries = load();
+  if (command === "add") {
+    const titleParts = [];
+    const tags = [];
+    for (let index = 0; index < rest.length; index += 1) {
+      if (rest[index] !== "--tag") {
+        titleParts.push(rest[index]);
+        continue;
+      }
+      if (index + 1 >= rest.length || rest[index + 1] === "--tag") throw new Error(usage());
+      tags.push(rest[index + 1]);
+      index += 1;
+    }
+    if (titleParts.length === 0) throw new Error(usage());
+    const updated = addEntry(entries, titleParts.join(" "), tags);
+    save(updated);
+    return "Added " + updated.at(-1).id;
+  }
+  if (command === "list" && (rest.length === 0 || (rest.length === 2 && rest[0] === "--tag"))) {
+    const listed = rest.length === 2 ? filterByTag(entries, rest[1]) : entries;
+    return listed.map(formatEntry).join("\\n");
+  }
+  if (command === "read" && rest.length === 1) {
+    save(markRead(entries, rest[0]));
+    return "Marked " + rest[0] + " read";
+  }
+  throw new Error(usage());
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
+  try { process.stdout.write(main() + "\\n"); }
+  catch (error) { process.stderr.write(error.message + "\\n"); process.exitCode = 1; }
+}
+`;
+  const approvedProduct = `# Product brief
+## Target user
+Terminal readers who want a small local list.
+## Core problem
+Capturing and finishing a reading list should not require a hosted service.
+## Current alternative
+Ad hoc notes with inconsistent structure.
+## Value proposition
+Reliable dependency-free local capture from a terminal.
+## MVP hypothesis
+Fast add, list, and read commands are sufficient for the core workflow.
+## Core user journeys
+Add, list, filter, and finish a book.
+## Non-goals
+No hosted sync.
+## Success criteria
+Commands remain deterministic.
+## Product principles and constraints
+Remain dependency-free and preserve local data semantics.
+`;
+  const specProposal = `---
+title: Search reading-list titles
+status: draft
+issue: 102
+created: 2026-09-08
+---
+# 002 — Search reading-list titles
+## Problem
+Find local titles.
+## Goals / Non-goals
+Case-insensitive local search; no network.
+## Acceptance criteria
+Search returns matching entries and rejects empty queries.
+## Interfaces
+CLI search command.
+## Architecture boundaries
+Pure matching in the library and IO in the CLI.
+## Functional core
+Immutable filtering.
+## Data model
+No schema change.
+## Test plan
+Focused unit and CLI tests.
+## Risks
+Unicode matching remains basic.
+## Integration boundary
+Human-owned integration.
+`;
+  const firstSummary = `<!-- plus-ultra:pr-review:summary -->
+# Plus Ultra PR Review
+
+## Status
+
+⛔ Changes required — one or more blockers.
+
+## Findings
+
+### Important
+
+- **missing-title-validation** — Empty titles can be stored; restore validation at src/library.mjs:5.
+
+## Traceability
+
+| Issue | Spec | Contract |
+| --- | --- | --- |
+| #101 | \`specs/001-tag-filtering.md\` (approved) | Contractual review |
+`;
+  const rereviewSummary = `<!-- plus-ultra:pr-review:summary -->
+# Plus Ultra PR Review
+
+## Status
+
+✅ Ready — no findings or non-blocking findings.
+
+The corrected remote head restores required title validation.
+
+## Findings
+
+No findings. The approved contract and corrected remote-head change were reviewed.
+
+## Traceability
+
+| Issue | Spec | Contract |
+| --- | --- | --- |
+| #101 | \`specs/001-tag-filtering.md\` (approved) | Contractual review |
+
+## Resolutions from the previous review
+
+- Empty titles are rejected again at the corrected remote head.
+
+<!-- plus-ultra:pr-review:resolution missing-title-validation=resolved -->
+`;
+  return `#!/usr/bin/env node
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+const args = process.argv.slice(2);
+if (args[0] === "--version") { process.stdout.write("codex-cli 1.2.3\\n"); process.exit(0); }
+if (args.join(" ") === "plugin marketplace list --json") {
+  process.stdout.write(JSON.stringify({ marketplaces: [{ name: "plus-ultra-dev", root: process.env.FAKE_CODEX_MARKETPLACE_ROOT }] }) + "\\n");
+  process.exit(0);
+}
+if (args.join(" ") === "plugin list --marketplace plus-ultra-dev --json") {
+  process.stdout.write(JSON.stringify({ installed: [{ pluginId: "plus-ultra@plus-ultra-dev", installed: true, enabled: true }] }) + "\\n");
+  process.exit(0);
+}
+const phase = process.env.PLUS_ULTRA_BENCHMARK_PHASE;
+const turn = Number(process.env.PLUS_ULTRA_BENCHMARK_TURN);
+const sample = Number(process.env.PLUS_ULTRA_BENCHMARK_SAMPLE);
+const prompt = args.at(-1);
+const protocol = prompt
+  .split("\\n", 1)[0]
+  .replace("Benchmark protocol: ", "")
+  .replaceAll(String.fromCharCode(96), "")
+  .replace(/\\.$/, "");
+const expectedPhase = {
+  "product-discovery-proposal-v1": "product-discovery",
+  "product-discovery-approval-v1": "product-discovery",
+  "spec-draft-proposal-v1": "spec-refinement",
+  "spec-approval-v1": "spec-refinement",
+  "fast-whitespace-tdd-v1": "fast-implementation",
+  "standard-tag-filtering-tdd-v1": "standard-implementation",
+  "pr-review-first-v1": "first-pr-review",
+  "pr-review-rereview-v1": "pr-re-review",
+}[protocol];
+if (!expectedPhase || expectedPhase !== phase) {
+  process.stderr.write("unknown or mismatched benchmark protocol\\n");
+  process.exit(65);
+}
+appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ args, cwd: process.cwd(), phase, protocol, sample, turn }) + "\\n");
+const gh = (ghArgs) => {
+  const result = spawnSync("gh", ghArgs, { encoding: "utf8", env: process.env });
+  if (result.status !== 0) { process.stderr.write(result.stderr); process.exit(result.status ?? 9); }
+  return result.stdout;
+};
+const metadataFields = "number,baseRefName,baseRefOid,headRefName,headRepository,state,url,headRefOid";
+const reviewThreadsQuery = "query=query ReviewThreads { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviewThreads(first: 1, after: $cursor) { nodes { id isResolved comments(first: 20) { nodes { author { login } body path line originalLine diffSide } } } pageInfo { hasNextPage endCursor } } } } }";
+function gatherReviewEvidence(headOid) {
+  gh(["auth", "status"]);
+  gh(["pr", "view", "17"]);
+  gh(["pr", "view", "17", "--json", "closingIssuesReferences"]);
+  gh(["pr", "view", "17", "--json", metadataFields]);
+  gh(["issue", "view", "101", "--json", "number,title,body,labels"]);
+  gh(["api", "repos/example/reading-list/contents/specs?ref=" + headOid]);
+  gh(["api", "repos/example/reading-list/contents/specs/001-tag-filtering.md?ref=" + headOid]);
+  gh(["api", "repos/example/reading-list/compare/cccccccccccccccccccccccccccccccccccccccc..." + headOid]);
+  gh(["api", "repos/example/reading-list/pulls/17/files?per_page=100&page=1"]);
+  const evidencePaths = phase === "pr-re-review"
+    ? ["src/library.mjs", "src/format.mjs", "src/cli.mjs", "test/tag-filtering.test.mjs"]
+    : ["src/library.mjs"];
+  for (const path of evidencePaths) {
+    gh(["api", "repos/example/reading-list/contents/" + path + "?ref=" + headOid]);
+  }
+  gh(["pr", "diff", "17"]);
+  gh(["pr", "view", "17", "--json", metadataFields]);
+  gh(["api", "user"]);
+  let cursor;
+  do {
+    const threadArgs = ["api", "graphql", "-f", reviewThreadsQuery, "-F", "owner=example", "-F", "name=reading-list", "-F", "number=17"];
+    if (cursor) threadArgs.push("-f", "cursor=" + cursor);
+    const page = JSON.parse(gh(threadArgs)).data.repository.pullRequest.reviewThreads;
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+  gh(["api", "--paginate", "repos/example/reading-list/issues/17/comments?per_page=100"]);
+  gh(["pr", "view", "17", "--json", metadataFields]);
+}
+if (protocol === "product-discovery-proposal-v1") {
+  if (existsSync("docs/product.md")) { process.stderr.write("product brief existed before approval\\n"); process.exit(66); }
+} else if (protocol === "product-discovery-approval-v1") {
+  if (existsSync("docs/product.md")) { process.stderr.write("product proposal was written early\\n"); process.exit(66); }
+  mkdirSync("docs", { recursive: true });
+  writeFileSync("docs/product.md", ${JSON.stringify(approvedProduct)});
+} else if (protocol === "spec-draft-proposal-v1") {
+  gh(["issue", "view", "102"]);
+  mkdirSync("specs", { recursive: true });
+  writeFileSync("specs/002-search-reading-list.md", ${JSON.stringify(specProposal)});
+} else if (protocol === "spec-approval-v1") {
+  writeFileSync("specs/002-search-reading-list.md", readFileSync("specs/002-search-reading-list.md", "utf8").replace("status: draft", "status: approved"));
+} else if (protocol === "fast-whitespace-tdd-v1") {
+  const testPath = "test/format.test.mjs";
+  appendFileSync(testPath, "\\ntest(\\\"normalizes all whitespace runs\\\", () => {\\n  assert.equal(normalizeTitle(\\\"  The\\\\t Left\\\\nHand  \\\"), \\\"The Left Hand\\\");\\n});\\n");
+  const sourcePath = "src/format.mjs";
+  writeFileSync(sourcePath, readFileSync(sourcePath, "utf8").replace("/ {2,}/g", "/\\\\s+/g"));
+} else if (protocol === "standard-tag-filtering-tdd-v1") {
+  writeFileSync("test/tag-filtering.test.mjs", ${JSON.stringify(canonicalTagFilteringTestSource)});
+  const testEnvironment = { ...process.env };
+  delete testEnvironment.NODE_TEST_CONTEXT;
+  const red = spawnSync(process.execPath, ["--test", "test/tag-filtering.test.mjs"], { encoding: "utf8", env: testEnvironment });
+  if (red.status === 0) { process.stderr.write("STANDARD regression was not RED before implementation\\n" + red.stdout + red.stderr); process.exit(67); }
+  appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ event: "test_run", phase, stage: "red", status: "failed-as-expected" }) + "\\n");
+  writeFileSync("src/library.mjs", ${JSON.stringify(taggedLibrary)});
+  writeFileSync("src/format.mjs", ${JSON.stringify(taggedFormat)});
+  writeFileSync("src/cli.mjs", ${JSON.stringify(taggedCli)});
+  const focusedGreen = spawnSync(process.execPath, ["--test", "test/tag-filtering.test.mjs"], { encoding: "utf8", env: testEnvironment });
+  if (focusedGreen.status !== 0) { process.stderr.write(focusedGreen.stdout + focusedGreen.stderr); process.exit(focusedGreen.status ?? 68); }
+  appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ event: "test_run", phase, stage: "focused-green", status: "passed" }) + "\\n");
+  const suiteGreen = spawnSync(process.execPath, ["--test"], { encoding: "utf8", env: testEnvironment });
+  if (suiteGreen.status !== 0) { process.stderr.write(suiteGreen.stdout + suiteGreen.stderr); process.exit(suiteGreen.status ?? 69); }
+  appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ event: "test_run", phase, stage: "suite-green", status: "passed" }) + "\\n");
+} else if (protocol === "pr-review-first-v1") {
+  const headOid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  gatherReviewEvidence(headOid);
+  gh(["api", "repos/example/reading-list/pulls/17/comments", "--method", "POST", "-f", "body=<!-- plus-ultra:pr-review:inline -->\\nImportant: missing-title-validation — A whitespace-only title is stored because this added line bypasses validation. Restore the normalized-title guard before assigning an ID.", "-f", "commit_id=" + headOid, "-f", "path=src/library.mjs", "-F", "line=5", "-f", "side=RIGHT"]);
+  gh(["api", "repos/example/reading-list/issues/17/comments", "--method", "POST", "-f", ${JSON.stringify(`body=${firstSummary}`)}]);
+} else if (protocol === "pr-review-rereview-v1") {
+  const headOid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  gatherReviewEvidence(headOid);
+  gh(["api", "graphql", "-f", "query=mutation ResolveReviewThread { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }", "-F", "threadId=BENCHMARK_THREAD_1"]);
+  gh(["api", "repos/example/reading-list/issues/comments/9001", "--method", "PATCH", "-f", ${JSON.stringify(`body=${rereviewSummary}`)}]);
+}
+if (!args.includes("resume")) process.stdout.write(JSON.stringify({ type: "thread.started", thread_id: phase + "-" + sample }) + "\\n");
+const responseText = protocol === "product-discovery-proposal-v1"
+  ? ${JSON.stringify(approvedProduct)}
+  : phase + " complete";
+process.stdout.write(JSON.stringify({ type: "item.completed", item: { id: "message-" + turn, type: "agent_message", text: responseText } }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 100, cached_input_tokens: 25, output_tokens: 20, reasoning_output_tokens: 5 } }) + "\\n");
 `;
 }
 
@@ -783,6 +1151,33 @@ function createBenchmarkRepository() {
   runGit(root, ["config", "user.email", "benchmark@example.test"]);
   runGit(root, ["add", "--all"]);
   runGit(root, ["commit", "-m", "test: create benchmark fixture"]);
+  refreshBenchmarkStage(root);
+  return { root, codex, log: join(root, ".context", "fake-codex.jsonl") };
+}
+
+function createVersionedBenchmarkRepository() {
+  const root = mkdtempSync(join(tmpdir(), "plus-ultra-versioned-benchmark-test-"));
+  temporaryBenchmarkRepositories.add(root);
+  mkdirSync(join(root, "hooks"), { recursive: true });
+  mkdirSync(join(root, "skills", "example"), { recursive: true });
+  mkdirSync(join(root, "specs"), { recursive: true });
+  mkdirSync(join(root, ".codex-plugin"), { recursive: true });
+  writeFileSync(join(root, ".gitignore"), "/.context/\n");
+  writeFileSync(join(root, "AGENTS.md"), "fixture agent instructions\n");
+  writeFileSync(join(root, "hooks", "session-start.mjs"), "// visible session context\n");
+  writeFileSync(join(root, "skills", "example", "SKILL.md"), "# Example skill\n");
+  writeFileSync(join(root, "specs", "fixture.md"), "# Durable artifact\n");
+  writeJson(join(root, ".codex-plugin", "plugin.json"), { name: "plus-ultra", version: "0.0.0" });
+  cpSync(join(testRoot, "benchmarks"), join(root, "benchmarks"), { recursive: true });
+  const codex = join(root, "fake-codex");
+  writeFileSync(codex, versionedFakeCodexSource());
+  chmodSync(codex, 0o755);
+
+  runGit(root, ["init", "--initial-branch=main"]);
+  runGit(root, ["config", "user.name", "Benchmark tests"]);
+  runGit(root, ["config", "user.email", "benchmark@example.test"]);
+  runGit(root, ["add", "--all"]);
+  runGit(root, ["commit", "-m", "test: create versioned benchmark fixture"]);
   refreshBenchmarkStage(root);
   return { root, codex, log: join(root, ".context", "fake-codex.jsonl") };
 }
@@ -1274,4 +1669,772 @@ test("compare reports metric deltas, budget status, and environment drift withou
   assert.deepEqual(input, { comparable: true, baseline: 100, candidate: 1500, delta: 1400, budget: 1000, status: "over" });
   assert.equal(elapsed.comparable, false);
   assert.deepEqual(elapsed.drift, ["operating_system", "architecture"]);
+});
+
+function repositoryScenarioManifests() {
+  const directory = join(testRoot, "benchmarks", "scenarios");
+  return readdirSync(directory)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .map((name) => JSON.parse(readFileSync(join(directory, name), "utf8")));
+}
+
+function fixedFixtureCommit(repository) {
+  const environment = {
+    ...process.env,
+    GIT_AUTHOR_DATE: "2000-01-01T00:00:00Z",
+    GIT_COMMITTER_DATE: "2000-01-01T00:00:00Z",
+  };
+  const execute = (args) => {
+    const result = spawnSync("git", ["-C", repository, ...args], {
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  execute(["init", "--initial-branch=main"]);
+  execute(["config", "user.name", "Plus Ultra benchmark"]);
+  execute(["config", "user.email", "benchmark@plus-ultra.local"]);
+  execute(["add", "--all"]);
+  execute(["commit", "-m", "chore: initialize benchmark fixture"]);
+  return execute(["rev-parse", "HEAD"]);
+}
+
+test("versioned benchmark suite owns exactly five scenarios and six canonical phases", () => {
+  const manifests = repositoryScenarioManifests();
+  const byId = new Map(manifests.map((manifest) => [manifest.id, manifest]));
+
+  assert.equal(manifests.length, 5);
+  assert.deepEqual([...byId.keys()].sort(), canonicalScenarios.map(([id]) => id).sort());
+  assert.deepEqual(
+    canonicalScenarios.flatMap(([id]) => byId.get(id).phases.map(({ phase }) => [id, phase])),
+    [
+      ["product-discovery", "product-discovery"],
+      ["spec-refinement", "spec-refinement"],
+      ["fast-implementation", "fast-implementation"],
+      ["standard-implementation", "standard-implementation"],
+      ["pr-review-cycle", "first-pr-review"],
+      ["pr-review-cycle", "pr-re-review"],
+    ]
+  );
+  for (const manifest of manifests) {
+    assert.equal(manifest.schema_version, 1);
+    assert.equal(manifest.fixture, "benchmarks/fixtures/reading-list");
+    assert.equal(manifest.phases.length, canonicalScenarios.find(([id]) => id === manifest.id)[1].length);
+  }
+});
+
+test("reading-list fixture is dependency-free, initially green, and produces deterministic history", () => {
+  const fixture = join(testRoot, "benchmarks", "fixtures", "reading-list");
+  const packageManifest = JSON.parse(readFileSync(join(fixture, "package.json"), "utf8"));
+
+  assert.equal(packageManifest.type, "module");
+  assert.deepEqual(packageManifest.dependencies ?? {}, {});
+  assert.deepEqual(packageManifest.devDependencies ?? {}, {});
+  assert.equal(statSync(join(fixture, "src", "cli.mjs")).isFile(), true);
+  assert.equal(statSync(join(fixture, "src", "library.mjs")).isFile(), true);
+  assert.equal(statSync(join(fixture, "scripts", "check-postcondition.mjs")).isFile(), true);
+
+  const tests = spawnSync(process.execPath, ["--test"], { cwd: fixture, encoding: "utf8" });
+  assert.equal(tests.status, 0, tests.stderr || tests.stdout);
+
+  const first = mkdtempSync(join(tmpdir(), "reading-list-history-a-"));
+  const second = mkdtempSync(join(tmpdir(), "reading-list-history-b-"));
+  temporaryBenchmarkRepositories.add(first);
+  temporaryBenchmarkRepositories.add(second);
+  cpSync(fixture, first, { recursive: true });
+  cpSync(fixture, second, { recursive: true });
+  assert.equal(fixedFixtureCommit(first), fixedFixtureCommit(second));
+});
+
+test("discovery scenarios require distinct proposal and explicit approval turns", () => {
+  const manifests = new Map(repositoryScenarioManifests().map((manifest) => [manifest.id, manifest]));
+  const assertApprovalTurns = (phase) => {
+    assert.deepEqual(phase.turns.map(({ kind }) => kind), ["proposal", "approval"]);
+    assert.equal(phase.turns[0].resume ?? false, false);
+    assert.equal(phase.turns[1].resume, true);
+    assert.equal(phase.turns[1].explicit_approval, true);
+    assert.notEqual(phase.turns[0].prompt, phase.turns[1].prompt);
+  };
+
+  const product = manifests.get("product-discovery").phases[0];
+  assertApprovalTurns(product);
+  assert.equal(product.turns[0].postconditions.some(({ type }) => type === "file_absent"), true);
+  const productProposal = readFileSync(join(testRoot, product.turns[0].prompt), "utf8");
+  const productApproval = readFileSync(join(testRoot, product.turns[1].prompt), "utf8");
+  const canonicalProduct = readFileSync(
+    join(testRoot, "skills", "product-discovery", "assets", "product.md"),
+    "utf8"
+  );
+  const canonicalHeadings = canonicalProduct.match(/^## .+$/gm);
+  assert.equal(canonicalProduct.startsWith("# Product brief\n"), true);
+  assert.deepEqual(canonicalHeadings, [
+    "## Target user",
+    "## Core problem",
+    "## Current alternative",
+    "## Value proposition",
+    "## MVP hypothesis",
+    "## Core user journeys",
+    "## Non-goals",
+    "## Success criteria",
+    "## Product principles and constraints",
+  ]);
+  assert.equal(canonicalHeadings.every((heading) => productProposal.includes(heading)), true);
+  assert.match(productProposal, /show.*full.*proposal/is);
+  assert.doesNotMatch(
+    productProposal,
+    /frontmatter (?:with|containing)|status:|Reading List Product Brief/i
+  );
+  assert.match(productApproval, /explicitly approve/i);
+  assert.match(productApproval, /write.*`docs\/product\.md`/is);
+  assert.doesNotMatch(
+    productApproval,
+    /frontmatter (?:with|containing)|status:|Reading List Product Brief/i
+  );
+  assert.equal(
+    product.postconditions.some(
+      ({ type, command, args }) =>
+        type === "command" &&
+        command === "node" &&
+        JSON.stringify(args) === JSON.stringify(["scripts/check-postcondition.mjs", "product"])
+    ),
+    true
+  );
+
+  const spec = manifests.get("spec-refinement").phases[0];
+  assertApprovalTurns(spec);
+  assert.match(readFileSync(join(testRoot, spec.turns[0].prompt), "utf8"), /plus-ultra:spec/);
+  assert.doesNotMatch(
+    readFileSync(join(testRoot, spec.turns[0].prompt), "utf8"),
+    /plus-ultra:refine-issues/
+  );
+  assert.equal(
+    spec.turns[0].postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "specs/002-search-reading-list.md" &&
+        text === "status: draft"
+    ),
+    true
+  );
+  assert.equal(manifests.get("spec-refinement").current_date, "2026-09-08");
+  assert.match(
+    readFileSync(join(testRoot, spec.turns[0].prompt), "utf8"),
+    /created: 2026-09-08/
+  );
+  assert.equal(
+    spec.turns[0].postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "specs/002-search-reading-list.md" &&
+        text === "created: 2026-09-08"
+    ),
+    true
+  );
+  assert.equal(
+    spec.postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "specs/002-search-reading-list.md" &&
+        text === "status: approved"
+    ),
+    true
+  );
+  assert.equal(
+    spec.postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "specs/002-search-reading-list.md" &&
+        text === "created: 2026-09-08"
+    ),
+    true
+  );
+});
+
+test("implementation scenarios distinguish localized FAST work from multi-file STANDARD TDD", () => {
+  const manifests = new Map(repositoryScenarioManifests().map((manifest) => [manifest.id, manifest]));
+  const fast = manifests.get("fast-implementation");
+  const standard = manifests.get("standard-implementation");
+
+  assert.equal(fast.workflow.risk, "FAST");
+  assert.equal(fast.workflow.localized, true);
+  assert.deepEqual(fast.workflow.allowed_changes, ["src/format.mjs", "test/format.test.mjs"]);
+  assert.deepEqual(fast.workflow.required_changes, ["src/format.mjs", "test/format.test.mjs"]);
+  assert.equal(
+    fast.phases[0].postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "test/format.test.mjs" &&
+        text === 'test("normalizes all whitespace runs"'
+    ),
+    true
+  );
+  assert.equal(
+    fast.phases[0].postconditions.some(
+      ({ type, command, args }) =>
+        type === "command" &&
+        command === "node" &&
+        JSON.stringify(args) === JSON.stringify(["--test", "test/format.test.mjs"])
+    ),
+    true
+  );
+  assert.equal(fast.phases[0].postconditions.some(({ args }) => args?.includes("fast")), true);
+
+  assert.equal(standard.workflow.risk, "STANDARD");
+  assert.equal(standard.workflow.tdd, true);
+  assert.equal(standard.workflow.required_source_files.length, 3);
+  assert.equal(new Set(standard.workflow.required_source_files).size, standard.workflow.required_source_files.length);
+  assert.deepEqual(standard.workflow.allowed_changes, [
+    "src/library.mjs",
+    "src/format.mjs",
+    "src/cli.mjs",
+    "test/tag-filtering.test.mjs",
+  ]);
+  assert.deepEqual(standard.workflow.required_changes, standard.workflow.allowed_changes);
+  assert.equal(
+    standard.phases[0].postconditions.some(
+      ({ type, path, text }) =>
+        type === "file_contains" &&
+        path === "test/tag-filtering.test.mjs" &&
+        text === 'test("supports repeatable normalized tags through the CLI"'
+    ),
+    true
+  );
+  assert.equal(
+    standard.phases[0].postconditions.some(
+      ({ type, command, args }) =>
+        type === "command" &&
+        command === "node" &&
+        JSON.stringify(args) === JSON.stringify(["--test", "test/tag-filtering.test.mjs"])
+    ),
+    true
+  );
+  assert.equal(
+    standard.phases[0].postconditions.some(
+      ({ type, command, args }) =>
+        type === "command" && command === "node" && JSON.stringify(args) === JSON.stringify(["--test"])
+    ),
+    true
+  );
+  assert.equal(standard.phases[0].postconditions.some(({ args }) => args?.includes("standard")), true);
+  assert.match(readFileSync(join(testRoot, standard.phases[0].turns[0].prompt), "utf8"), /failing test.*first/is);
+  assert.equal(
+    versionedFakeCodexSource().includes(JSON.stringify(canonicalTagFilteringTestSource)),
+    true
+  );
+});
+
+test("PR review cycle models immutable blocker and corrected heads with prior tagged review state", () => {
+  const manifest = repositoryScenarioManifests().find(({ id }) => id === "pr-review-cycle");
+  const state = JSON.parse(
+    readFileSync(join(testRoot, "benchmarks", "fake-github", "state.json"), "utf8")
+  );
+  assert.equal(
+    state.remote_spec.content,
+    readFileSync(
+      join(testRoot, "benchmarks", "fixtures", "reading-list", state.remote_spec.path),
+      "utf8"
+    )
+  );
+  assert.equal(
+    state.heads.corrected.files["test/tag-filtering.test.mjs"],
+    canonicalTagFilteringTestSource
+  );
+
+  assert.deepEqual(manifest.phases.map(({ phase }) => phase), ["first-pr-review", "pr-re-review"]);
+  assert.match(state.heads.blocked.oid, /^[a-f0-9]{40}$/);
+  assert.match(state.heads.corrected.oid, /^[a-f0-9]{40}$/);
+  assert.notEqual(state.heads.blocked.oid, state.heads.corrected.oid);
+  assert.equal(state.heads.blocked.known_blocker.code, "missing-title-validation");
+  assert.equal(
+    state.heads.blocked.files[state.heads.blocked.known_blocker.path]
+      .split("\n")
+      [state.heads.blocked.known_blocker.line - 1].includes(state.heads.blocked.known_blocker.code),
+    true
+  );
+  assert.equal(state.heads.corrected.resolves, "missing-title-validation");
+  assert.equal(state.prior_review.tag, "<!-- plus-ultra:pr-review:inline -->");
+  assert.equal(state.prior_review.head_oid, state.heads.blocked.oid);
+  assert.equal(state.prior_review.thread.isResolved, false);
+  assert.equal(manifest.phases[0].expected_head, state.heads.blocked.oid);
+  assert.equal(manifest.phases[1].expected_head, state.heads.corrected.oid);
+  assert.equal(manifest.phases[1].prior_review_tag, state.prior_review.tag);
+  assert.equal(manifest.phases[1].expected_resolution, "missing-title-validation");
+  assert.deepEqual(state.required_contract_paths, [
+    "src/library.mjs",
+    "src/format.mjs",
+    "src/cli.mjs",
+    "test/tag-filtering.test.mjs",
+  ]);
+  assert.deepEqual(
+    state.heads.corrected.changed_files.map(({ filename }) => filename).sort(),
+    [...state.required_contract_paths].sort()
+  );
+  assert.equal(
+    state.required_contract_paths.every((path) =>
+      state.heads.corrected.diff.includes(`diff --git a/${path} b/${path}`)
+    ),
+    true
+  );
+  const rereviewPrompt = readFileSync(
+    join(testRoot, manifest.phases[1].turns[0].prompt),
+    "utf8"
+  );
+  assert.equal(state.required_contract_paths.every((path) => rereviewPrompt.includes(path)), true);
+  assert.match(rereviewPrompt, /Ready verdict.*only after/is);
+
+  const corrected = mkdtempSync(join(tmpdir(), "corrected-review-head-"));
+  temporaryBenchmarkRepositories.add(corrected);
+  cpSync(join(testRoot, "benchmarks", "fixtures", "reading-list"), corrected, {
+    recursive: true,
+  });
+  for (const [path, source] of Object.entries(state.heads.corrected.files)) {
+    const destination = join(corrected, path);
+    mkdirSync(dirname(destination), { recursive: true });
+    writeFileSync(destination, source);
+  }
+  const runnable = spawnSync(
+    process.execPath,
+    ["--test"],
+    { cwd: corrected, encoding: "utf8" }
+  );
+  assert.equal(runnable.status, 0, runnable.stderr);
+
+  const libraryContract = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      [
+        'import assert from "node:assert/strict";',
+        'import { addEntry, filterByTag, markRead } from "./src/library.mjs";',
+        'import { formatEntry } from "./src/format.mjs";',
+        'const original = [{ id: 9, title: "Dune", read: false }];',
+        'assert.throws(() => addEntry(original, "   "), /title is required/);',
+        'assert.throws(() => markRead(original, "10"), /entry 10 was not found/);',
+        'const updated = addEntry(original, "The Left Hand", ["Sci-Fi", " fiction ", "sci-fi"]);',
+        'console.log(JSON.stringify({ original, updated, filtered: filterByTag(updated, "SCI-FI"), read: markRead(original, "9"), plain: formatEntry(original[0]), tagged: formatEntry(updated[1]) }));',
+      ].join(" "),
+    ],
+    { cwd: corrected, encoding: "utf8" }
+  );
+  assert.equal(libraryContract.status, 0, libraryContract.stderr);
+  assert.deepEqual(JSON.parse(libraryContract.stdout), {
+    original: [{ id: 9, title: "Dune", read: false }],
+    updated: [
+      { id: 9, title: "Dune", read: false },
+      {
+        id: 10,
+        title: "The Left Hand",
+        read: false,
+        tags: ["fiction", "sci-fi"],
+      },
+    ],
+    filtered: [
+      {
+        id: 10,
+        title: "The Left Hand",
+        read: false,
+        tags: ["fiction", "sci-fi"],
+      },
+    ],
+    read: [{ id: 9, title: "Dune", read: true }],
+    plain: "[ ] 9 Dune",
+    tagged: "[ ] 10 The Left Hand #fiction #sci-fi",
+  });
+
+  const dataPath = join(corrected, "entries.json");
+  writeFileSync(dataPath, '[{"id":9,"title":"Dune","read":false}]\n');
+  const cliEnvironment = { ...process.env, READING_LIST_FILE: dataPath };
+  const add = spawnSync(
+    process.execPath,
+    ["src/cli.mjs", "add", "The", "Left", "Hand", "--tag", "Sci-Fi", "--tag", "fiction", "--tag", "sci-fi"],
+    { cwd: corrected, encoding: "utf8", env: cliEnvironment }
+  );
+  assert.equal(add.status, 0, add.stderr);
+  assert.equal(add.stdout, "Added 10\n");
+  const list = spawnSync(process.execPath, ["src/cli.mjs", "list", "--tag", "SCI-FI"], {
+    cwd: corrected,
+    encoding: "utf8",
+    env: cliEnvironment,
+  });
+  assert.equal(list.status, 0, list.stderr);
+  assert.equal(list.stdout, "[ ] 10 The Left Hand #fiction #sci-fi\n");
+});
+
+test("versioned fake gh serves only declared operations and logs permitted mutations locally", () => {
+  const directory = join(testRoot, "benchmarks", "fake-github");
+  const executable = join(directory, "gh");
+  const statePath = join(mkdtempSync(join(tmpdir(), "fake-gh-state-")), "state.json");
+  const logPath = join(dirname(statePath), "mutations.jsonl");
+  temporaryBenchmarkRepositories.add(dirname(statePath));
+  cpSync(join(directory, "state.json"), statePath);
+  writeFileSync(logPath, "");
+  const invoke = (phase, args) =>
+    spawnSync(executable, args, {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PLUS_ULTRA_BENCHMARK_GH_STATE: statePath,
+        PLUS_ULTRA_BENCHMARK_GH_LOG: logPath,
+        PLUS_ULTRA_BENCHMARK_PHASE: phase,
+      },
+    });
+
+  const metadata = "number,baseRefName,baseRefOid,headRefName,headRepository,state,url,headRefOid";
+  const threadQuery =
+    "query=query ReviewThreads { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviewThreads(first: 1, after: $cursor) { nodes { id isResolved comments(first: 20) { nodes { author { login } body path line originalLine diffSide } } } pageInfo { hasNextPage endCursor } } } } }";
+  const inspect = (phase, headOid) => {
+    const calls = [
+      ["auth", "status"],
+      ["pr", "view", "17"],
+      ["pr", "view", "17", "--json", "closingIssuesReferences"],
+      ["pr", "view", "17", "--json", metadata],
+      ["issue", "view", "101", "--json", "number,title,body,labels"],
+      ["api", `repos/example/reading-list/contents/specs?ref=${headOid}`],
+      ["api", `repos/example/reading-list/contents/specs/001-tag-filtering.md?ref=${headOid}`],
+      [
+        "api",
+        `repos/example/reading-list/compare/${"c".repeat(40)}...${headOid}`,
+      ],
+      ["api", "repos/example/reading-list/pulls/17/files?per_page=100&page=1"],
+      ["pr", "diff", "17"],
+      ["api", "user"],
+    ];
+    const evidencePaths =
+      phase === "pr-re-review"
+        ? ["src/library.mjs", "src/format.mjs", "src/cli.mjs", "test/tag-filtering.test.mjs"]
+        : ["src/library.mjs"];
+    calls.splice(
+      -2,
+      0,
+      ...evidencePaths.map((path) => [
+        "api",
+        `repos/example/reading-list/contents/${path}?ref=${headOid}`,
+      ])
+    );
+    for (const call of calls) {
+      const result = invoke(phase, call);
+      assert.equal(result.status, 0, `${call.join(" ")}: ${result.stderr}`);
+    }
+    let cursor;
+    do {
+      const call = [
+        "api",
+        "graphql",
+        "-f",
+        threadQuery,
+        "-F",
+        "owner=example",
+        "-F",
+        "name=reading-list",
+        "-F",
+        "number=17",
+      ];
+      if (cursor) call.push("-f", `cursor=${cursor}`);
+      const result = invoke(phase, call);
+      assert.equal(result.status, 0, result.stderr);
+      const page = JSON.parse(result.stdout).data.repository.pullRequest.reviewThreads;
+      cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+    } while (cursor);
+    const summaries = invoke(phase, [
+      "api",
+      "--paginate",
+      "repos/example/reading-list/issues/17/comments?per_page=100",
+    ]);
+    assert.equal(summaries.status, 0, summaries.stderr);
+    const refreshed = invoke(phase, ["pr", "view", "17", "--json", metadata]);
+    assert.equal(refreshed.status, 0, refreshed.stderr);
+    assert.equal(JSON.parse(refreshed.stdout).headRefOid, headOid);
+  };
+
+  inspect("first-pr-review", "a".repeat(40));
+  const inline = invoke("first-pr-review", [
+    "api",
+    "repos/example/reading-list/pulls/17/comments",
+    "--method",
+    "POST",
+    "-f",
+    "body=<!-- plus-ultra:pr-review:inline -->\nImportant: missing-title-validation",
+    "-f",
+    `commit_id=${"a".repeat(40)}`,
+    "-f",
+    "path=src/library.mjs",
+    "-F",
+    "line=5",
+    "-f",
+    "side=RIGHT",
+  ]);
+  assert.equal(inline.status, 0, inline.stderr);
+  const firstSummary = invoke("first-pr-review", [
+    "api",
+    "repos/example/reading-list/issues/17/comments",
+    "--method",
+    "POST",
+    "-f",
+    "body=<!-- plus-ultra:pr-review:summary -->\n# Plus Ultra PR Review\n\n## Status\n\n⛔ Changes required — one or more blockers.\n\nmissing-title-validation",
+  ]);
+  assert.equal(firstSummary.status, 0, firstSummary.stderr);
+
+  const prematureResolution = invoke("pr-re-review", [
+    "api",
+    "graphql",
+    "-f",
+    "query=mutation ResolveReviewThread { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }",
+    "-F",
+    "threadId=BENCHMARK_THREAD_1",
+  ]);
+  assert.equal(prematureResolution.status, 64);
+  assert.match(prematureResolution.stderr, /contract evidence is missing remote files/i);
+  assert.equal(JSON.parse(readFileSync(statePath, "utf8")).prior_review.thread.isResolved, false);
+
+  inspect("pr-re-review", "b".repeat(40));
+  const resolveThread = invoke("pr-re-review", [
+    "api",
+    "graphql",
+    "-f",
+    "query=mutation ResolveReviewThread { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }",
+    "-F",
+    "threadId=BENCHMARK_THREAD_1",
+  ]);
+  assert.equal(resolveThread.status, 0, resolveThread.stderr);
+  const resolution = invoke("pr-re-review", [
+    "api",
+    "repos/example/reading-list/issues/comments/9001",
+    "--method",
+    "PATCH",
+    "-f",
+    `body=<!-- plus-ultra:pr-review:summary -->\n# Plus Ultra PR Review\n\n## Status\n\n✅ Ready — no findings or non-blocking findings.\n\n<!-- plus-ultra:pr-review:resolution missing-title-validation=resolved -->`,
+  ]);
+  assert.equal(resolution.status, 0, resolution.stderr);
+
+  const unknown = invoke("pr-re-review", ["repo", "delete", "example/reading-list"]);
+  assert.equal(unknown.status, 64);
+  assert.match(unknown.stderr, /unknown fake gh operation/i);
+
+  const audit = readFileSync(logPath, "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(
+    audit.filter(({ kind }) => kind === "mutation").map(({ operation }) => operation),
+    [
+      "create_inline_comment",
+      "create_review_summary",
+      "resolve_review_thread",
+      "update_review_summary",
+    ]
+  );
+  assert.equal(audit.at(-1).kind, "denied");
+  assert.equal(audit.every(({ state_path, body, args }) => !state_path && !body && !args), true);
+  const finalState = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(finalState.prior_review.thread.isResolved, true);
+  assert.deepEqual(
+    finalState.mutations.find(({ operation }) => operation === "update_review_summary").resolutions,
+    [{ finding: "missing-title-validation", status: "resolved" }]
+  );
+
+  const unresolvedState = join(dirname(statePath), "unresolved-state.json");
+  const unresolvedLog = join(dirname(statePath), "unresolved-log.jsonl");
+  cpSync(join(directory, "state.json"), unresolvedState);
+  writeFileSync(unresolvedLog, "");
+  const unresolved = spawnSync(
+    executable,
+    [
+      "api",
+      "repos/example/reading-list/issues/comments/9001",
+      "--method",
+      "PATCH",
+      "-f",
+      "body=<!-- plus-ultra:pr-review:summary -->\n<!-- plus-ultra:pr-review:resolution missing-title-validation=unresolved -->",
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PLUS_ULTRA_BENCHMARK_GH_STATE: unresolvedState,
+        PLUS_ULTRA_BENCHMARK_GH_LOG: unresolvedLog,
+        PLUS_ULTRA_BENCHMARK_PHASE: "pr-re-review",
+      },
+    }
+  );
+  assert.equal(unresolved.status, 64);
+  assert.equal(JSON.parse(readFileSync(unresolvedState, "utf8")).mutations.length, 0);
+});
+
+test("runner fails FAST samples that escape allowed changes or omit required changes", () => {
+  const escaped = createBenchmarkRepository();
+  const escapedManifestPath = join(
+    escaped.root,
+    "benchmarks",
+    "scenarios",
+    "fast-implementation.json"
+  );
+  const escapedManifest = JSON.parse(readFileSync(escapedManifestPath, "utf8"));
+  escapedManifest.workflow = {
+    risk: "FAST",
+    allowed_changes: ["result.txt"],
+    required_changes: ["result.txt"],
+  };
+  writeJson(escapedManifestPath, escapedManifest);
+  runGit(escaped.root, ["add", "benchmarks/scenarios/fast-implementation.json"]);
+  runGit(escaped.root, ["commit", "-m", "test: add FAST change contract"]);
+  refreshBenchmarkStage(escaped.root);
+
+  const escapedRun = runBenchmarkCli(
+    escaped,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "fast-implementation"],
+    { FAKE_CODEX_OUT_OF_SCOPE_PHASE: "fast-implementation" }
+  );
+  assert.equal(escapedRun.status, 1);
+  const escapedSummary = JSON.parse(readFileSync(cliJson(escapedRun).summary, "utf8"));
+  assert.match(escapedSummary.phases[0].samples[0].error, /outside.*allowed/i);
+
+  const missing = createBenchmarkRepository();
+  const missingManifestPath = join(
+    missing.root,
+    "benchmarks",
+    "scenarios",
+    "fast-implementation.json"
+  );
+  const missingManifest = JSON.parse(readFileSync(missingManifestPath, "utf8"));
+  missingManifest.workflow = {
+    risk: "FAST",
+    allowed_changes: ["result.txt", "test/regression.test.mjs"],
+    required_changes: ["result.txt", "test/regression.test.mjs"],
+  };
+  writeJson(missingManifestPath, missingManifest);
+  runGit(missing.root, ["add", "benchmarks/scenarios/fast-implementation.json"]);
+  runGit(missing.root, ["commit", "-m", "test: require FAST regression"]);
+  refreshBenchmarkStage(missing.root);
+
+  const missingRun = runBenchmarkCli(missing, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "fast-implementation",
+  ]);
+  assert.equal(missingRun.status, 1);
+  const missingSummary = JSON.parse(readFileSync(cliJson(missingRun).summary, "utf8"));
+  assert.match(missingSummary.phases[0].samples[0].error, /required.*test\/regression/i);
+});
+
+test("all five versioned scenarios execute through the runner using only local fakes", () => {
+  const repository = createVersionedBenchmarkRepository();
+
+  const run = runBenchmarkCli(repository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+  ]);
+
+  const output = cliJson(run);
+  const summary = JSON.parse(readFileSync(output.summary, "utf8"));
+  assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}\n${JSON.stringify(summary, null, 2)}`);
+  assert.equal(summary.status, "complete");
+  assert.equal(summary.executed_scenarios.length, 5);
+  assert.deepEqual(summary.phases.map(({ phase }) => phase), [
+    "product-discovery",
+    "spec-refinement",
+    "fast-implementation",
+    "standard-implementation",
+    "first-pr-review",
+    "pr-re-review",
+  ]);
+  assert.equal(summary.phases.every(({ samples }) => samples.length === 2), true);
+  const codexRecords = readFileSync(repository.log, "utf8").trim().split("\n").map(JSON.parse);
+  const invocations = codexRecords.filter(({ args }) => args);
+  assert.equal(invocations.length, 16);
+  assert.equal(
+    invocations.every(
+      ({ cwd }) => cwd !== repository.root && cwd.includes("/.context/benchmarks/")
+    ),
+    true
+  );
+
+  const productResponse = readFileSync(
+    join(
+      dirname(output.summary),
+      "scenarios",
+      "product-discovery",
+      "sample-1",
+      "product-discovery.response.txt"
+    ),
+    "utf8"
+  );
+  assert.doesNotMatch(productResponse, /status:/);
+  assert.match(productResponse, /# Product brief/);
+  assert.deepEqual(productResponse.match(/^## .+$/gm), [
+    "## Target user",
+    "## Core problem",
+    "## Current alternative",
+    "## Value proposition",
+    "## MVP hypothesis",
+    "## Core user journeys",
+    "## Non-goals",
+    "## Success criteria",
+    "## Product principles and constraints",
+  ]);
+  assert.deepEqual(
+    codexRecords
+      .filter(({ event, phase }) => event === "test_run" && phase === "standard-implementation")
+      .map(({ stage, status }) => [stage, status]),
+    [
+      ["red", "failed-as-expected"],
+      ["focused-green", "passed"],
+      ["suite-green", "passed"],
+      ["red", "failed-as-expected"],
+      ["focused-green", "passed"],
+      ["suite-green", "passed"],
+    ]
+  );
+
+  const reviewRoot = join(dirname(output.summary), "scenarios", "pr-review-cycle");
+  const requiredReviewOperations = new Set([
+    "auth_status",
+    "pr_identity",
+    "closing_issues",
+    "closing_issue_content",
+    "pr_metadata",
+    "remote_spec_list",
+    "remote_spec_content",
+    "compare_heads",
+    "changed_files",
+    "remote_file_content",
+    "pr_diff",
+    "reviewer_identity",
+    "review_threads_page",
+    "canonical_summary_list",
+    "create_inline_comment",
+    "create_review_summary",
+    "update_review_summary",
+    "resolve_review_thread",
+  ]);
+  const observedReviewOperations = new Set();
+  for (const sampleDirectory of readdirSync(reviewRoot)) {
+    const audit = readFileSync(join(reviewRoot, sampleDirectory, "fake-github.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map(JSON.parse);
+    for (const entry of audit) observedReviewOperations.add(entry.operation);
+    assert.equal(audit.some(({ operation }) => operation === "pr_metadata"), true);
+    if (sampleDirectory.startsWith("pr-re-review")) {
+      assert.deepEqual(
+        [...new Set(audit.filter(({ operation }) => operation === "remote_file_content").map(({ path }) => path))].sort(),
+        ["src/cli.mjs", "src/format.mjs", "src/library.mjs", "test/tag-filtering.test.mjs"]
+      );
+    }
+    assert.equal(
+      audit.filter(({ operation }) => operation === "review_threads_page").length >= 2,
+      sampleDirectory.startsWith("pr-re-review")
+    );
+  }
+  assert.deepEqual(
+    [...requiredReviewOperations].filter((operation) => !observedReviewOperations.has(operation)),
+    []
+  );
 });

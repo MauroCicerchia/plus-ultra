@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "product-discovery",
+  "title": "Establish and approve the reading-list product brief",
+  "fixture": "benchmarks/fixtures/reading-list",
+  "phases": [
+    {
+      "phase": "product-discovery",
+      "turns": [
+        {
+          "kind": "proposal",
+          "prompt": "benchmarks/prompts/product-discovery-proposal.md",
+          "postconditions": [
+            {
+              "type": "file_absent",
+              "path": "docs/product.md"
+            }
+          ]
+        },
+        {
+          "kind": "approval",
+          "prompt": "benchmarks/prompts/product-discovery-approval.md",
+          "resume": true,
+          "explicit_approval": true
+        }
+      ],
+      "postconditions": [
+        {
+          "type": "command",
+          "command": "node",
+          "args": [
+            "scripts/check-postcondition.mjs",
+            "product"
+          ],
+          "expected_stdout": "product postcondition ok\n"
+        }
+      ]
+    }
+  ]
+}

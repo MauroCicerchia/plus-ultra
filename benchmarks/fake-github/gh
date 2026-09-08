@@ -1,0 +1,403 @@
+#!/usr/bin/env node
+
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const statePath = process.env.PLUS_ULTRA_BENCHMARK_GH_STATE;
+const logPath = process.env.PLUS_ULTRA_BENCHMARK_GH_LOG;
+const phase = process.env.PLUS_ULTRA_BENCHMARK_PHASE;
+
+function safeAudit(kind, operation, details = {}) {
+  if (!logPath) return;
+  appendFileSync(logPath, `${JSON.stringify({ kind, operation, phase, ...details })}\n`);
+}
+
+function reject(message = "unknown fake gh operation") {
+  safeAudit("denied", "unknown");
+  process.stderr.write(`${message}\n`);
+  process.exit(64);
+}
+
+if (!statePath || !logPath) reject("fake gh requires local state and log paths");
+
+let state;
+try {
+  state = JSON.parse(readFileSync(statePath, "utf8"));
+} catch {
+  reject("fake gh could not read local state");
+}
+
+function same(expected) {
+  return args.length === expected.length && args.every((value, index) => value === expected[index]);
+}
+
+function activeHead() {
+  const name = state.phase_heads?.[phase];
+  const head = state.heads?.[name];
+  if (!head) reject("fake gh phase has no declared immutable head");
+  return head;
+}
+
+function writeJson(value) {
+  process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function formFields(values) {
+  const result = {};
+  let method = "GET";
+  for (let index = 0; index < values.length; index += 1) {
+    if (values[index] === "--method" && index + 1 < values.length) {
+      method = values[index + 1];
+      index += 1;
+      continue;
+    }
+    if (["-f", "-F"].includes(values[index]) && index + 1 < values.length) {
+      const field = values[index + 1];
+      const separator = field.indexOf("=");
+      if (separator < 1) reject();
+      result[field.slice(0, separator)] = field.slice(separator + 1);
+      index += 1;
+      continue;
+    }
+    reject();
+  }
+  return { method, fields: result };
+}
+
+function auditEntries() {
+  const source = readFileSync(logPath, "utf8").trim();
+  return source ? source.split("\n").map(JSON.parse) : [];
+}
+
+function requireProtocol(required, metadataReads = 1, requiredPaths = []) {
+  const entries = auditEntries();
+  const operations = entries.map(({ operation }) => operation);
+  const missing = required.filter((operation) => !operations.includes(operation));
+  if (missing.length > 0) reject(`review protocol is missing: ${missing.join(", ")}`);
+  if (operations.filter((operation) => operation === "pr_metadata").length < metadataReads) {
+    reject("review protocol must re-fetch PR metadata before mutation");
+  }
+  const inspectedPaths = new Set(
+    entries
+      .filter(({ operation }) => operation === "remote_file_content")
+      .map(({ path }) => path)
+  );
+  const missingPaths = requiredPaths.filter((path) => !inspectedPaths.has(path));
+  if (missingPaths.length > 0) {
+    reject(`contract evidence is missing remote files: ${missingPaths.join(", ")}`);
+  }
+}
+
+function mutate(entry) {
+  state.mutations.push(entry);
+  writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  safeAudit("mutation", entry.operation, {
+    head_oid: entry.head_oid,
+    thread_id: entry.thread_id,
+  });
+}
+
+const evidenceOperations = [
+  "auth_status",
+  "pr_identity",
+  "closing_issues",
+  "pr_metadata",
+  "remote_spec_list",
+  "remote_spec_content",
+  "compare_heads",
+  "changed_files",
+  "remote_file_content",
+  "reviewer_identity",
+  "review_threads_page",
+  "canonical_summary_list",
+];
+
+if (same(["auth", "status"])) {
+  safeAudit("read", "auth_status");
+  process.stdout.write(
+    `${state.auth.host}: authenticated as ${state.auth.login} with write authorization\n`
+  );
+  process.exit(0);
+}
+
+if (args[0] === "issue" && args[1] === "view" && ["101", "102"].includes(args[2])) {
+  const issue = state.issues[args[2]];
+  if (
+    args.length !== 3 &&
+    !same(["issue", "view", args[2], "--json", "number,title,body,labels"])
+  ) {
+    reject();
+  }
+  safeAudit("read", args[2] === "102" ? "spec_issue" : "closing_issue_content");
+  writeJson(issue);
+  process.exit(0);
+}
+
+if (same(["pr", "view", "17"])) {
+  safeAudit("read", "pr_identity");
+  process.stdout.write(`Pull request #17: ${state.pull_request.title}\n`);
+  process.exit(0);
+}
+
+if (args[0] === "pr" && args[1] === "view" && args[2] === "17" && args[3] === "--json") {
+  if (args.length !== 5) reject();
+  const requested = args[4].split(",");
+  const allowed = new Set([
+    "number",
+    "baseRefName",
+    "baseRefOid",
+    "headRefName",
+    "headRepository",
+    "state",
+    "url",
+    "headRefOid",
+    "closingIssuesReferences",
+  ]);
+  if (requested.some((field) => !allowed.has(field))) reject();
+  if (requested.includes("closingIssuesReferences")) safeAudit("read", "closing_issues");
+  if (requested.some((field) => field !== "closingIssuesReferences")) {
+    safeAudit("read", "pr_metadata", { head_oid: activeHead().oid });
+  }
+  const value = {};
+  for (const field of requested) {
+    value[field] = field === "headRefOid" ? activeHead().oid : state.pull_request[field];
+  }
+  writeJson(value);
+  process.exit(0);
+}
+
+if (same(["pr", "diff", "17"])) {
+  safeAudit("read", "pr_diff", { head_oid: activeHead().oid });
+  process.stdout.write(activeHead().diff);
+  process.exit(0);
+}
+
+if (args[0] !== "api") reject();
+
+if (args[1] === "user" && args.length === 2) {
+  safeAudit("read", "reviewer_identity");
+  writeJson(state.reviewer);
+  process.exit(0);
+}
+
+if (args[1] === "graphql") {
+  const { method, fields } = formFields(args.slice(2));
+  if (method !== "GET") reject();
+  if (fields.query?.includes("reviewThreads")) {
+    if (
+      fields.owner !== state.repository.owner ||
+      fields.name !== state.repository.name ||
+      fields.number !== "17"
+    ) {
+      reject();
+    }
+    const cursor = fields.cursor || null;
+    const page = state.review_state[phase]?.thread_pages.find(
+      (candidate) => candidate.cursor === cursor
+    );
+    if (!page) reject("unknown review-thread cursor");
+    const nodes = page.nodes.map((reference) =>
+      reference === "prior_review.thread" ? state.prior_review.thread : reference
+    );
+    safeAudit("read", "review_threads_page", { cursor, has_next_page: page.hasNextPage });
+    writeJson({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes,
+              pageInfo: {
+                hasNextPage: page.hasNextPage,
+                endCursor: page.endCursor,
+              },
+            },
+          },
+        },
+      },
+    });
+    process.exit(0);
+  }
+  if (fields.query?.includes("resolveReviewThread")) {
+    if (phase !== "pr-re-review" || fields.threadId !== state.prior_review.thread.id) reject();
+    if (state.prior_review.thread.created_by !== "plus-ultra-benchmark") {
+      reject("refusing to resolve a thread not created by this benchmark");
+    }
+    requireProtocol(evidenceOperations, 2, state.required_contract_paths);
+    state.prior_review.thread.isResolved = true;
+    mutate({
+      operation: "resolve_review_thread",
+      phase,
+      pull_request: 17,
+      head_oid: activeHead().oid,
+      thread_id: state.prior_review.thread.id,
+    });
+    writeJson({ data: { resolveReviewThread: { thread: { isResolved: true } } } });
+    process.exit(0);
+  }
+  reject();
+}
+
+let apiArgs = args.slice(1);
+let paginate = false;
+if (apiArgs[0] === "--paginate") {
+  paginate = true;
+  apiArgs = apiArgs.slice(1);
+}
+const endpoint = apiArgs[0];
+if (typeof endpoint !== "string") reject();
+const options = apiArgs.slice(1);
+const head = activeHead();
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/contents/specs?ref=${head.oid}`) {
+  if (options.length !== 0) reject();
+  safeAudit("read", "remote_spec_list", { head_oid: head.oid });
+  writeJson([
+    {
+      type: "file",
+      name: "001-tag-filtering.md",
+      path: state.remote_spec.path,
+      sha: state.remote_spec.sha,
+    },
+  ]);
+  process.exit(0);
+}
+
+const contentPrefix = `repos/${state.repository.nameWithOwner}/contents/`;
+if (endpoint.startsWith(contentPrefix) && endpoint.endsWith(`?ref=${head.oid}`)) {
+  if (options.length !== 0) reject();
+  const path = endpoint.slice(contentPrefix.length, -`?ref=${head.oid}`.length);
+  const source =
+    path === state.remote_spec.path ? state.remote_spec.content : head.files?.[path];
+  if (typeof source !== "string") reject("unknown remote-head content path");
+  safeAudit("read", path === state.remote_spec.path ? "remote_spec_content" : "remote_file_content", {
+    head_oid: head.oid,
+    path,
+  });
+  writeJson({
+    type: "file",
+    path,
+    encoding: "base64",
+    content: Buffer.from(source, "utf8").toString("base64"),
+  });
+  process.exit(0);
+}
+
+if (
+  endpoint ===
+  `repos/${state.repository.nameWithOwner}/compare/${state.pull_request.baseRefOid}...${head.oid}`
+) {
+  if (options.length !== 0) reject();
+  safeAudit("read", "compare_heads", { head_oid: head.oid });
+  writeJson({
+    status: "ahead",
+    ahead_by: 1,
+    base_commit: { sha: state.pull_request.baseRefOid },
+    merge_base_commit: { sha: state.pull_request.baseRefOid },
+    commits: [{ sha: head.oid }],
+    files: head.changed_files,
+  });
+  process.exit(0);
+}
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/pulls/17/files?per_page=100&page=1`) {
+  if (options.length !== 0) reject();
+  safeAudit("read", "changed_files", { head_oid: head.oid });
+  writeJson(head.changed_files);
+  process.exit(0);
+}
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/issues/17/comments?per_page=100`) {
+  if (!paginate || options.length !== 0) reject();
+  safeAudit("read", "canonical_summary_list");
+  const comments = state.review_state[phase]?.summary_comments.map((reference) =>
+    reference === "prior_review.summary" ? state.prior_review.summary : reference
+  );
+  writeJson(comments ?? []);
+  process.exit(0);
+}
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/pulls/17/comments`) {
+  const { method, fields } = formFields(options);
+  const blocker = head.known_blocker;
+  if (
+    phase !== "first-pr-review" ||
+    method !== "POST" ||
+    !fields.body?.startsWith("<!-- plus-ultra:pr-review:inline -->") ||
+    !fields.body.includes(blocker.code) ||
+    fields.commit_id !== head.oid ||
+    fields.path !== blocker.path ||
+    fields.line !== String(blocker.line) ||
+    fields.side !== "RIGHT"
+  ) {
+    reject("invalid inline review mutation");
+  }
+  requireProtocol(evidenceOperations, 2);
+  mutate({
+    operation: "create_inline_comment",
+    phase,
+    pull_request: 17,
+    head_oid: head.oid,
+    path: fields.path,
+    line: Number(fields.line),
+    side: fields.side,
+    body: fields.body,
+  });
+  writeJson({ id: 8001, path: fields.path, line: Number(fields.line), side: fields.side });
+  process.exit(0);
+}
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/issues/17/comments`) {
+  const { method, fields } = formFields(options);
+  if (
+    phase !== "first-pr-review" ||
+    method !== "POST" ||
+    !fields.body?.startsWith("<!-- plus-ultra:pr-review:summary -->") ||
+    !fields.body.includes("⛔ Changes required — one or more blockers.") ||
+    !fields.body.includes("missing-title-validation")
+  ) {
+    reject("invalid canonical first-review summary");
+  }
+  requireProtocol([...evidenceOperations, "create_inline_comment"], 2);
+  mutate({
+    operation: "create_review_summary",
+    phase,
+    pull_request: 17,
+    head_oid: head.oid,
+    body: fields.body,
+  });
+  writeJson({ id: 9001, body: fields.body, user: state.reviewer });
+  process.exit(0);
+}
+
+if (endpoint === `repos/${state.repository.nameWithOwner}/issues/comments/9001`) {
+  const { method, fields } = formFields(options);
+  const marker = state.expected_resolution.marker;
+  if (
+    phase !== "pr-re-review" ||
+    method !== "PATCH" ||
+    !fields.body?.startsWith("<!-- plus-ultra:pr-review:summary -->") ||
+    !fields.body.split("\n").includes(marker) ||
+    !fields.body.includes("✅ Ready — no findings or non-blocking findings.")
+  ) {
+    reject("invalid canonical re-review summary or resolution marker");
+  }
+  requireProtocol(
+    [...evidenceOperations, "resolve_review_thread"],
+    2,
+    state.required_contract_paths
+  );
+  const resolutions = [{ finding: state.expected_resolution.finding, status: "resolved" }];
+  state.prior_review.summary.body = fields.body;
+  mutate({
+    operation: "update_review_summary",
+    phase,
+    pull_request: 17,
+    head_oid: head.oid,
+    body: fields.body,
+    resolutions,
+  });
+  writeJson({ id: 9001, body: fields.body, user: state.reviewer });
+  process.exit(0);
+}
+
+reject();
