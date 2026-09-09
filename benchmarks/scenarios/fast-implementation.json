@@ -28,7 +28,7 @@
         {
           "type": "file_contains",
           "path": "test/format.test.mjs",
-          "text": "test(\"normalizes all whitespace runs\""
+          "text": "assert.equal(normalizeTitle(\"  The\\t Left\\nHand  \"), \"The Left Hand\")"
         },
         {
           "type": "command",

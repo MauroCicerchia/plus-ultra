@@ -1089,11 +1089,16 @@ if (protocol === "product-discovery-proposal-v1") {
   writeFileSync("specs/002-search-reading-list.md", readFileSync("specs/002-search-reading-list.md", "utf8").replace("status: draft", "status: approved"));
 } else if (protocol === "fast-whitespace-tdd-v1") {
   const testPath = "test/format.test.mjs";
-  appendFileSync(testPath, "\\ntest(\\\"normalizes all whitespace runs\\\", () => {\\n  assert.equal(normalizeTitle(\\\"  The\\\\t Left\\\\nHand  \\\"), \\\"The Left Hand\\\");\\n});\\n");
+  const testName = process.env.FAKE_CODEX_FAST_TEST_NAME ?? "normalizes all whitespace runs";
+  appendFileSync(testPath, "\\ntest(" + JSON.stringify(testName) + ", () => {\\n  assert.equal(normalizeTitle(\\\"  The\\\\t Left\\\\nHand  \\\"), \\\"The Left Hand\\\");\\n});\\n");
   const sourcePath = "src/format.mjs";
   writeFileSync(sourcePath, readFileSync(sourcePath, "utf8").replace("/ {2,}/g", "/\\\\s+/g"));
 } else if (protocol === "standard-tag-filtering-tdd-v1") {
   writeFileSync("test/tag-filtering.test.mjs", ${JSON.stringify(canonicalTagFilteringTestSource)});
+  if (process.env.FAKE_CODEX_STANDARD_UPDATE_EXISTING_TESTS === "1") {
+    appendFileSync("test/format.test.mjs", "\\ntest(\\\"keeps untagged output unchanged\\\", () => {\\n  assert.equal(formatEntry({ id: 1, title: \\\"Dune\\\", read: false }), \\\"[ ] 1 Dune\\\");\\n});\\n");
+    appendFileSync("test/library.test.mjs", "\\ntest(\\\"normalizes tags on add\\\", () => {\\n  assert.deepEqual(addEntry([], \\\"Dune\\\", [\\\" SCI-FI \\\"])[0].tags, [\\\"sci-fi\\\"]);\\n});\\n");
+  }
   const testEnvironment = { ...process.env };
   delete testEnvironment.NODE_TEST_CONTEXT;
   const red = spawnSync(process.execPath, ["--test", "test/tag-filtering.test.mjs"], { encoding: "utf8", env: testEnvironment });
@@ -1108,6 +1113,9 @@ if (protocol === "product-discovery-proposal-v1") {
   const suiteGreen = spawnSync(process.execPath, ["--test"], { encoding: "utf8", env: testEnvironment });
   if (suiteGreen.status !== 0) { process.stderr.write(suiteGreen.stdout + suiteGreen.stderr); process.exit(suiteGreen.status ?? 69); }
   appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ event: "test_run", phase, stage: "suite-green", status: "passed" }) + "\\n");
+  if (process.env.FAKE_CODEX_STANDARD_OUT_OF_SCOPE === "1") {
+    appendFileSync("package.json", "\\n");
+  }
 } else if (protocol === "pr-review-first-v1") {
   const headOid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   gatherReviewEvidence(headOid);
@@ -2049,7 +2057,7 @@ test("implementation scenarios distinguish localized FAST work from multi-file S
       ({ type, path, text }) =>
         type === "file_contains" &&
         path === "test/format.test.mjs" &&
-        text === 'test("normalizes all whitespace runs"'
+        text === 'assert.equal(normalizeTitle("  The\\t Left\\nHand  "), "The Left Hand")'
     ),
     true
   );
@@ -2072,9 +2080,16 @@ test("implementation scenarios distinguish localized FAST work from multi-file S
     "src/library.mjs",
     "src/format.mjs",
     "src/cli.mjs",
+    "test/format.test.mjs",
+    "test/library.test.mjs",
     "test/tag-filtering.test.mjs",
   ]);
-  assert.deepEqual(standard.workflow.required_changes, standard.workflow.allowed_changes);
+  assert.deepEqual(standard.workflow.required_changes, [
+    "src/library.mjs",
+    "src/format.mjs",
+    "src/cli.mjs",
+    "test/tag-filtering.test.mjs",
+  ]);
   assert.equal(
     standard.phases[0].postconditions.some(
       ({ type, path, text }) =>
@@ -2105,6 +2120,65 @@ test("implementation scenarios distinguish localized FAST work from multi-file S
   assert.equal(
     versionedFakeCodexSource().includes(JSON.stringify(canonicalTagFilteringTestSource)),
     true
+  );
+});
+
+test("implementation contracts accept behavioral FAST evidence and prompt-authorized STANDARD tests", () => {
+  const fast = createVersionedBenchmarkRepository();
+  const fastRun = runBenchmarkCli(
+    fast,
+    [
+      "run",
+      "--model",
+      "gpt-test",
+      "--reasoning",
+      "medium",
+      "--scenario",
+      "fast-implementation",
+    ],
+    { FAKE_CODEX_FAST_TEST_NAME: "normalizes all runs of whitespace" }
+  );
+  assert.equal(fastRun.status, 0, fastRun.stderr);
+
+  const standard = createVersionedBenchmarkRepository();
+  const standardRun = runBenchmarkCli(
+    standard,
+    [
+      "run",
+      "--model",
+      "gpt-test",
+      "--reasoning",
+      "medium",
+      "--scenario",
+      "standard-implementation",
+    ],
+    { FAKE_CODEX_STANDARD_UPDATE_EXISTING_TESTS: "1" }
+  );
+  assert.equal(standardRun.status, 0, standardRun.stderr);
+
+  const unrelated = createVersionedBenchmarkRepository();
+  const unrelatedRun = runBenchmarkCli(
+    unrelated,
+    [
+      "run",
+      "--model",
+      "gpt-test",
+      "--reasoning",
+      "medium",
+      "--scenario",
+      "standard-implementation",
+    ],
+    {
+      FAKE_CODEX_STANDARD_OUT_OF_SCOPE: "1",
+      FAKE_CODEX_STANDARD_UPDATE_EXISTING_TESTS: "1",
+    }
+  );
+  assert.equal(unrelatedRun.status, 1);
+  const summary = JSON.parse(readFileSync(cliJson(unrelatedRun).summary, "utf8"));
+  assert.match(summary.phases[0].samples[0].error, /package\.json/);
+  assert.doesNotMatch(
+    summary.phases[0].samples[0].error,
+    /test\/(?:format|library)\.test\.mjs/
   );
 });
 
