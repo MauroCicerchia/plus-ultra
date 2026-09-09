@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validatePackaging } from "./validate-packaging.mjs";
 
@@ -87,9 +87,23 @@ function copyGitIncludedSource(root, destination) {
       fail(`Refusing unsafe Git path: ${path}`);
     }
     const stat = lstatSync(source);
-    if (!stat.isFile()) continue;
+    let copySource = source;
+    if (stat.isSymbolicLink()) {
+      copySource = realpathSync(source);
+      const targetPath = relative(root, copySource);
+      if (
+        targetPath === ".." ||
+        targetPath.startsWith(`..${sep}`) ||
+        isAbsolute(targetPath) ||
+        !lstatSync(copySource).isFile()
+      ) {
+        fail(`Refusing Git symlink outside the working tree: ${path}`);
+      }
+    } else if (!stat.isFile()) {
+      continue;
+    }
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(source, target);
+    copyFileSync(copySource, target);
   }
 }
 

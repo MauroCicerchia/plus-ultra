@@ -1,4 +1,14 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -26,6 +36,8 @@ function makeSource() {
   writeFileSync(join(root, "skills", "README.md"), "skills\n");
   writeFileSync(join(root, "hooks", "hooks.json"), "{}\n");
   writeFileSync(join(root, "hooks", "hooks-codex.json"), "{}\n");
+  writeFileSync(join(root, "AGENTS.md"), "shared agent instructions\n");
+  symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));
   writeFileSync(join(root, ".gitignore"), ".env\n.context/\n");
   writeFileSync(join(root, ".env"), "SECRET=do-not-copy\n");
   writeFileSync(join(root, "untracked.md"), "copy me\n");
@@ -116,6 +128,11 @@ test("refresh stages only Git-included source files with a unique local version"
     assert.equal(readFileSync(join(stage, "plugins", "plus-ultra", "untracked.md"), "utf8"), "copy me\n");
     assert.equal(existsSync(join(stage, "plugins", "plus-ultra", ".env")), false);
     assert.equal(existsSync(join(stage, "plugins", "plus-ultra", ".context")), false);
+    assert.equal(lstatSync(join(stage, "plugins", "plus-ultra", "CLAUDE.md")).isFile(), true);
+    assert.equal(
+      readFileSync(join(stage, "plugins", "plus-ultra", "CLAUDE.md"), "utf8"),
+      "shared agent instructions\n"
+    );
     for (const path of [
       ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",
