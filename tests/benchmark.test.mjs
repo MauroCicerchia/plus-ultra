@@ -618,6 +618,31 @@ const canonicalScenarios = [
   ["pr-review-cycle", ["first-pr-review", "pr-re-review"]],
 ];
 
+test("benchmark documentation exposes the manual safe workflow", () => {
+  const guide = readFileSync(join(testRoot, "docs", "benchmarking.md"), "utf8");
+  const readme = readFileSync(join(testRoot, "README.md"), "utf8");
+
+  for (const required of [
+    "gpt-5.6-sol",
+    "reasoning `medium`",
+    "exact",
+    "observed",
+    "estimated",
+    "adaptive",
+    "inventory",
+    "record",
+    "compare",
+    "environment drift",
+    ".context/benchmarks/",
+    "failed repository",
+    "node scripts/codex-local.mjs restore",
+    "manual",
+  ]) {
+    assert.match(guide, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+  assert.match(readme, /\[Workflow benchmarking\]\(docs\/benchmarking\.md\)/);
+});
+
 function writeJson(path, value) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
