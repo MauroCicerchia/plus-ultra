@@ -656,7 +656,7 @@ function runGit(root, args) {
 
 function fakeCodexSource() {
   return `#!/usr/bin/env node
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const args = process.argv.slice(2);
@@ -681,13 +681,49 @@ if (args.join(" ") === "plugin list --marketplace plus-ultra-dev --json") {
 }
 const record = {
   args,
+  codex_home: process.env.CODEX_HOME,
   cwd: process.cwd(),
+  home: process.env.HOME,
   phase: process.env.PLUS_ULTRA_BENCHMARK_PHASE,
   scenario: process.env.PLUS_ULTRA_BENCHMARK_SCENARIO,
   sample: Number(process.env.PLUS_ULTRA_BENCHMARK_SAMPLE),
   turn: Number(process.env.PLUS_ULTRA_BENCHMARK_TURN),
+  zdotdir: process.env.ZDOTDIR,
 };
 appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify(record) + "\\n");
+if (process.env.FAKE_CODEX_SHELL_PROBE_PHASE === record.phase) {
+  for (const shell of ["/bin/zsh", "/bin/bash", "/bin/sh"].filter(existsSync)) {
+    const located = spawnSync(shell, ["-lc", "command -v gh"], {
+      encoding: "utf8",
+      env: process.env,
+    });
+    const invoked = spawnSync(
+      shell,
+      [
+        "-lc",
+        'PLUS_ULTRA_BENCHMARK_GH_STATE="$PWD/redirected-state.json" PLUS_ULTRA_BENCHMARK_GH_LOG="$PWD/redirected-gh.jsonl" gh probe',
+      ],
+      { encoding: "utf8", env: process.env }
+    );
+    appendFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({
+      event: "shell_probe",
+      shell,
+      resolved: located.stdout.trim(),
+      locate_status: located.status,
+      invoke_status: invoked.status,
+      invoke_stderr: invoked.stderr,
+    }) + "\\n");
+    if (located.status !== 0 || invoked.status !== 0) process.exit(71);
+  }
+}
+if (process.env.FAKE_CODEX_MARKER_PHASE === record.phase) {
+  mkdirSync(".codex/plus-ultra/state", { recursive: true });
+  writeFileSync(".codex/plus-ultra/state/benchmark-session.json", "{}\\n");
+}
+if (process.env.FAKE_CODEX_ARBITRARY_CODEX_PHASE === record.phase) {
+  mkdirSync(".codex", { recursive: true });
+  writeFileSync(".codex/unexpected.txt", "must remain scope-visible\\n");
+}
 const prompt = args.at(-1);
 if (prompt.includes("CLEAN_CREATED_THREAD")) {
   const cleanup = spawnSync("gh", ["delete-thread", "benchmark-created"], {
@@ -1098,6 +1134,10 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 appendFileSync(process.env.PLUS_ULTRA_BENCHMARK_GH_LOG, JSON.stringify(args) + "\\n");
+if (args.length === 1 && args[0] === "probe") {
+  process.stdout.write("benchmark fake gh\\n");
+  process.exit(0);
+}
 if (args[0] !== "delete-thread" || args.length !== 2) {
   process.stderr.write("unknown fake gh operation\\n");
   process.exit(8);
@@ -1427,6 +1467,124 @@ test("run resumes approval turns, isolates clones, cleans exact fake threads, an
     );
     assert.deepEqual(state.threads, ["unrelated-thread"]);
   }
+});
+
+test("run pins fake gh across login shells and prevents state redirection", () => {
+  const repository = createBenchmarkRepository();
+  const hostileHome = join(repository.root, ".context", "hostile-home");
+  const fallbackBin = join(hostileHome, "bin");
+  const fallbackMarker = join(repository.root, ".context", "fallback-gh-called");
+  mkdirSync(fallbackBin, { recursive: true });
+  const fallbackGh = join(fallbackBin, "gh");
+  writeFileSync(
+    fallbackGh,
+    `#!/bin/sh\nprintf reached > ${JSON.stringify(fallbackMarker)}\nexit 0\n`
+  );
+  chmodSync(fallbackGh, 0o755);
+  for (const profile of [".zshenv", ".zprofile", ".bash_profile", ".profile"]) {
+    writeFileSync(join(hostileHome, profile), `export PATH=${JSON.stringify(fallbackBin)}\n`);
+  }
+
+  const run = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "fast-implementation"],
+    {
+      CODEX_HOME: join(repository.root, ".context", "original-codex-home"),
+      FAKE_CODEX_SHELL_PROBE_PHASE: "fast-implementation",
+      HOME: hostileHome,
+      ZDOTDIR: hostileHome,
+    }
+  );
+
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(existsSync(fallbackMarker), false);
+  const output = cliJson(run);
+  const records = readFileSync(repository.log, "utf8").trim().split("\n").map(JSON.parse);
+  const invocations = records.filter(({ args }) => args);
+  const probes = records.filter(({ event }) => event === "shell_probe");
+  assert.equal(
+    invocations.every(
+      ({ codex_home, home, zdotdir }) =>
+        codex_home === join(repository.root, ".context", "original-codex-home") &&
+        home.includes("/.plus-ultra-benchmark/home") &&
+        zdotdir.includes("/.plus-ultra-benchmark/zsh")
+    ),
+    true
+  );
+  assert.equal(probes.length, 6);
+  assert.equal(
+    probes.every(
+      ({ locate_status, invoke_status }) => locate_status === 0 && invoke_status === 0
+    ),
+    true
+  );
+  assert.equal(
+    probes.every(({ resolved }) => resolved.includes("/.plus-ultra-benchmark/bin/gh")),
+    true
+  );
+  const sampleRoot = join(dirname(output.summary), "scenarios", "fast-implementation");
+  for (const sample of readdirSync(sampleRoot)) {
+    const directory = join(sampleRoot, sample);
+    assert.equal(existsSync(join(directory, "failed-repository")), false);
+    assert.equal(existsSync(join(directory, "redirected-gh.jsonl")), false);
+    const audit = readFileSync(join(directory, "fake-github.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map(JSON.parse);
+    assert.equal(audit.filter(([operation]) => operation === "probe").length, 3);
+  }
+});
+
+test("run ignores only the exact lifecycle marker path during scope checks", () => {
+  const markerOnly = createBenchmarkRepository();
+  const manifestPath = join(
+    markerOnly.root,
+    "benchmarks",
+    "scenarios",
+    "fast-implementation.json"
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.workflow = {
+    risk: "FAST",
+    allowed_changes: ["result.txt"],
+    required_changes: ["result.txt"],
+  };
+  writeJson(manifestPath, manifest);
+  runGit(markerOnly.root, ["add", "benchmarks/scenarios/fast-implementation.json"]);
+  runGit(markerOnly.root, ["commit", "-m", "test: constrain marker fixture"]);
+  refreshBenchmarkStage(markerOnly.root);
+
+  const accepted = runBenchmarkCli(
+    markerOnly,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "fast-implementation"],
+    { FAKE_CODEX_MARKER_PHASE: "fast-implementation" }
+  );
+  assert.equal(accepted.status, 0, accepted.stderr);
+
+  const arbitrary = createBenchmarkRepository();
+  const arbitraryManifestPath = join(
+    arbitrary.root,
+    "benchmarks",
+    "scenarios",
+    "fast-implementation.json"
+  );
+  writeJson(arbitraryManifestPath, manifest);
+  runGit(arbitrary.root, ["add", "benchmarks/scenarios/fast-implementation.json"]);
+  runGit(arbitrary.root, ["commit", "-m", "test: constrain arbitrary fixture"]);
+  refreshBenchmarkStage(arbitrary.root);
+  const rejected = runBenchmarkCli(
+    arbitrary,
+    ["run", "--model", "gpt-test", "--reasoning", "medium", "--scenario", "fast-implementation"],
+    {
+      FAKE_CODEX_ARBITRARY_CODEX_PHASE: "fast-implementation",
+      FAKE_CODEX_MARKER_PHASE: "fast-implementation",
+    }
+  );
+  assert.equal(rejected.status, 1);
+  const rejectedSummary = JSON.parse(readFileSync(cliJson(rejected).summary, "utf8"));
+  assert.match(rejectedSummary.phases[0].samples[0].error, /\.codex\/unexpected\.txt/);
+  assert.doesNotMatch(rejectedSummary.phases[0].samples[0].error, /plus-ultra\/state/);
 });
 
 test("adaptive sampling adds a third run only to the variable phase", () => {

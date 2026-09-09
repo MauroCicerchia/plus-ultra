@@ -17,6 +17,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import {
   basename,
   delimiter,
@@ -77,6 +78,8 @@ const MANIFEST_PATHS = new Set([
   ".codex-plugin/plugin.json",
   ".cursor-plugin/plugin.json",
 ]);
+const BENCHMARK_RUNTIME = ".plus-ultra-benchmark";
+const LIFECYCLE_STATE_DIRECTORY = ".codex/plus-ultra/state";
 
 export class BenchmarkError extends Error {
   constructor(code, message) {
@@ -561,6 +564,20 @@ function initializeFixtureRepository(repository) {
   git(repository, ["commit", "-m", "chore: initialize benchmark fixture"], { env: deterministic });
 }
 
+function appendPrivateGitExcludes(repository) {
+  const excludePath = join(repository, ".git", "info", "exclude");
+  const existing = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : "";
+  const additions = [`/${BENCHMARK_RUNTIME}/`, `/${LIFECYCLE_STATE_DIRECTORY}/`].filter(
+    (entry) => !existing.split(/\r?\n/).includes(entry)
+  );
+  if (additions.length > 0) {
+    writeFileSync(
+      excludePath,
+      `${existing}${existing.endsWith("\n") ? "" : "\n"}${additions.join("\n")}\n`
+    );
+  }
+}
+
 function threadIdFromJsonl(source) {
   for (const line of source.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -668,6 +685,87 @@ function isolatedPath(fakeGithubDirectory, inheritedPath) {
   return [fakeGithubDirectory, ...safeInheritedDirectories].join(delimiter);
 }
 
+function writeFakeGithubWrapper(path, implementation, statePath, logPath) {
+  writeFileSync(
+    path,
+    `#!${process.execPath}\n` +
+      `import { spawnSync } from "node:child_process";\n` +
+      `const result = spawnSync(${JSON.stringify(process.execPath)}, [` +
+      `${JSON.stringify(implementation)}, ...process.argv.slice(2)], {\n` +
+      `  stdio: "inherit",\n` +
+      `  env: { ...process.env, ` +
+      `PLUS_ULTRA_BENCHMARK_GH_STATE: ${JSON.stringify(statePath)}, ` +
+      `PLUS_ULTRA_BENCHMARK_GH_LOG: ${JSON.stringify(logPath)} },\n` +
+      `});\n` +
+      `if (result.error) { process.stderr.write(result.error.message + "\\n"); process.exit(70); }\n` +
+      `process.exit(result.status ?? 70);\n`
+  );
+  chmodSync(path, 0o755);
+}
+
+function controlledShellEnvironment(repository, root, inheritedEnvironment) {
+  const runtime = join(repository, BENCHMARK_RUNTIME);
+  const bin = join(runtime, "bin");
+  const home = join(runtime, "home");
+  const zdotdir = join(runtime, "zsh");
+  const ghConfig = join(home, ".config", "gh");
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(home, { recursive: true });
+  mkdirSync(zdotdir, { recursive: true });
+  mkdirSync(ghConfig, { recursive: true });
+
+  const statePath = join(runtime, "fake-github-state.json");
+  const logPath = join(runtime, "fake-github.jsonl");
+  const implementation = join(root, "benchmarks", "fake-github", "gh");
+  cpSync(join(root, "benchmarks", "fake-github", "state.json"), statePath);
+  writeFileSync(logPath, "");
+  writeFakeGithubWrapper(join(bin, "gh"), implementation, statePath, logPath);
+
+  const safePath = isolatedPath(bin, inheritedEnvironment.PATH);
+  const resetPath = 'export PATH="$PLUS_ULTRA_BENCHMARK_SAFE_PATH"\n';
+  for (const profile of [join(zdotdir, ".zshenv"), join(zdotdir, ".zprofile")]) {
+    writeFileSync(profile, resetPath);
+  }
+  for (const profile of [
+    join(home, ".bash_profile"),
+    join(home, ".bashrc"),
+    join(home, ".profile"),
+    join(home, ".shenv"),
+  ]) {
+    writeFileSync(profile, resetPath);
+  }
+
+  const originalCodexHome =
+    inheritedEnvironment.CODEX_HOME ??
+    join(inheritedEnvironment.HOME ?? homedir(), ".codex");
+  return {
+    environment: {
+      ...inheritedEnvironment,
+      BASH_ENV: join(home, ".bashrc"),
+      CODEX_HOME: originalCodexHome,
+      ENV: join(home, ".shenv"),
+      GH_CONFIG_DIR: ghConfig,
+      HOME: home,
+      PATH: safePath,
+      PLUS_ULTRA_BENCHMARK_GH_LOG: logPath,
+      PLUS_ULTRA_BENCHMARK_GH_STATE: statePath,
+      PLUS_ULTRA_BENCHMARK_SAFE_PATH: safePath,
+      ZDOTDIR: zdotdir,
+    },
+    logPath,
+    statePath,
+  };
+}
+
+function persistFakeGithubArtifacts(runtime, sampleDirectory) {
+  if (existsSync(runtime.statePath)) {
+    cpSync(runtime.statePath, join(sampleDirectory, "fake-github-state.json"));
+  }
+  if (existsSync(runtime.logPath)) {
+    cpSync(runtime.logPath, join(sampleDirectory, "fake-github.jsonl"));
+  }
+}
+
 function runPhaseAttempt(context, scenario, phase, sampleNumber) {
   const scenarioDirectory = join(context.runDirectory, "scenarios", scenario.id);
   const sampleName =
@@ -681,17 +779,10 @@ function runPhaseAttempt(context, scenario, phase, sampleNumber) {
   );
   cpSync(pathInside(context.root, scenario.fixture, "fixture"), repository, { recursive: true });
   initializeFixtureRepository(repository);
-
-  const statePath = join(sampleDirectory, "fake-github-state.json");
-  const ghLogPath = join(sampleDirectory, "fake-github.jsonl");
-  cpSync(join(context.root, "benchmarks", "fake-github", "state.json"), statePath);
-  writeFileSync(ghLogPath, "");
-  const fakeGithubDirectory = join(context.root, "benchmarks", "fake-github");
+  appendPrivateGitExcludes(repository);
+  const runtime = controlledShellEnvironment(repository, context.root, context.environment);
   const environment = {
-    ...context.environment,
-    PATH: isolatedPath(fakeGithubDirectory, context.environment.PATH),
-    PLUS_ULTRA_BENCHMARK_GH_STATE: statePath,
-    PLUS_ULTRA_BENCHMARK_GH_LOG: ghLogPath,
+    ...runtime.environment,
     PLUS_ULTRA_BENCHMARK_SCENARIO: scenario.id,
     PLUS_ULTRA_BENCHMARK_SAMPLE: String(sampleNumber),
   };
@@ -797,6 +888,7 @@ function runPhaseAttempt(context, scenario, phase, sampleNumber) {
     });
     return phaseResults;
   } finally {
+    persistFakeGithubArtifacts(runtime, sampleDirectory);
     if (!retained && existsSync(repository)) rmSync(repository, { recursive: true, force: true });
   }
 }

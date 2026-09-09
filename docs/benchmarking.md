@@ -42,12 +42,20 @@ node scripts/codex-local.mjs restore
 ## Safety boundary
 
 Every sample copies the dependency-free reading-list fixture into a fresh temporary Git repository.
-Codex receives `--sandbox workspace-write` and works only in that repository. The runner places the
-deterministic executable at `benchmarks/fake-github/gh` first on `PATH` and removes inherited `PATH`
-directories that contain another `gh`; scenarios therefore cannot fall through to the real GitHub
-CLI. The fake reads and mutates only its per-sample state file, rejects undeclared operations, and
-records a local audit. Review cleanup can resolve only the benchmark-created thread declared by
-the fixture. It never reads from or writes to real GitHub.
+Codex receives `--sandbox workspace-write` and works only in that repository. The runner creates a
+per-sample fake-`gh` wrapper and writable state below `.plus-ultra-benchmark/` in that clone. It also
+uses a controlled `HOME`, `ZDOTDIR`, and shell profiles while preserving the original explicit
+`CODEX_HOME`. Those profiles reset `PATH` after login-shell initialization, and the safe path drops
+every inherited directory containing another `gh`. Command-local attempts to redirect the fake's
+state or audit variables are overwritten by the wrapper. Scenarios therefore cannot fall through
+to the real GitHub CLI or silently record against a different fake state.
+
+The fake rejects undeclared operations and the runner copies its designated state and audit to the
+raw sample directory before deleting a successful clone. Review cleanup can resolve only the
+benchmark-created thread declared by the fixture. The private Git exclude ignores the runner's
+runtime directory and exactly `.codex/plus-ultra/state/`, which lifecycle hooks create; arbitrary
+changes elsewhere under `.codex/` remain visible to workflow scope checks. The benchmark never
+reads from or writes to real GitHub.
 
 These controls are deliberately narrow and cooperative, not permission to publish or integrate.
 Benchmark prompts forbid commits, pushes, merges, releases, tags, and network access. Keep those
