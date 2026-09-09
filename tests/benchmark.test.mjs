@@ -635,6 +635,9 @@ test("benchmark documentation exposes the manual safe workflow", () => {
     "environment drift",
     ".context/benchmarks/",
     "failed repository",
+    "Recover one failed scenario",
+    "attempts/<scenario>-attempt-N/",
+    "do not splice or hand-edit summaries",
     "node scripts/codex-local.mjs restore",
     "manual",
   ]) {
@@ -1637,6 +1640,177 @@ test("run remains incomplete when a required adaptive third sample fails", () =>
     summary.phases.find(({ phase }) => phase === "fast-implementation").samples[2].status,
     "failed"
   );
+});
+
+test("scenario recovery replaces only the failed scenario and archives its raw artifacts", () => {
+  const repository = createBenchmarkRepository();
+  const initial = runBenchmarkCli(
+    repository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_FAIL_PHASE: "first-pr-review" }
+  );
+  assert.equal(initial.status, 1);
+  const initialOutput = cliJson(initial);
+  const initialSummary = JSON.parse(readFileSync(initialOutput.summary, "utf8"));
+  const preservedPhases = JSON.stringify(initialSummary.phases.slice(0, 4));
+  const preservedHashes = JSON.stringify(initialSummary.hashes);
+  const failedScenario = join(
+    dirname(initialOutput.summary),
+    "scenarios",
+    "pr-review-cycle"
+  );
+  assert.equal(existsSync(failedScenario), true);
+
+  const failedRecovery = runBenchmarkCli(
+    repository,
+    [
+      "run",
+      "--model",
+      "gpt-test",
+      "--reasoning",
+      "medium",
+      "--scenario",
+      "pr-review-cycle",
+    ],
+    { FAKE_CODEX_FAIL_PHASE: "first-pr-review" }
+  );
+  assert.equal(failedRecovery.status, 1);
+  assert.equal(cliJson(failedRecovery).summary, initialOutput.summary);
+  const firstArchive = join(
+    dirname(initialOutput.summary),
+    "attempts",
+    "pr-review-cycle-attempt-1"
+  );
+  assert.equal(
+    existsSync(join(firstArchive, "first-pr-review-sample-1", "failed-repository")),
+    true
+  );
+
+  const recovered = runBenchmarkCli(repository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "pr-review-cycle",
+  ]);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  const recoveredOutput = cliJson(recovered);
+  assert.equal(recoveredOutput.summary, initialOutput.summary);
+  const recoveredSummary = JSON.parse(readFileSync(recoveredOutput.summary, "utf8"));
+  assert.equal(recoveredSummary.status, "complete");
+  assert.equal(JSON.stringify(recoveredSummary.phases.slice(0, 4)), preservedPhases);
+  assert.equal(JSON.stringify(recoveredSummary.hashes), preservedHashes);
+  assert.equal(existsSync(firstArchive), true);
+  assert.equal(
+    existsSync(
+      join(
+        dirname(initialOutput.summary),
+        "attempts",
+        "pr-review-cycle-attempt-2",
+        "first-pr-review-sample-1",
+        "failed-repository"
+      )
+    ),
+    true
+  );
+  assert.equal(
+    recoveredSummary.phases
+      .slice(4)
+      .every(({ samples }) => samples.every(({ status }) => status === "success")),
+    true
+  );
+});
+
+test("scenario recovery refuses complete, drifted, and malformed existing runs", () => {
+  const completeRepository = createBenchmarkRepository();
+  const complete = runBenchmarkCli(completeRepository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+  ]);
+  assert.equal(complete.status, 0, complete.stderr);
+  const completeRecovery = runBenchmarkCli(completeRepository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "fast-implementation",
+  ]);
+  assert.equal(completeRecovery.status, 1);
+  assert.match(completeRecovery.stderr, /complete run/i);
+
+  const driftedRepository = createBenchmarkRepository();
+  const drifted = runBenchmarkCli(
+    driftedRepository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_FAIL_PHASE: "first-pr-review" }
+  );
+  assert.equal(drifted.status, 1);
+  const profileMismatch = runBenchmarkCli(driftedRepository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "high",
+    "--scenario",
+    "pr-review-cycle",
+  ]);
+  assert.equal(profileMismatch.status, 1);
+  assert.match(profileMismatch.stderr, /identity drift.*reasoning_effort/i);
+  writeFileSync(join(driftedRepository.root, "AGENTS.md"), "changed benchmark context\n");
+  runGit(driftedRepository.root, ["add", "AGENTS.md"]);
+  runGit(driftedRepository.root, ["commit", "-m", "test: drift benchmark identity"]);
+  refreshBenchmarkStage(driftedRepository.root);
+  const driftedRecovery = runBenchmarkCli(driftedRepository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "pr-review-cycle",
+  ]);
+  assert.equal(driftedRecovery.status, 1);
+  assert.match(driftedRecovery.stderr, /identity drift.*git_tree/i);
+  assert.equal(
+    existsSync(
+      join(
+        dirname(cliJson(drifted).summary),
+        "attempts",
+        "pr-review-cycle-attempt-1"
+      )
+    ),
+    false
+  );
+
+  const malformedRepository = createBenchmarkRepository();
+  const malformed = runBenchmarkCli(
+    malformedRepository,
+    ["run", "--model", "gpt-test", "--reasoning", "medium"],
+    { FAKE_CODEX_FAIL_PHASE: "first-pr-review" }
+  );
+  assert.equal(malformed.status, 1);
+  const malformedOutput = cliJson(malformed);
+  const malformedSummary = JSON.parse(readFileSync(malformedOutput.summary, "utf8"));
+  malformedSummary.phases.shift();
+  writeJson(malformedOutput.summary, malformedSummary);
+  const malformedRecovery = runBenchmarkCli(malformedRepository, [
+    "run",
+    "--model",
+    "gpt-test",
+    "--reasoning",
+    "medium",
+    "--scenario",
+    "pr-review-cycle",
+  ]);
+  assert.equal(malformedRecovery.status, 1);
+  assert.match(malformedRecovery.stderr, /all six canonical phases/i);
 });
 
 test("run retains failed repositories and continues with unrelated scenarios", () => {

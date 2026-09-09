@@ -111,11 +111,14 @@ its observed or estimated label; its byte count is a context proxy, not token ac
 Run the complete canonical suite explicitly:
 
 ```sh
-node scripts/benchmark-workflows.mjs run --model gpt-5.6-sol --reasoning medium
+PLUS_ULTRA_BENCHMARK_RUN_ID=<safe-run-id> \
+  node scripts/benchmark-workflows.mjs run --model gpt-5.6-sol --reasoning medium
 ```
 
-Use `--scenario <id>` only for diagnosis; a partial summary cannot be recorded as a baseline. The
-command prints the path to `.context/benchmarks/<run-id>/summary.json`.
+The run ID is optional for a fresh run but required for recovery. It may contain only letters,
+digits, dots, underscores, and hyphens. The command prints the path to
+`.context/benchmarks/<run-id>/summary.json`. A new standalone `--scenario <id>` run is diagnostic
+and cannot be recorded as a baseline.
 
 Each phase starts with two successful samples. The runner compares exact total tokens
 (`input_tokens + output_tokens`) when available, otherwise its observed visible-context-byte proxy.
@@ -124,12 +127,39 @@ It runs one adaptive third sample for that phase only when
 third sample. Exactly 10% does not. Failed attempts never count as successful measurements or
 satisfy completeness, and unrelated scenarios continue after a failure.
 
+### Recover one failed scenario
+
+If a full run is incomplete, repeat its explicit run ID and select the one failed scenario:
+
+```sh
+PLUS_ULTRA_BENCHMARK_RUN_ID=<same-safe-run-id> \
+  node scripts/benchmark-workflows.mjs run \
+  --model gpt-5.6-sol --reasoning medium --scenario <failed-scenario-id>
+```
+
+Recovery is deliberately fail-closed. The existing summary must contain all five scenario results
+and all six canonical phases; only the selected scenario may be failed. The requested model and
+reasoning, Codex version, operating system, architecture, every suite/scenario/source/plugin hash,
+and ranked contributor inventory must match exactly. Prior successful samples, aggregates, and
+budgets must also validate. Complete, malformed, partial, profile-mismatched, or drifted runs are
+refused before any artifact is moved.
+
+The runner archives the selected scenario's old raw directory under
+`attempts/<scenario>-attempt-N/`, never overwriting an earlier attempt. It then reruns only that
+scenario, preserves every other phase's sample measurements, and recomputes the combined scenario
+statuses, phase aggregates, budgets, and contributors. A failed recovery remains incomplete and
+can be retried safely; do not splice or hand-edit summaries and do not reuse samples after any
+identity hash changes.
+
 ## Raw local artifacts and failure retention
 
 Detailed output stays unversioned below `.context/benchmarks/<run-id>/`. Each sample directory can
 contain raw JSONL, stderr, the extracted model response, fake-GitHub state, and its fake-GitHub audit
 log. The summary also contains local paths and transient sample metadata. Treat all of it as local
 diagnostic material, not content for a commit.
+
+Scenario recovery retains each replaced scenario directory below that run's `attempts/` directory.
+These archives have the same raw-data sensitivity and cleanup rules as the active scenario output.
 
 A successful sample deletes its temporary fixture repository after postconditions pass. On any
 failure, the runner moves the failed repository into that sample directory and records the path in

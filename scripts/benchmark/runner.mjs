@@ -930,6 +930,172 @@ function safeRunId(configured) {
   return value;
 }
 
+function sameCanonicalValue(left, right) {
+  try {
+    return canonicalSha256(left) === canonicalSha256(right);
+  } catch {
+    return false;
+  }
+}
+
+function validateRecoverySamples(phase, selectedPhases) {
+  if (!Array.isArray(phase.samples) || ![2, 3].includes(phase.samples.length)) {
+    fail("invalid_recovery", phase.phase + " must contain two or three prior sample attempts");
+  }
+  for (let index = 0; index < phase.samples.length; index += 1) {
+    const sample = phase.samples[index];
+    if (
+      sample?.sample !== index + 1 ||
+      !["success", "failed"].includes(sample?.status) ||
+      (sample.status === "failed" && typeof sample.error !== "string")
+    ) {
+      fail("invalid_recovery", phase.phase + " contains a malformed prior sample");
+    }
+    if (sample.status === "success") {
+      const measured = aggregateMeasurements([sample]);
+      if (!measured.ok) fail("invalid_recovery", phase.phase + " contains an invalid measurement");
+    }
+  }
+  if (selectedPhases.has(phase.phase)) return;
+  if (phase.samples.some(({ status }) => status !== "success")) {
+    fail("invalid_recovery", "Only the selected failed scenario may be replaced");
+  }
+  const decision = requiresThirdSample(phase.samples[0], phase.samples[1]);
+  if (!decision.ok) fail("invalid_recovery", decision.error.message);
+  const expectedSamples = decision.value.required ? 3 : 2;
+  if (phase.samples.length !== expectedSamples) {
+    fail(
+      "invalid_recovery",
+      phase.phase + " does not have its exact required prior sample cardinality"
+    );
+  }
+  const aggregate = aggregateMeasurements(phase.samples);
+  if (!aggregate.ok || !sameCanonicalValue(phase.aggregate, aggregate.value)) {
+    fail("invalid_recovery", phase.phase + " prior aggregate does not match its samples");
+  }
+  const budget = calculateBudgets(aggregate.value);
+  if (!budget.ok) fail("invalid_recovery", budget.error.message);
+  return budget.value;
+}
+
+function recoverySummary({
+  runDirectory,
+  selectedScenario,
+  validation,
+  model,
+  reasoning,
+}) {
+  const summaryPath = join(runDirectory, "summary.json");
+  if (!existsSync(summaryPath)) {
+    fail("invalid_recovery", "Existing run ID has no summary to recover");
+  }
+  const summary = json(summaryPath);
+  if (summary.status === "complete") {
+    fail("invalid_recovery", "Cannot recover a complete run");
+  }
+  if (
+    summary.schema_version !== 1 ||
+    summary.status !== "incomplete" ||
+    summary.run_id !== basename(runDirectory) ||
+    typeof summary.artifacts_directory !== "string" ||
+    resolve(summary.artifacts_directory) !== resolve(runDirectory)
+  ) {
+    fail("invalid_recovery", "Existing run summary is malformed");
+  }
+
+  const expectedEnvironment = {
+    codex_version: validation.codex_version,
+    operating_system: process.platform,
+    architecture: process.arch,
+  };
+  const identities = [
+    ["model", summary.profile?.model, model],
+    ["reasoning_effort", summary.profile?.reasoning_effort, reasoning],
+    ["codex_version", summary.environment?.codex_version, expectedEnvironment.codex_version],
+    ["operating_system", summary.environment?.operating_system, expectedEnvironment.operating_system],
+    ["architecture", summary.environment?.architecture, expectedEnvironment.architecture],
+    ["hashes", summary.hashes, validation.hashes],
+  ];
+  const drift = identities
+    .filter(([, previous, current]) => !sameCanonicalValue(previous, current))
+    .map(([name, previous, current]) => {
+      if (name !== "hashes") return name;
+      const hashNames = ["scenario", "prompts", "fixture", "fake_github", "suite", "git_tree", "plugin_tree"];
+      return hashNames
+        .filter((hashName) => !sameCanonicalValue(previous?.[hashName], current?.[hashName]))
+        .join(",");
+    })
+    .filter(Boolean);
+  if (drift.length > 0) {
+    fail(
+      "recovery_identity_drift",
+      "Cannot recover benchmark run because identity drift was detected: " + drift.join(", ")
+    );
+  }
+
+  if (
+    !Array.isArray(summary.executed_scenarios) ||
+    summary.executed_scenarios.length !== EXPECTED_SCENARIOS.length ||
+    summary.executed_scenarios.some(
+      (result, index) =>
+        result?.id !== EXPECTED_SCENARIOS[index] ||
+        !["success", "failed"].includes(result?.status)
+    )
+  ) {
+    fail("invalid_recovery", "Recovery requires all five canonical scenario results");
+  }
+  const selectedResult = summary.executed_scenarios.find(({ id }) => id === selectedScenario);
+  if (
+    selectedResult?.status !== "failed" ||
+    summary.executed_scenarios.some(
+      ({ id, status }) => id !== selectedScenario && status !== "success"
+    )
+  ) {
+    fail("invalid_recovery", "Only the selected failed scenario may be replaced");
+  }
+  if (
+    !Array.isArray(summary.phases) ||
+    summary.phases.length !== EXPECTED_PHASES.length ||
+    summary.phases.some((phase, index) => phase?.phase !== EXPECTED_PHASES[index])
+  ) {
+    fail("invalid_recovery", "Recovery requires all six canonical phases");
+  }
+
+  const selectedPhases = new Set(EXPECTED_PHASES_BY_SCENARIO[selectedScenario]);
+  const priorBudgets = {};
+  for (const phase of summary.phases) {
+    const budget = validateRecoverySamples(phase, selectedPhases);
+    if (!selectedPhases.has(phase.phase)) priorBudgets[phase.phase] = budget;
+  }
+  for (const [phase, budget] of Object.entries(priorBudgets)) {
+    if (!sameCanonicalValue(summary.budgets?.[phase], budget)) {
+      fail("invalid_recovery", phase + " prior budget does not match its samples");
+    }
+  }
+  const inventory = inventoryBenchmark(validation.root);
+  if (!sameCanonicalValue(summary.contributors, inventory.contributors)) {
+    fail("recovery_identity_drift", "Cannot recover benchmark run because contributor inventory drifted");
+  }
+  return summary;
+}
+
+function archiveScenarioArtifacts(runDirectory, selectedScenario) {
+  const scenarioDirectory = join(runDirectory, "scenarios", selectedScenario);
+  if (!existsSync(scenarioDirectory)) {
+    fail("invalid_recovery", "Selected scenario has no raw artifacts to archive");
+  }
+  const attemptsDirectory = join(runDirectory, "attempts");
+  mkdirSync(attemptsDirectory, { recursive: true });
+  let attempt = 1;
+  let archive = join(attemptsDirectory, selectedScenario + "-attempt-" + attempt);
+  while (existsSync(archive)) {
+    attempt += 1;
+    archive = join(attemptsDirectory, selectedScenario + "-attempt-" + attempt);
+  }
+  renameSync(scenarioDirectory, archive);
+  return archive;
+}
+
 export function runBenchmark({
   root = process.cwd(),
   model,
@@ -950,14 +1116,27 @@ export function runBenchmark({
   const scenarios = selectedScenario
     ? validation.scenarios.filter(({ id }) => id === selectedScenario)
     : validation.scenarios;
-  const runId = safeRunId(environment.PLUS_ULTRA_BENCHMARK_RUN_ID);
+  const configuredRunId = environment.PLUS_ULTRA_BENCHMARK_RUN_ID;
+  const runId = safeRunId(configuredRunId);
   let runDirectory = join(validation.root, ".context", "benchmarks", runId);
-  let suffix = 1;
-  while (existsSync(runDirectory)) {
-    suffix += 1;
-    runDirectory = join(validation.root, ".context", "benchmarks", `${runId}-${suffix}`);
+  let previousSummary;
+  if (existsSync(runDirectory) && configuredRunId !== undefined && selectedScenario) {
+    previousSummary = recoverySummary({
+      runDirectory,
+      selectedScenario,
+      validation,
+      model,
+      reasoning,
+    });
+    archiveScenarioArtifacts(runDirectory, selectedScenario);
+  } else {
+    let suffix = 1;
+    while (existsSync(runDirectory)) {
+      suffix += 1;
+      runDirectory = join(validation.root, ".context", "benchmarks", `${runId}-${suffix}`);
+    }
+    mkdirSync(runDirectory, { recursive: true });
   }
-  mkdirSync(runDirectory, { recursive: true });
   const context = {
     root: validation.root,
     runDirectory,
@@ -966,10 +1145,20 @@ export function runBenchmark({
     environment,
     codex: environment.CODEX_BIN ?? "codex",
   };
-  const phaseMap = new Map(
-    scenarios.flatMap(({ phases }) => phases.map(({ phase }) => [phase, []]))
+  const selectedPhases = new Set(
+    scenarios.flatMap(({ phases }) => phases.map(({ phase }) => phase))
   );
-  const scenarioResults = [];
+  const phaseMap = new Map(
+    previousSummary
+      ? previousSummary.phases.map(({ phase, samples }) => [
+          phase,
+          selectedPhases.has(phase) ? [] : samples,
+        ])
+      : scenarios.flatMap(({ phases }) => phases.map(({ phase }) => [phase, []]))
+  );
+  const scenarioResults = previousSummary
+    ? previousSummary.executed_scenarios.map((result) => ({ ...result }))
+    : [];
   for (const scenario of scenarios) {
     for (const phase of scenario.phases) {
       for (let sampleNumber = 1; sampleNumber <= 2; sampleNumber += 1) {
@@ -979,12 +1168,15 @@ export function runBenchmark({
         appendAttempt(phaseMap, runPhaseAttempt(context, scenario, phase, 3));
       }
     }
-    scenarioResults.push({
+    const result = {
       id: scenario.id,
       status: scenario.phases.every(({ phase }) => phaseHasRequiredSamples(phaseMap.get(phase)))
         ? "success"
         : "failed",
-    });
+    };
+    const previousIndex = scenarioResults.findIndex(({ id }) => id === scenario.id);
+    if (previousIndex >= 0) scenarioResults[previousIndex] = result;
+    else scenarioResults.push(result);
   }
   const phases = [...phaseMap.entries()].map(([phase, samples]) => aggregatePhase(phase, samples));
   const budgets = Object.fromEntries(
