@@ -80,7 +80,9 @@ function trackedAndUnignoredPaths(root) {
 }
 
 function copyGitIncludedSource(root, destination) {
-  for (const path of trackedAndUnignoredPaths(root)) {
+  const includedPaths = trackedAndUnignoredPaths(root);
+  const includedInventory = new Set(includedPaths);
+  for (const path of includedPaths) {
     const source = resolve(root, path);
     const target = resolve(destination, path);
     if (relative(root, source).startsWith("..") || relative(destination, target).startsWith("..")) {
@@ -98,6 +100,9 @@ function copyGitIncludedSource(root, destination) {
         !lstatSync(copySource).isFile()
       ) {
         fail(`Refusing Git symlink outside the working tree: ${path}`);
+      }
+      if (!includedInventory.has(targetPath)) {
+        fail(`Refusing symlink outside the Git-included source inventory: ${path}`);
       }
     } else if (!stat.isFile()) {
       continue;

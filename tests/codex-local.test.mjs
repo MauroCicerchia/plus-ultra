@@ -118,6 +118,18 @@ function commandLog(path) {
     : [];
 }
 
+function assertIgnoredSymlinkTargetIsRejected(root, fake, links) {
+  for (const [path, target] of links) symlinkSync(target, join(root, path));
+  run("git", ["add", ...links.map(([path]) => path)], root);
+  run("git", ["commit", "-m", "test: add tracked symlink"], root);
+
+  const result = runLocal(root, fake, "refresh");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /symlink.*Git-included source inventory/i);
+  assert.equal(existsSync(join(root, ".context", "codex-dev-marketplace")), false);
+  assert.deepEqual(commandLog(fake.log), [["plugin", "marketplace", "list", "--json"]]);
+}
+
 test("refresh stages only Git-included source files with a unique local version", () => {
   const root = makeSource();
   const fake = makeFakeCodex(root);
@@ -160,6 +172,39 @@ test("refresh stages only Git-included source files with a unique local version"
     ).version;
     assert.equal(nextVersion, "0.1.0+codex.local-20260906-010204");
     run("git", ["diff", "--exit-code"], root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink whose resolved .env target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [["ENV-LEAK.md", ".env"]]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink whose resolved .context target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [["CONTEXT-LEAK.md", ".context/private.txt"]]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink chain whose final target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [
+      ["CHAIN-LEAK.md", "CHAIN-LINK.md"],
+      ["CHAIN-LINK.md", ".env"],
+    ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
