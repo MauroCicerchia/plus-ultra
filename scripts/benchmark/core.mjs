@@ -479,6 +479,13 @@ const HASH_KEYS = [
   "git_tree",
   "plugin_tree",
 ];
+const SCENARIO_NAMES = [
+  "product-discovery",
+  "spec-refinement",
+  "fast-implementation",
+  "standard-implementation",
+  "pr-review-cycle",
+];
 const BUDGET_KEYS = [
   "input_tokens",
   "cached_input_tokens",
@@ -498,12 +505,13 @@ const PHASE_NAMES = new Set([
   "pr-re-review",
 ]);
 
-function isHashRecord(value) {
+function isHashRecord(value, expectedKeys) {
   return (
     value &&
     typeof value === "object" &&
     !Array.isArray(value) &&
     Object.keys(value).length > 0 &&
+    (expectedKeys === undefined || hasExactKeys(value, expectedKeys)) &&
     Object.values(value).every((hash) => typeof hash === "string" && HASH_PATTERN.test(hash))
   );
 }
@@ -512,8 +520,8 @@ function validateHashes(hashes) {
   if (!hasExactKeys(hashes, HASH_KEYS)) {
     return failure("invalid_baseline", "Baseline hashes have missing or unexpected fields");
   }
-  if (!isHashRecord(hashes.scenario)) {
-    return failure("invalid_baseline", "Scenario hashes must be a non-empty string-to-hash object");
+  if (!isHashRecord(hashes.scenario, SCENARIO_NAMES)) {
+    return failure("invalid_baseline", "Scenario hashes must contain exactly the canonical scenarios");
   }
   if (
     !(typeof hashes.prompts === "string" && HASH_PATTERN.test(hashes.prompts)) &&
@@ -632,7 +640,9 @@ function containsAbsolutePath(value, seen = new WeakSet()) {
   if (value && typeof value === "object") {
     if (seen.has(value)) return false;
     seen.add(value);
-    return Object.values(value).some((child) => containsAbsolutePath(child, seen));
+    return Object.entries(value).some(
+      ([key, child]) => containsAbsolutePath(key, seen) || containsAbsolutePath(child, seen)
+    );
   }
   return false;
 }

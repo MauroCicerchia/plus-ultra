@@ -59,7 +59,13 @@ function baseline(overrides = {}) {
     schema_version: 1,
     profile: { model: "gpt-5.6-sol", reasoning_effort: "medium" },
     hashes: {
-      scenario: { fast: hash },
+      scenario: {
+        "product-discovery": hash,
+        "spec-refinement": hash,
+        "fast-implementation": hash,
+        "standard-implementation": hash,
+        "pr-review-cycle": hash,
+      },
       prompts: hash,
       fixture: hash,
       fake_github: hash,
@@ -521,7 +527,7 @@ test("sanitizeBaseline allow-lists durable aggregate fields and strips raw conte
     schema_version: 1,
     profile: { model: "gpt-5.6-sol", reasoning_effort: "medium" },
     hashes: {
-      scenario: { fast: hash },
+      scenario: baseline().hashes.scenario,
       prompts: hash,
       fixture: hash,
       fake_github: hash,
@@ -558,6 +564,21 @@ test("sanitizeBaseline rejects absolute paths in otherwise allowed string fields
     assert.equal(Object.isFrozen(result), true);
     assert.equal(Object.isFrozen(result.error), true);
   }
+});
+
+test("sanitizeBaseline rejects absolute and unexpected scenario hash keys", () => {
+  const absoluteKey = baseline();
+  absoluteKey.hashes.scenario = { "/private/secret-scenario.json": hash };
+  const unexpectedKey = baseline();
+  unexpectedKey.hashes.scenario.unexpected = hash;
+
+  const unsafe = sanitizeBaseline(absoluteKey);
+  assert.equal(unsafe.ok, false);
+  assert.equal(unsafe.error.code, "unsafe_baseline");
+
+  const unexpected = sanitizeBaseline(unexpectedKey);
+  assert.equal(unexpected.ok, false);
+  assert.equal(unexpected.error.code, "invalid_baseline");
 });
 
 test("sanitizeBaseline rejects nested raw objects and malformed phases", () => {
