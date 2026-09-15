@@ -110,7 +110,13 @@ function run(executable, args, options = {}) {
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.error) {
-    fail("process_error", `Could not run ${basename(executable)}: ${result.error.message}`);
+    const error = new BenchmarkError(
+      "process_error",
+      `Could not run ${basename(executable)}: ${result.error.message}`
+    );
+    error.stdout = result.stdout ?? "";
+    error.stderr = result.stderr ?? "";
+    throw error;
   }
   return result;
 }
@@ -613,7 +619,7 @@ function responsesFromJsonl(source) {
   return responses.join("\n");
 }
 
-function checkPostconditions(repository, postconditions, environment) {
+function checkPostconditions(repository, postconditions, environment, runProcess = run) {
   for (const condition of postconditions ?? []) {
     if (condition.type === "file_absent") {
       const target = pathInside(repository, condition.path, "postcondition path");
@@ -627,7 +633,7 @@ function checkPostconditions(repository, postconditions, environment) {
         return `Expected ${condition.path} to contain required text`;
       }
     } else if (condition.type === "command") {
-      const result = run(condition.command, condition.args ?? [], {
+      const result = runProcess(condition.command, condition.args ?? [], {
         cwd: repository,
         env: environment,
       });
@@ -787,73 +793,100 @@ function runPhaseAttempt(context, scenario, phase, sampleNumber) {
     PLUS_ULTRA_BENCHMARK_SAMPLE: String(sampleNumber),
   };
   const phaseResults = [];
+  const started = process.hrtime.bigint();
+  const outputs = [];
+  const errors = [];
+  let threadId;
+  let phaseFailure;
+  let collectingCodexOutput = false;
   let retained;
   try {
-    const started = process.hrtime.bigint();
-    const outputs = [];
-    const errors = [];
-    let threadId;
-    let phaseFailure;
-    for (let turnIndex = 0; turnIndex < phase.turns.length; turnIndex += 1) {
-      const turn = phase.turns[turnIndex];
-      const prompt = readFileSync(pathInside(context.root, turn.prompt, "prompt"), "utf8");
-      const args = [
-        "exec",
-        "--json",
-        "--model",
-        context.model,
-        "--config",
-        `model_reasoning_effort=${JSON.stringify(context.reasoning)}`,
-        "--sandbox",
-        "workspace-write",
-        "--cd",
-        repository,
-      ];
-      if (turn.resume === true) {
-        if (!threadId) {
-          phaseFailure = "Cannot resume approval turn because Codex did not return a thread ID";
+    try {
+      for (let turnIndex = 0; turnIndex < phase.turns.length; turnIndex += 1) {
+        const turn = phase.turns[turnIndex];
+        const prompt = readFileSync(pathInside(context.root, turn.prompt, "prompt"), "utf8");
+        const args = [
+          "exec",
+          "--json",
+          "--model",
+          context.model,
+          "--config",
+          `model_reasoning_effort=${JSON.stringify(context.reasoning)}`,
+          "--sandbox",
+          "workspace-write",
+          "--cd",
+          repository,
+        ];
+        if (turn.resume === true) {
+          if (!threadId) {
+            phaseFailure = "Cannot resume approval turn because Codex did not return a thread ID";
+            break;
+          }
+          args.push("resume", threadId);
+        }
+        args.push(prompt);
+        collectingCodexOutput = true;
+        const result = context.runProcess(context.codex, args, {
+          cwd: repository,
+          env: {
+            ...environment,
+            PLUS_ULTRA_BENCHMARK_PHASE: phase.phase,
+            PLUS_ULTRA_BENCHMARK_TURN: String(turnIndex + 1),
+          },
+        });
+        collectingCodexOutput = false;
+        outputs.push(result.stdout ?? "");
+        errors.push(result.stderr ?? "");
+        writeFileSync(
+          join(sampleDirectory, `${phase.phase}-turn-${turnIndex + 1}.jsonl`),
+          result.stdout ?? ""
+        );
+        writeFileSync(
+          join(sampleDirectory, `${phase.phase}-turn-${turnIndex + 1}.stderr.txt`),
+          result.stderr ?? ""
+        );
+        if (result.status !== 0) {
+          phaseFailure = `Codex exited ${result.status}`;
           break;
         }
-        args.push("resume", threadId);
+        threadId ??= threadIdFromJsonl(result.stdout ?? "");
+        phaseFailure = checkPostconditions(
+          repository,
+          turn.postconditions,
+          environment,
+          context.runProcess
+        );
+        if (phaseFailure) break;
       }
-      args.push(prompt);
-      const result = run(context.codex, args, {
-        cwd: repository,
-        env: {
-          ...environment,
-          PLUS_ULTRA_BENCHMARK_PHASE: phase.phase,
-          PLUS_ULTRA_BENCHMARK_TURN: String(turnIndex + 1),
-        },
-      });
-      outputs.push(result.stdout ?? "");
-      errors.push(result.stderr ?? "");
-      writeFileSync(
-        join(sampleDirectory, `${phase.phase}-turn-${turnIndex + 1}.jsonl`),
-        result.stdout ?? ""
-      );
-      writeFileSync(
-        join(sampleDirectory, `${phase.phase}-turn-${turnIndex + 1}.stderr.txt`),
-        result.stderr ?? ""
-      );
-      if (result.status !== 0) {
-        phaseFailure = `Codex exited ${result.status}`;
-        break;
+      if (!phaseFailure) {
+        phaseFailure = checkWorkflowChanges(repository, scenario.workflow);
       }
-      threadId ??= threadIdFromJsonl(result.stdout ?? "");
-      phaseFailure = checkPostconditions(repository, turn.postconditions, environment);
-      if (phaseFailure) break;
+      if (!phaseFailure) {
+        phaseFailure = checkPostconditions(
+          repository,
+          phase.postconditions,
+          environment,
+          context.runProcess
+        );
+      }
+    } catch (error) {
+      const availableStdout =
+        typeof error?.stdout === "string" ? error.stdout : error?.stdout?.toString?.() ?? "";
+      const availableStderr =
+        typeof error?.stderr === "string" ? error.stderr : error?.stderr?.toString?.() ?? "";
+      if (collectingCodexOutput && availableStdout) {
+        outputs.push(availableStdout);
+        threadId ??= threadIdFromJsonl(availableStdout);
+      }
+      if (availableStderr) errors.push(availableStderr);
+      const message = error instanceof Error ? error.message : String(error);
+      phaseFailure = `Benchmark phase execution failed: ${message}`;
     }
     const jsonl = outputs.filter(Boolean).join("\n");
     const stderr = errors.join("");
     writeFileSync(join(sampleDirectory, `${phase.phase}.jsonl`), jsonl);
     writeFileSync(join(sampleDirectory, `${phase.phase}.stderr.txt`), stderr);
     writeFileSync(join(sampleDirectory, `${phase.phase}.response.txt`), responsesFromJsonl(jsonl));
-    if (!phaseFailure) {
-      phaseFailure = checkWorkflowChanges(repository, scenario.workflow);
-    }
-    if (!phaseFailure) {
-      phaseFailure = checkPostconditions(repository, phase.postconditions, environment);
-    }
     const elapsedMs = Number(process.hrtime.bigint() - started) / 1_000_000;
     const measured = phaseFailure ? null : measureJsonl(jsonl, { elapsedMs });
     if (measured && !measured.ok) phaseFailure = measured.error.message;
@@ -1102,6 +1135,7 @@ export function runBenchmark({
   reasoning,
   scenario: selectedScenario,
   environment = process.env,
+  runProcess = run,
 } = {}) {
   if (typeof model !== "string" || !model.trim()) {
     fail("missing_model", "run requires --model <id>");
@@ -1144,6 +1178,7 @@ export function runBenchmark({
     reasoning,
     environment,
     codex: environment.CODEX_BIN ?? "codex",
+    runProcess,
   };
   const selectedPhases = new Set(
     scenarios.flatMap(({ phases }) => phases.map(({ phase }) => phase))

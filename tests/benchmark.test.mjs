@@ -29,6 +29,7 @@ import {
   requiresThirdSample,
   sanitizeBaseline,
 } from "../scripts/benchmark/core.mjs";
+import { runBenchmark } from "../scripts/benchmark/runner.mjs";
 
 const exact = (value) => ({ value, label: "exact" });
 const observed = (value) => ({ value, label: "observed" });
@@ -1861,6 +1862,64 @@ test("run retains failed repositories and continues with unrelated scenarios", (
   assert.equal(failed.repository.startsWith(dirname(output.summary)), true);
   assert.equal(existsSync(failed.repository), true);
   assert.equal(existsSync(join(failed.repository, "result.txt")), true);
+});
+
+test("run converts a throwing process port into a retained failure and continues", () => {
+  const repository = createBenchmarkRepository();
+  let thrown = false;
+  const runProcess = (executable, args, options) => {
+    if (
+      !thrown &&
+      options.env.PLUS_ULTRA_BENCHMARK_PHASE === "fast-implementation" &&
+      options.env.PLUS_ULTRA_BENCHMARK_SAMPLE === "1"
+    ) {
+      thrown = true;
+      throw Object.assign(new Error("spawnSync ENOBUFS"), {
+        stdout: `${JSON.stringify({ type: "thread.started", thread_id: "partial-thread" })}\n`,
+        stderr: "partial process stderr\n",
+      });
+    }
+    return spawnSync(executable, args, {
+      cwd: options.cwd,
+      env: options.env,
+      encoding: "utf8",
+      input: options.input,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  };
+
+  const output = runBenchmark({
+    root: repository.root,
+    model: "gpt-test",
+    reasoning: "medium",
+    environment: {
+      ...process.env,
+      CODEX_BIN: repository.codex,
+      FAKE_CODEX_LOG: repository.log,
+      FAKE_CODEX_MARKETPLACE_ROOT: join(
+        repository.root,
+        ".context",
+        "codex-dev-marketplace"
+      ),
+      PLUS_ULTRA_BENCHMARK_RUN_ID: "throwing-process-port",
+    },
+    runProcess,
+  });
+
+  assert.equal(output.summary.status, "incomplete");
+  const failed = output.summary.phases
+    .find(({ phase }) => phase === "fast-implementation")
+    .samples[0];
+  assert.equal(failed.status, "failed");
+  assert.match(failed.error, /ENOBUFS/);
+  assert.equal(existsSync(failed.repository), true);
+  assert.match(readFileSync(failed.raw_jsonl, "utf8"), /partial-thread/);
+  assert.match(readFileSync(join(dirname(failed.raw_jsonl), "fast-implementation.stderr.txt"), "utf8"), /partial process stderr/);
+  assert.equal(
+    output.summary.phases.find(({ phase }) => phase === "standard-implementation").samples.length,
+    2
+  );
+  assert.equal(existsSync(output.summaryPath), true);
 });
 
 test("record refuses an incomplete scenario run", () => {
