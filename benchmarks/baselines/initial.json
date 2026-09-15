@@ -48,7 +48,7 @@
           "label": "observed"
         },
         "tool_calls": {
-          "value": 12,
+          "value": 17,
           "label": "observed"
         },
         "elapsed_ms": {
@@ -104,7 +104,7 @@
           "label": "observed"
         },
         "tool_calls": {
-          "value": 14.5,
+          "value": 19,
           "label": "observed"
         },
         "elapsed_ms": {
@@ -361,7 +361,7 @@
       "output_tokens": 5700,
       "reasoning_tokens": 2000,
       "turns": 3,
-      "tool_calls": 15,
+      "tool_calls": 21,
       "visible_context_bytes": 1291264
     },
     "spec-refinement": {
@@ -371,7 +371,7 @@
       "output_tokens": 6600,
       "reasoning_tokens": 2000,
       "turns": 3,
-      "tool_calls": 18,
+      "tool_calls": 23,
       "visible_context_bytes": 55296
     },
     "fast-implementation": {

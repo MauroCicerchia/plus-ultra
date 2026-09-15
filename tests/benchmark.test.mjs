@@ -301,6 +301,28 @@ test("measureJsonl counts repeated tool calls independently from their types", (
   assert.deepEqual(result.value.tool_calls, observed(2));
 });
 
+test("measureJsonl preserves reset item IDs across resumed Codex invocations", () => {
+  const result = measureJsonl(
+    [
+      JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+      JSON.stringify({
+        type: "item.completed",
+        item: { id: "item_1", type: "command_execution" },
+      }),
+      JSON.stringify({ type: "turn.completed" }),
+      JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+      JSON.stringify({
+        type: "item.completed",
+        item: { id: "item_1", type: "command_execution" },
+      }),
+      JSON.stringify({ type: "turn.completed" }),
+    ].join("\n")
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.tool_calls, observed(2));
+});
+
 test("requiresThirdSample rejects failed samples", () => {
   const result = requiresThirdSample(
     { status: "failed", error: "boom" },

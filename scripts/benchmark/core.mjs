@@ -185,10 +185,12 @@ function visibleStrings(item) {
 
 function observedItemTypes(events) {
   const items = new Map();
+  let invocation = 0;
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
+    if (event.type === "thread.started") invocation += 1;
     if (!event.type.startsWith("item.") || typeof event.item?.type !== "string") continue;
-    const key = event.item.id ?? `event:${index}`;
+    const key = event.item.id === undefined ? `event:${index}` : `${invocation}:${event.item.id}`;
     items.set(key, event.item.type);
   }
   return [...items.values()].sort();
