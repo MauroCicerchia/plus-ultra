@@ -956,6 +956,19 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.match(codeReviewer, /Do not modify files/i);
 });
 
+test("local context reducers remain optional and preserve PR-review freshness", () => {
+  const operations = readRelative("skills/pr-review/references/review-operations.md");
+  const maintainerGuide = readRelative("docs/maintainer-guide.md");
+
+  assert.match(operations, /scripts\/context-reducers\.mjs/);
+  assert.match(operations, /pr-review-context/);
+  assert.match(operations, /only when.*checkout.*contains|checkout.*contains.*only when/i);
+  assert.match(operations, /headRefOid.*changed.*restart|changed.*headRefOid.*restart/i);
+  assert.match(operations, /comment-evidence/);
+  assert.match(maintainerGuide, /context-reducers/i);
+  assert.match(maintainerGuide, /no dependencies/i);
+});
+
 test("pr-review resolves an approved contract deterministically and can publish a limited review", () => {
   const skill = prReviewContract();
   const command = readRelative("commands/pr-review.md");
