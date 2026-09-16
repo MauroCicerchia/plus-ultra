@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -1490,6 +1490,7 @@ test("run resumes approval turns, isolates clones, cleans exact fake threads, an
   const summary = JSON.parse(readFileSync(output.summary, "utf8"));
   const phase = summary.phases.find(({ phase: name }) => name === "product-discovery");
   assert.equal(phase.samples.length, 3);
+  const runDirectory = dirname(output.summary);
   const invocations = readFileSync(repository.log, "utf8").trim().split("\n").map(JSON.parse);
   assert.equal(invocations.length, 6);
   for (let index = 0; index < invocations.length; index += 2) {
@@ -1499,7 +1500,13 @@ test("run resumes approval turns, isolates clones, cleans exact fake threads, an
     assert.equal(resumed.args.includes("resume"), true);
     assert.equal(resumed.args.includes(`product-discovery-sample-${initial.sample}`), true);
     assert.notEqual(initial.cwd, repository.root);
-    assert.equal(initial.cwd.startsWith(repository.root), false);
+    assert.equal(dirname(initial.cwd), runDirectory);
+    assert.equal(
+      basename(initial.cwd).startsWith(
+        `temporary-product-discovery-product-discovery-${initial.sample}-`
+      ),
+      true
+    );
     assert.deepEqual(initial.args.slice(0, 8), [
       "exec",
       "--json",
@@ -1557,6 +1564,7 @@ test("run pins fake gh across login shells and prevents state redirection", () =
   const records = readFileSync(repository.log, "utf8").trim().split("\n").map(JSON.parse);
   const invocations = records.filter(({ args }) => args);
   const probes = records.filter(({ event }) => event === "shell_probe");
+  const availableShells = ["/bin/zsh", "/bin/bash", "/bin/sh"].filter(existsSync);
   assert.equal(
     invocations.every(
       ({ codex_home, home, zdotdir }) =>
@@ -1566,7 +1574,11 @@ test("run pins fake gh across login shells and prevents state redirection", () =
     ),
     true
   );
-  assert.equal(probes.length, 6);
+  assert.equal(probes.length, invocations.length * availableShells.length);
+  assert.deepEqual(
+    [...new Set(probes.map(({ shell }) => shell))].sort(),
+    availableShells.sort()
+  );
   assert.equal(
     probes.every(
       ({ locate_status, invoke_status }) => locate_status === 0 && invoke_status === 0
