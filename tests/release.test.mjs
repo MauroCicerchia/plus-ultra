@@ -76,7 +76,7 @@ test("stable Codex marketplace identity and install/update instructions are docu
   assert.equal(marketplace.name, "plus-ultra");
   assert.equal(marketplace.plugins[0].name, "plus-ultra");
 
-  for (const path of ["README.md", "AGENTS.md"]) {
+  for (const path of ["README.md", "docs/maintainer-guide.md"]) {
     const content = read(path);
     assert.match(content, /codex plugin marketplace add maurocicerchia\/plus-ultra --ref main/);
     assert.match(content, /codex plugin add plus-ultra@plus-ultra/);
@@ -85,4 +85,5 @@ test("stable Codex marketplace identity and install/update instructions are docu
     assert.match(content, /claude plugin update plus-ultra@plus-ultra/);
     assert.match(content, /Cursor.*refresh|refresh.*Cursor/is);
   }
+  assert.match(read("AGENTS.md"), /maintainer guide/i);
 });

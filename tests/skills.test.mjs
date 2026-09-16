@@ -58,6 +58,21 @@ function parseFrontmatter(markdown) {
   );
 }
 
+function skillWithReferences(name, reference) {
+  return [
+    readRelative(`skills/${name}/SKILL.md`),
+    readRelative(`skills/${name}/references/${reference}`),
+  ].join("\n");
+}
+
+function prReviewContract() {
+  return skillWithReferences("pr-review", "review-operations.md");
+}
+
+function newProjectContract() {
+  return skillWithReferences("new-project", "scaffold-blueprint.md");
+}
+
 test("product-discovery defines the portable, approval-gated product brief contract", () => {
   const skillPath = "skills/product-discovery/SKILL.md";
   const templatePath = "skills/product-discovery/assets/product.md";
@@ -174,7 +189,8 @@ test("README documents the durable product-discovery workflow", () => {
   assert.doesNotMatch(readme, /product.discovery[\s\S]{0,100}(?:hook|script|dependency|command)/i, "product-discovery documentation stays portable");
 });
 
-function designArtifactFile(path = "SKILL.md") {
+function designArtifactFile(path) {
+  if (path === undefined) return skillWithReferences("design-artifacts", "design-operations.md");
   const relativePath = `skills/design-artifacts/${path}`;
   assert.ok(existsSync(join(repoRoot, relativePath)), `${relativePath} exists`);
   return readRelative(relativePath);
@@ -721,7 +737,7 @@ test("project scaffolding and review guidance enforce architecture and FP conven
   assert.match(techStack, /hexagonal/i);
   assert.match(techStack, /functional core/i);
 
-  const newProject = readRelative("skills/new-project/SKILL.md");
+  const newProject = newProjectContract();
   for (const expectedPath of [
     "src/domain",
     "src/application",
@@ -746,7 +762,7 @@ test("project scaffolding and review guidance enforce architecture and FP conven
 test("quality companions are documented and remain optional and technology-scoped", () => {
   const readme = readRelative("README.md");
   const techStack = readRelative("skills/tech-stack/SKILL.md");
-  const newProject = readRelative("skills/new-project/SKILL.md");
+  const newProject = newProjectContract();
   const readmeCompanions = markdownSection(readme, "Optional companions");
   const techCompanions = markdownSection(techStack, "Companion capabilities");
   const beforeScaffolding = markdownSection(newProject, "Before scaffolding");
@@ -840,7 +856,7 @@ test("spec conventions separate transient workflow artifacts from durable docume
 });
 
 test("new project scaffolding keeps workflow artifacts transient", () => {
-  const newProject = readRelative("skills/new-project/SKILL.md");
+  const newProject = newProjectContract();
   const scaffoldSteps = markdownSection(newProject, "Steps");
   const normalized = scaffoldSteps.replace(/\s+/g, " ");
 
@@ -876,7 +892,7 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
   assert.ok(existsSync(join(repoRoot, commandPath)), `${commandPath} exists`);
   assert.ok(existsSync(join(repoRoot, agentPath)), `${agentPath} exists`);
 
-  const skill = readRelative(skillPath);
+  const skill = prReviewContract();
   const command = readRelative(commandPath);
   const agent = readRelative(agentPath);
   const readme = readRelative("README.md");
@@ -941,7 +957,7 @@ test("pr-review workflow is packaged, safe, and available through Claude", () =>
 });
 
 test("pr-review resolves an approved contract deterministically and can publish a limited review", () => {
-  const skill = readRelative("skills/pr-review/SKILL.md");
+  const skill = prReviewContract();
   const command = readRelative("commands/pr-review.md");
   const agent = readRelative("agents/pr-reviewer.md");
   const readme = readRelative("README.md");
@@ -1007,7 +1023,7 @@ test("pr-review resolves an approved contract deterministically and can publish 
 
 test("pr-review defines verdict semantics in its publish-and-update summary guidance", () => {
   const contract = markdownSection(
-    readRelative("skills/pr-review/SKILL.md"),
+    prReviewContract(),
     "Publish and update the summary"
   );
   const statusStart = contract.indexOf("## Status");
@@ -1026,7 +1042,7 @@ test("pr-review defines verdict semantics in its publish-and-update summary guid
 
 test("pr-review makes its publish-and-update summary guidance complete and bounded", () => {
   const contract = markdownSection(
-    readRelative("skills/pr-review/SKILL.md"),
+    prReviewContract(),
     "Publish and update the summary"
   );
   const marker = "<!-- plus-ultra:pr-review:summary -->";
@@ -1106,7 +1122,7 @@ test("pr-review makes its publish-and-update summary guidance complete and bound
 
 test("pr-review distinguishes legacy approved-contract and limited-review traceability", () => {
   const contract = markdownSection(
-    readRelative("skills/pr-review/SKILL.md"),
+    prReviewContract(),
     "Publish and update the summary"
   );
   const traceabilityStart = contract.indexOf("| Issue | Spec | Contract |");
@@ -1131,7 +1147,7 @@ test("pr-review distinguishes legacy approved-contract and limited-review tracea
 
 test("pr-review omits empty severity headings from visible findings", () => {
   const contract = markdownSection(
-    readRelative("skills/pr-review/SKILL.md"),
+    prReviewContract(),
     "Publish and update the summary"
   );
   const findingsStart = contract.indexOf("## Findings");
@@ -1158,7 +1174,7 @@ test("pr-review omits empty severity headings from visible findings", () => {
 
 test("pr-review keeps prior resolutions human-readable and thread IDs metadata-only", () => {
   const contract = markdownSection(
-    readRelative("skills/pr-review/SKILL.md"),
+    prReviewContract(),
     "Publish and update the summary"
   );
   const resolutionsStart = contract.search(/^\s*## .*resol.*$/im);
@@ -1297,6 +1313,28 @@ test("GitHub Issues workflows are portable, confirmation-gated, and available th
   assert.match(issueWorkflows, /v2\.94\.0/);
   assert.match(issueWorkflows, /native.*hierarch|hierarch.*native/i);
   assert.match(issueWorkflows, /GraphQL.*fallback|fallback.*GraphQL/i);
+});
+
+test("high-context skills keep a bounded core and route detailed work to references", () => {
+  const targets = [
+    ["pr-review", "review-operations.md", /review evidence|prior review state|publish/i],
+    ["design-artifacts", "design-operations.md", /Pencil|approve|revise/i],
+    ["new-project", "scaffold-blueprint.md", /layout|scaffold|companion/i],
+  ];
+
+  for (const [name, reference, detail] of targets) {
+    const core = readRelative(`skills/${name}/SKILL.md`);
+    const referencePath = `skills/${name}/references/${reference}`;
+    assert.ok(Buffer.byteLength(core, "utf8") <= 4096, `${name} core stays within 4 KiB`);
+    assert.ok(existsSync(join(repoRoot, referencePath)), `${referencePath} exists`);
+    assert.match(core, new RegExp(`references/${reference.replace(".", "\\.")}`));
+    assert.match(readRelative(referencePath), detail);
+    assert.doesNotMatch(
+      skillWithReferences(name, reference),
+      /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\//i,
+      `${name} remains portable across its core and reference`
+    );
+  }
 });
 
 test("human integration boundary is a durable, portable policy", () => {

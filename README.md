@@ -278,8 +278,8 @@ sandbox. There is no `plus-ultra:integrate` command.
     description after new commits; it never edits GitHub state.
   - *auto-format* (PostToolUse / Write|Edit/apply_patch) — runs `biome check --write` on edited
     JS/TS/JSON files anywhere in the repo (no-ops if Biome is absent).
-  - *session-start* — reports approved technical contracts (including a linked Issue #) and drafts
-    so sessions resume without re-explaining context.
+  - *session-start* — reports compact approved/draft counts and, only for one unambiguous Issue
+    number in the current branch, the matching current spec.
 - **Subagents:** `repo-explorer` (read-only scan), `code-reviewer` (diff vs the spec's acceptance
   criteria), `pr-reviewer` (GitHub review publishing and maintenance), `issue-manager`,
   `issue-refiner`, `roadmap-planner` (confirmation-gated GitHub Issue workflows), and `dep-auditor`

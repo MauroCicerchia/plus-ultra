@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: 24
       - run: node --test tests/*.test.mjs
+      - run: node scripts/check-context-budget.mjs
       - run: node scripts/validate-packaging.mjs
       - run: npm install --global @anthropic-ai/claude-code@2.1.236
       - run: claude plugin validate .

@@ -109,35 +109,111 @@ function denialReason(output) {
   return JSON.parse(output).hookSpecificOutput.permissionDecisionReason;
 }
 
-test("session-start emits Codex additional context JSON", () => {
+function sessionStartPayload(cwd) {
+  return {
+    hook_event_name: "SessionStart",
+    cwd,
+    model: "gpt-5.5",
+    permission_mode: "default",
+    session_id: "session-1",
+    transcript_path: null,
+    turn_id: "turn-1",
+  };
+}
+
+function sessionStartContext(cwd) {
+  const stdout = runHook("session-start.mjs", sessionStartPayload(cwd), { cwd });
+  return stdout ? JSON.parse(stdout).hookSpecificOutput.additionalContext : "";
+}
+
+test("session-start emits compact Codex context for unrelated active specs", () => {
   const cwd = makeTempProject();
   try {
-    const stdout = runHook(
-      "session-start.mjs",
-      {
-        hook_event_name: "SessionStart",
-        cwd,
-        model: "gpt-5.5",
-        permission_mode: "default",
-        session_id: "session-1",
-        transcript_path: null,
-        turn_id: "turn-1",
-      },
-      { cwd }
-    );
-
-    const output = JSON.parse(stdout);
-    assert.equal(output.hookSpecificOutput.hookEventName, "SessionStart");
-    const context = output.hookSpecificOutput.additionalContext;
-    assert.match(context, /Approved \(current technical contracts\):/);
-    assert.match(context, /001-linked\.md \(Issue #30\)/);
-    assert.match(context, /002-unlinked\.md/);
+    const context = sessionStartContext(cwd);
+    assert.match(context, /Approved: 3/);
+    assert.match(context, /Drafts: 0/);
+    assert.doesNotMatch(context, /001-linked\.md|002-unlinked\.md|007-commented-crlf\.md/);
     assert.doesNotMatch(context, /003-history\.md/);
     assert.doesNotMatch(context, /004-malformed\.md/);
     assert.doesNotMatch(context, /005-malformed-delimiter\.md/);
     assert.doesNotMatch(context, /006-body-frontmatter\.md/);
-    assert.match(context, /007-commented-crlf\.md \(Issue #32\)/);
-    assert.doesNotMatch(context, /In progress|active spec/i);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session-start stays silent when no approved or draft specs exist", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "plus-ultra-session-empty-"));
+  try {
+    mkdirSync(join(cwd, "specs"), { recursive: true });
+    writeFileSync(join(cwd, "specs", "001-history.md"), "---\nstatus: superseded\nissue: 30\n---\n");
+    assert.equal(sessionStartContext(cwd), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session-start selects one active spec only for an exact branch Issue match", () => {
+  const cwd = makeGitProject();
+  try {
+    mkdirSync(join(cwd, "specs"));
+    writeFileSync(join(cwd, "specs", "001-linked.md"), "---\nstatus: approved\nissue: 30\n---\n");
+    writeFileSync(join(cwd, "specs", "002-draft.md"), "---\nstatus: draft\nissue: 31\n---\n");
+    runCommand("git", ["switch", "-c", "issue-30-context"], cwd);
+
+    const context = sessionStartContext(cwd);
+    assert.match(context, /Approved: 1/);
+    assert.match(context, /Drafts: 1/);
+    assert.match(context, /Current spec: 001-linked\.md \(Issue #30, approved\)/);
+    assert.doesNotMatch(context, /002-draft\.md/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session-start never selects a spec when the Issue association is ambiguous", () => {
+  const cwd = makeGitProject();
+  try {
+    mkdirSync(join(cwd, "specs"));
+    for (const file of ["001-one.md", "002-two.md"]) {
+      writeFileSync(join(cwd, "specs", file), "---\nstatus: approved\nissue: 30\n---\n");
+    }
+    runCommand("git", ["switch", "-c", "issue-30-context"], cwd);
+
+    const context = sessionStartContext(cwd);
+    assert.match(context, /Approved: 2/);
+    assert.doesNotMatch(context, /Current spec:|001-one\.md|002-two\.md/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session-start ignores incidental branch numbers without an issue token", () => {
+  const cwd = makeGitProject();
+  try {
+    mkdirSync(join(cwd, "specs"));
+    writeFileSync(join(cwd, "specs", "001-date.md"), "---\nstatus: approved\nissue: 2026\n---\n");
+    runCommand("git", ["switch", "-c", "feature/2026-migration"], cwd);
+
+    const context = sessionStartContext(cwd);
+    assert.match(context, /Approved: 1/);
+    assert.doesNotMatch(context, /Current spec:|001-date\.md/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session-start caps injected context at one KiB", () => {
+  const cwd = makeGitProject();
+  try {
+    mkdirSync(join(cwd, "specs"));
+    const file = `${"x".repeat(200)}.md`;
+    writeFileSync(join(cwd, "specs", file), "---\nstatus: approved\nissue: 30\n---\n");
+    runCommand("git", ["switch", "-c", "issue-30-context"], cwd);
+
+    const context = sessionStartContext(cwd);
+    assert.ok(Buffer.byteLength(context, "utf8") <= 1024);
+    assert.match(context, /Current spec: /);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
