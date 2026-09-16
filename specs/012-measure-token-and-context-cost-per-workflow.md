@@ -239,4 +239,3 @@ This approved contract authorizes implementation and review on a feature branch 
 authorize merging, enabling auto-merge, pushing the default branch, publishing a release, or
 creating a tag. The implementation agent may prepare a commit and review-ready branch; a human
 owner performs any later integration manually after review.
-
