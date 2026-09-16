@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validatePackaging } from "./validate-packaging.mjs";
 
@@ -80,16 +80,35 @@ function trackedAndUnignoredPaths(root) {
 }
 
 function copyGitIncludedSource(root, destination) {
-  for (const path of trackedAndUnignoredPaths(root)) {
+  const includedPaths = trackedAndUnignoredPaths(root);
+  const includedInventory = new Set(includedPaths);
+  for (const path of includedPaths) {
     const source = resolve(root, path);
     const target = resolve(destination, path);
     if (relative(root, source).startsWith("..") || relative(destination, target).startsWith("..")) {
       fail(`Refusing unsafe Git path: ${path}`);
     }
     const stat = lstatSync(source);
-    if (!stat.isFile()) continue;
+    let copySource = source;
+    if (stat.isSymbolicLink()) {
+      copySource = realpathSync(source);
+      const targetPath = relative(root, copySource);
+      if (
+        targetPath === ".." ||
+        targetPath.startsWith(`..${sep}`) ||
+        isAbsolute(targetPath) ||
+        !lstatSync(copySource).isFile()
+      ) {
+        fail(`Refusing Git symlink outside the working tree: ${path}`);
+      }
+      if (!includedInventory.has(targetPath)) {
+        fail(`Refusing symlink outside the Git-included source inventory: ${path}`);
+      }
+    } else if (!stat.isFile()) {
+      continue;
+    }
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(source, target);
+    copyFileSync(copySource, target);
   }
 }
 

@@ -1,4 +1,14 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -26,6 +36,8 @@ function makeSource() {
   writeFileSync(join(root, "skills", "README.md"), "skills\n");
   writeFileSync(join(root, "hooks", "hooks.json"), "{}\n");
   writeFileSync(join(root, "hooks", "hooks-codex.json"), "{}\n");
+  writeFileSync(join(root, "AGENTS.md"), "shared agent instructions\n");
+  symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));
   writeFileSync(join(root, ".gitignore"), ".env\n.context/\n");
   writeFileSync(join(root, ".env"), "SECRET=do-not-copy\n");
   writeFileSync(join(root, "untracked.md"), "copy me\n");
@@ -106,6 +118,18 @@ function commandLog(path) {
     : [];
 }
 
+function assertIgnoredSymlinkTargetIsRejected(root, fake, links) {
+  for (const [path, target] of links) symlinkSync(target, join(root, path));
+  run("git", ["add", ...links.map(([path]) => path)], root);
+  run("git", ["commit", "-m", "test: add tracked symlink"], root);
+
+  const result = runLocal(root, fake, "refresh");
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /symlink.*Git-included source inventory/i);
+  assert.equal(existsSync(join(root, ".context", "codex-dev-marketplace")), false);
+  assert.deepEqual(commandLog(fake.log), [["plugin", "marketplace", "list", "--json"]]);
+}
+
 test("refresh stages only Git-included source files with a unique local version", () => {
   const root = makeSource();
   const fake = makeFakeCodex(root);
@@ -116,6 +140,11 @@ test("refresh stages only Git-included source files with a unique local version"
     assert.equal(readFileSync(join(stage, "plugins", "plus-ultra", "untracked.md"), "utf8"), "copy me\n");
     assert.equal(existsSync(join(stage, "plugins", "plus-ultra", ".env")), false);
     assert.equal(existsSync(join(stage, "plugins", "plus-ultra", ".context")), false);
+    assert.equal(lstatSync(join(stage, "plugins", "plus-ultra", "CLAUDE.md")).isFile(), true);
+    assert.equal(
+      readFileSync(join(stage, "plugins", "plus-ultra", "CLAUDE.md"), "utf8"),
+      "shared agent instructions\n"
+    );
     for (const path of [
       ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",
@@ -143,6 +172,39 @@ test("refresh stages only Git-included source files with a unique local version"
     ).version;
     assert.equal(nextVersion, "0.1.0+codex.local-20260906-010204");
     run("git", ["diff", "--exit-code"], root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink whose resolved .env target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [["ENV-LEAK.md", ".env"]]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink whose resolved .context target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [["CONTEXT-LEAK.md", ".context/private.txt"]]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("refresh rejects a tracked symlink chain whose final target is ignored", () => {
+  const root = makeSource();
+  const fake = makeFakeCodex(root);
+  try {
+    assertIgnoredSymlinkTargetIsRejected(root, fake, [
+      ["CHAIN-LEAK.md", "CHAIN-LINK.md"],
+      ["CHAIN-LINK.md", ".env"],
+    ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

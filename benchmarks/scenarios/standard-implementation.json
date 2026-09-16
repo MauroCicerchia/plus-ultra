@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "standard-implementation",
+  "title": "Add tag filtering across the reading-list CLI",
+  "fixture": "benchmarks/fixtures/reading-list",
+  "workflow": {
+    "risk": "STANDARD",
+    "tdd": true,
+    "required_source_files": [
+      "src/library.mjs",
+      "src/format.mjs",
+      "src/cli.mjs"
+    ],
+    "allowed_changes": [
+      "src/library.mjs",
+      "src/format.mjs",
+      "src/cli.mjs",
+      "test/format.test.mjs",
+      "test/library.test.mjs",
+      "test/tag-filtering.test.mjs"
+    ],
+    "required_changes": [
+      "src/library.mjs",
+      "src/format.mjs",
+      "src/cli.mjs",
+      "test/tag-filtering.test.mjs"
+    ]
+  },
+  "phases": [
+    {
+      "phase": "standard-implementation",
+      "turns": [
+        {
+          "kind": "implementation",
+          "prompt": "benchmarks/prompts/standard-implementation.md"
+        }
+      ],
+      "postconditions": [
+        {
+          "type": "file_contains",
+          "path": "test/tag-filtering.test.mjs",
+          "text": "test(\"supports repeatable normalized tags through the CLI\""
+        },
+        {
+          "type": "command",
+          "command": "node",
+          "args": [
+            "--test",
+            "test/tag-filtering.test.mjs"
+          ]
+        },
+        {
+          "type": "command",
+          "command": "node",
+          "args": [
+            "--test"
+          ]
+        },
+        {
+          "type": "command",
+          "command": "node",
+          "args": [
+            "scripts/check-postcondition.mjs",
+            "standard"
+          ],
+          "expected_stdout": "standard postcondition ok\n"
+        }
+      ]
+    }
+  ]
+}

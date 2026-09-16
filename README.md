@@ -52,6 +52,8 @@ afterward so the local plugin is loaded. Return to the released plugin with:
 node scripts/codex-local.mjs restore
 ```
 
+See [Workflow benchmarking](docs/benchmarking.md) for the manual, local-only measurement process.
+
 ## Quick start
 
 After installation, tell your coding agent which path you are taking. Superpowers supplies the core
