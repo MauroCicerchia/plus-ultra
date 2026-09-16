@@ -7,6 +7,7 @@ import {
   BenchmarkError,
   compareBenchmarks,
   inventoryBenchmark,
+  probeVerificationOutput,
   recordBenchmark,
   runBenchmark,
   validateBenchmark,
@@ -19,6 +20,7 @@ function usage() {
     "Commands:",
     "  validate",
     "  inventory",
+    "  verification-output-probe",
     "  run --model <id> --reasoning <effort> [--scenario <id>]",
     "  record --run <summary> --baseline <path>",
     "  compare --baseline <path> --candidate <path>",
@@ -60,6 +62,10 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), environ
   if (command === "inventory") {
     requireOnly(parsed, []);
     return inventoryBenchmark(root);
+  }
+  if (command === "verification-output-probe") {
+    requireOnly(parsed, []);
+    return probeVerificationOutput(root);
   }
   if (command === "run") {
     requireOnly(parsed, ["model", "reasoning", "scenario"]);

@@ -52,6 +52,7 @@ focused rediscovery update; only after its explicit human approval, resume the c
 ├── pnpm-workspace.yaml      # packages: apps/*, packages/*
 ├── biome.json               # one config for lint + format
 ├── tsconfig.base.json       # strict base extended by each workspace
+├── scripts/plus-ultra-verify.mjs # compact, traceable project-local verification
 ├── .github/workflows/ci.yml # from this skill's assets/ci.yml
 ├── apps/
 │   ├── web/                 # React + Vite + React Router + Tailwind + shadcn/ui
@@ -89,12 +90,17 @@ focused rediscovery update; only after its explicit human approval, resume the c
    companion when present for framework-specific setup, mocking, debugging, and reliability.
    Add Playwright browser E2E only when the user requests it; if selected and
    `playwright-best-practices` is available, use it for locators, isolation, fixtures, and CI.
-8. **CI** — copy [`assets/ci.yml`](../assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
+8. **Verification wrapper** — copy
+   `skills/verification/assets/plus-ultra-verify.mjs` to `scripts/plus-ultra-verify.mjs` in the
+   generated project. Keep this copy versioned with the project. Use
+   `node scripts/plus-ultra-verify.mjs test -- pnpm -r test` and
+   `node scripts/plus-ultra-verify.mjs typecheck -- pnpm -r typecheck` for the initial checks.
+9. **CI** — copy [`assets/ci.yml`](../assets/ci.yml) to `.github/workflows/ci.yml` (install → Biome
    ci → typecheck → test). Extend it with browser E2E only if Playwright was selected.
-9. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
+10. **Repo conventions** — create `specs/` and `docs/` per `plus-ultra:spec-conventions`; add a
    `.gitignore` covering `node_modules`, `dist`, `.env*` (keep `.env.example`), plus root-anchored
    entries `/.context/` and `/docs/superpowers/`.
-10. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
+11. **Agent setup note** — if the repo will be used by coding agents, add a short `AGENTS.md` or
    `docs/agent-setup.md`. State that transient workflow artifacts go in `.context/superpowers/`,
    durable specs go in `specs/`, and durable project documentation goes in `docs/`. State that
    trivial changes may skip standalone design and plan artifacts. Also name the recommended optional

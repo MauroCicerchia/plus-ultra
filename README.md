@@ -257,6 +257,8 @@ sandbox. There is no `plus-ultra:integrate` command.
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.
   - *new-project* — scaffolds the tech-stack monorepo + CI.
+  - *verification* — installs and uses a project-local wrapper for compact, traceable deterministic
+    checks, with on-demand receipts and bounded Git/GitHub inspection recipes.
   - *repo-explorer*, *code-reviewer*, *dep-auditor* — portable skill equivalents of the Claude
     subagents.
 - **Slash commands:** `/plus-ultra:spec` — list specs, create the next-numbered spec, or flip a
@@ -326,7 +328,7 @@ skills/                          portable skills (spec-conventions, spec, tech-s
                                  engineering-principles, conventional-commits,
                                  pull-request-descriptions, new-project, repo-explorer,
                                  code-reviewer, pr-review, issue-management, refine-issues,
-                                 roadmap-planning, dep-auditor) —
+                                 roadmap-planning, dep-auditor, verification) —
                                  shared by all agents
 commands/                        /plus-ultra:spec, /plus-ultra:pr-review, and Issue workflows — Claude only
 agents/                          repo-explorer, code-reviewer, pr-reviewer, Issue workflow agents,

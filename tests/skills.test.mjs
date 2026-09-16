@@ -1350,6 +1350,51 @@ test("high-context skills keep a bounded core and route detailed work to referen
   }
 });
 
+test("verification skill documents portable, bounded project-local verification", () => {
+  const skillPath = "skills/verification/SKILL.md";
+  const referencePath = "skills/verification/references/verification-operations.md";
+  const assetPath = "skills/verification/assets/plus-ultra-verify.mjs";
+
+  for (const path of [skillPath, referencePath, assetPath]) {
+    assert.ok(existsSync(join(repoRoot, path)), `${path} exists`);
+  }
+
+  const skill = readRelative(skillPath);
+  const reference = readRelative(referencePath);
+  const asset = readRelative(assetPath);
+  const frontmatter = parseFrontmatter(skill);
+  const portableContract = `${skill}\n${reference}`;
+  const normalizedReference = reference.replace(/\s+/g, " ");
+
+  assert.equal(frontmatter.name, "verification");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(frontmatter.description, /verification|test|typecheck|lint|build/i);
+  assert.match(skill, /references\/verification-operations\.md/);
+  assert.match(skill, /node scripts\/plus-ultra-verify\.mjs <label> -- <command> \[args…\]/);
+  assert.match(reference, /cp .*plus-ultra-verify\.mjs scripts\/plus-ultra-verify\.mjs/);
+  assert.match(normalizedReference, /version.*project/i);
+  assert.match(normalizedReference, /\.context\/plus-ultra\/verification/i);
+  assert.match(normalizedReference, /test.*typecheck/i);
+  assert.match(normalizedReference, /clean.*1 KiB|1 KiB.*clean/i);
+  assert.match(normalizedReference, /warning.*20 lines.*8 KiB/i);
+  assert.match(normalizedReference, /(?:failure|unknown).*80 lines.*16 KiB/i);
+  assert.match(normalizedReference, /gh .*--json/i);
+  assert.match(normalizedReference, /git status --short/i);
+  assert.match(normalizedReference, /--limit|limit/i);
+  assert.match(normalizedReference, /do not.*(?:intercept|wrap).*arbitrary.*(?:git|gh)/i);
+  assert.doesNotMatch(portableContract, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\//i, "verification skill stays portable");
+  assert.doesNotMatch(asset, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|\.\.\//i, "copyable wrapper stays self-contained");
+});
+
+test("new-project scaffolding installs the versioned verification wrapper", () => {
+  const scaffold = readRelative("skills/new-project/references/scaffold-blueprint.md");
+  assert.match(scaffold, /skills\/verification\/assets\/plus-ultra-verify\.mjs/);
+  assert.match(scaffold, /scripts\/plus-ultra-verify\.mjs/);
+  assert.match(scaffold, /copy/i);
+  assert.match(scaffold, /node scripts\/plus-ultra-verify\.mjs test -- pnpm -r test/);
+  assert.match(scaffold, /node scripts\/plus-ultra-verify\.mjs typecheck -- pnpm -r typecheck/);
+});
+
 test("human integration boundary is a durable, portable policy", () => {
   const specPath = "specs/007-require-human-approval-before-integration.md";
   const skillPath = "skills/integration-boundary/SKILL.md";
