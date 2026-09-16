@@ -1599,7 +1599,10 @@ test("run pins fake gh across login shells and prevents state redirection", () =
       .split("\n")
       .filter(Boolean)
       .map(JSON.parse);
-    assert.equal(audit.filter(([operation]) => operation === "probe").length, 3);
+    assert.equal(
+      audit.filter(([operation]) => operation === "probe").length,
+      availableShells.length
+    );
   }
 });
 
