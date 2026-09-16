@@ -90,6 +90,30 @@ contract; leave contract-dependent findings unresolved and explain that limitati
 
 ## Gather review evidence
 
+### Local compact context reducer
+
+Only when the checkout contains `scripts/context-reducers.mjs`, the reviewer may gather the
+deterministic PR metadata through this local helper before semantic review:
+
+```sh
+node scripts/context-reducers.mjs pr-review-context \
+  --repo <owner/repo> --pr <positive-integer> [--spec <NNN|slug>]
+```
+
+It reads GitHub through `gh` and emits compact JSON for the immutable base/head SHAs, closing
+Issues, changed-file statistics, remote spec index and deterministic contract resolution, plus
+tagged Plus Ultra review-state metadata. It deliberately omits patches, complete spec bodies, and
+comment bodies. When deduplication or a resolution needs one tagged comment's text, expand only
+that item with `node scripts/context-reducers.mjs comment-evidence --repo <owner/repo> --pr
+<positive-integer> --kind <inline|summary> --id <positive-integer>`.
+
+Treat a structured error, including malformed metadata, ambiguous contract resolution, incomplete
+pagination, or a stale expected head, as a stop before writes. The helper is read-only and does not
+replace the required re-fetch immediately before a mutation: re-run `pr-review-context` with
+`--expect-head <original-headRefOid>`; if `headRefOid` changed, restart contract resolution and
+review. Do not copy this helper into a consumer repository or infer a plugin-cache path when the
+checkout does not contain it; follow the standard workflow instead.
+
 1. Fetch the submitted change at the same remote-head snapshot. Prefer the GitHub API comparison
    `repos/<owner>/<repo>/compare/<baseRefOid>...<headRefOid>` and file contents at `headRefOid`.
    `gh pr diff <pull_number>` is only a visual aid: after it returns, re-fetch PR metadata and use

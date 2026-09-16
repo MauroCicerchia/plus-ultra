@@ -25,6 +25,19 @@ marketplace under `.context/`. Restore the released plugin with `node scripts/co
 For a clean manual install, add the local marketplace and then `plus-ultra@plus-ultra` using a
 temporary `CODEX_HOME` under `.context/`.
 
+## Local context reducers
+
+`scripts/context-reducers.mjs` is a Node ESM helper with no dependencies for reviewing this Plus
+Ultra checkout. `pr-review-context --repo <owner/repo> --pr <positive-integer>` performs its own
+read-only `gh` calls and emits compact JSON for the PR snapshot, remote specs, contract resolution,
+and tagged review state. Use `comment-evidence` only to expand one identified tagged comment.
+
+The helper is intentionally repository-local: do not copy it into consumer projects and do not
+derive a plugin-cache path. It returns structured errors for malformed, ambiguous, paginated, or
+stale inputs; before any review mutation, re-run it with `--expect-head <headRefOid>` and restart
+the review if the head changed. This helper does not cache semantic conclusions, suppress
+verification output, or replace the existing write guards.
+
 ## Installation and update reference
 
 Install the stable Codex plugin with `codex plugin marketplace add maurocicerchia/plus-ultra --ref main`
