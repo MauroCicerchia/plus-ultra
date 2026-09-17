@@ -549,6 +549,75 @@ test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract"
   assert.doesNotMatch(readme, /workflow-risk[^\n]*(?:command|hook|state)/i);
 });
 
+test("context handoffs define portable, reference-first phase contracts", () => {
+  const skillPath = "skills/context-handoffs/SKILL.md";
+  const operationsPath = "skills/context-handoffs/references/handoff-operations.md";
+  const specPath = "specs/015-make-plans-handoffs-and-orchestration-token-aware.md";
+  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
+  assert.ok(existsSync(join(repoRoot, operationsPath)), `${operationsPath} exists`);
+
+  const skill = readRelative(skillPath);
+  const operations = readRelative(operationsPath);
+  const contract = `${skill}\n${operations}`;
+  const normalized = contract.replace(/\s+/g, " ");
+  const frontmatter = parseFrontmatter(skill);
+  const spec = readRelative(specPath);
+
+  assert.equal(frontmatter.name, "context-handoffs");
+  assert.match(frontmatter.description, /^Use when/);
+  assert.match(spec, /^title: Make plans, handoffs, and orchestration token-aware$/m);
+  assert.match(spec, /^status: approved$/m);
+  assert.match(spec, /^issue: 67$/m);
+  assert.match(spec, /^created: 2026-09-17$/m);
+
+  for (const field of [
+    "phase",
+    "rigor",
+    "source",
+    "issue",
+    "product",
+    "spec",
+    "plan",
+    "design",
+    "scope",
+    "verification",
+    "open_decisions",
+  ]) {
+    assert.match(contract, new RegExp(`\\b${field}\\b`, "i"), `handoff declares ${field}`);
+  }
+  assert.match(normalized, /Git blob SHA.*?sha256/i);
+  assert.match(normalized, /do not.*?artifact bodies.*?transcripts.*?raw patches.*?broad logs/i);
+  assert.match(normalized, /planner.*?Issue.*?product.*?architecture.*?prior test logs/i);
+  assert.match(normalized, /implementer.*?approved spec.*?implementation plan.*?risk.*?focused files/i);
+  assert.match(normalized, /verifier.*?source snapshot.*?commands.*?risk controls.*?receipts/i);
+  assert.match(normalized, /reviewer.*?approved contract.*?remote diff.*?verification.*?finding metadata/i);
+  for (const trigger of [
+    "missing or stale reference",
+    "revision mismatch",
+    "unresolved decision",
+    "outside `scope`",
+    "risk escalation",
+    "failed or unknown verification",
+    "contract or dependency ambiguity",
+  ]) {
+    assert.match(contract, new RegExp(trigger, "i"), `contract expands for ${trigger}`);
+  }
+  assert.match(normalized, /FAST.*?localized.*?STANDARD.*?normally? scoped.*?CRITICAL.*?risk dimensions/i);
+  assert.match(normalized, /baseline guardrails/i);
+  assert.match(normalized, /resume.*?reconstruct.*?durable sources/i);
+  assert.match(normalized, /#22.*?(?:orchestration|persistence).*?(?:does not|never|no)/i);
+  assert.doesNotMatch(contract, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\/|subagents?/i);
+
+  const conventions = readRelative("skills/spec-conventions/SKILL.md").replace(/\s+/g, " ");
+  const risk = readRelative("skills/workflow-risk/SKILL.md").replace(/\s+/g, " ");
+  const verification = `${readRelative("skills/verification/SKILL.md")}\n${readRelative("skills/verification/references/verification-operations.md")}`.replace(/\s+/g, " ");
+  const review = `${readRelative("skills/pr-review/SKILL.md")}\n${readRelative("skills/pr-review/references/review-operations.md")}`.replace(/\s+/g, " ");
+  for (const consumer of [conventions, risk, verification, review]) {
+    assert.match(consumer, /context-handoffs/i, "phase guidance consumes the handoff contract");
+  }
+  assert.match(review, /context reducer.*?expand.*?identified.*?evidence|expand.*?identified.*?evidence.*?context reducer/i);
+});
+
 test("spec lifecycle links optional GitHub Issues without owning work state", () => {
   const template = readRelative("skills/spec-conventions/template.md");
   const conventions = readRelative("skills/spec-conventions/SKILL.md");

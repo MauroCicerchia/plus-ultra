@@ -26,6 +26,8 @@ Override Superpowers' default artifact paths so intermediate process documents d
 repository documentation:
 
 - Store transient brainstorming output and implementation plans under `.context/superpowers/`.
+- For a planner or implementer handoff, reference the approved spec and local plan through
+  `plus-ultra:context-handoffs`; retain paths and revisions instead of copying their contents.
 - Ensure `.gitignore` contains `/.context/` and `/docs/superpowers/` before brainstorming or planning.
 - Do not commit `.context/`; it is local agent workspace state.
 - Do not commit `docs/superpowers/`; ignore it as a compatibility path for tools using defaults.

@@ -38,6 +38,11 @@ stale inputs; before any review mutation, re-run it with `--expect-head <headRef
 the review if the head changed. This helper does not cache semantic conclusions, suppress
 verification output, or replace the existing write guards.
 
+`plus-ultra:context-handoffs` is portable policy for passing compact references between phases. It
+does not persist state or replace this reducer: #22 owns future orchestration, #23 owns risk
+classification, #63 owns progressive disclosure, and #64 owns compact PR metadata. Keep its core
+small and put detailed phase operations in its on-demand reference.
+
 ## Project-local verification wrapper
 
 Unlike the context reducer, `skills/verification/assets/plus-ultra-verify.mjs` is a consumer

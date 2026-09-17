@@ -253,6 +253,10 @@ sandbox. There is no `plus-ultra:integrate` command.
     owns future orchestration and persistence, Issue #26 owns conditional Semgrep execution, and
     Issue #35 exclusively owns UI classification. Significant UI impact prevents FAST but never
     creates a critical risk dimension.
+  - *context-handoffs* — compact, reference-first planner, implementer, verifier, and reviewer
+    transitions. It records authoritative paths and revisions, focused scope, receipts, and open
+    decisions rather than copied artifacts; #22 retains orchestration and persistence, while #23,
+    #63, and #64 retain risk classification, progressive disclosure, and compact review metadata.
   - *issue-management*, *refine-issues*, *roadmap-planning* — GitHub Issues workflows for native
     milestone → epic → story planning, raw issue refinement, and progress reporting. Remote writes
     are always proposal-first and confirmation-gated.

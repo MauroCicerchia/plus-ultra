@@ -29,6 +29,12 @@ source states, and log paths. Each summary includes the first 12 characters of t
 fingerprint (or `unknown`). Full logs exist for warnings, failures, and unknown results, not clean
 passes. A source state that cannot be captured or changed while a command runs is unverified.
 
+When verifying a `plus-ultra:context-handoffs` reference, read only the source snapshot, required
+commands, applicable risk controls, and receipts named for this phase. Record receipt references in
+the next handoff; expand to a retained log only for a failed or unknown result, source mismatch, or
+other stated expansion trigger. Do not carry product-discovery history or implementation rationale
+into verification.
+
 ## Bounded inspection recipes
 
 Use narrow, read-only queries that answer the current question instead of broad dumps:
