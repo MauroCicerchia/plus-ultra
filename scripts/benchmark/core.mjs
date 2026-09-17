@@ -283,6 +283,43 @@ function samplingValue(measurement) {
   };
 }
 
+export function assessPrRereviewReduction(baseline, candidate, target = 0.3) {
+  const baselineError = validateMeasurement(baseline);
+  if (baselineError) return baselineError;
+  const candidateError = validateMeasurement(candidate);
+  if (candidateError) return candidateError;
+  if (!Number.isFinite(target) || target < 0 || target > 1) {
+    return failure("invalid_target", "Reduction target must be between zero and one");
+  }
+  const baselineTokens = samplingValue(baseline);
+  const candidateTokens = samplingValue(candidate);
+  const selected =
+    baselineTokens.metric === "total_tokens" &&
+    candidateTokens.metric === "total_tokens" &&
+    baselineTokens.value !== null &&
+    candidateTokens.value !== null
+      ? { metric: "total_tokens", baseline: baselineTokens.value, candidate: candidateTokens.value }
+      : {
+          metric: "visible_context_bytes",
+          baseline: numericMetricValue(baseline, "visible_context_bytes"),
+          candidate: numericMetricValue(candidate, "visible_context_bytes"),
+        };
+  if (selected.baseline === null || selected.candidate === null || selected.baseline <= 0) {
+    return failure("missing_rereview_metric", "Re-review reduction requires a positive comparable metric");
+  }
+  const reduction = (selected.baseline - selected.candidate) / selected.baseline;
+  return ok(
+    deepFreeze({
+      metric: selected.metric,
+      baseline: selected.baseline,
+      candidate: selected.candidate,
+      reduction,
+      target,
+      meets_target: reduction >= target,
+    })
+  );
+}
+
 export function requiresThirdSample(firstSample, secondSample) {
   const firstResult = validatedSample(firstSample);
   if (!firstResult.ok) return firstResult;

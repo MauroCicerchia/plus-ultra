@@ -2,12 +2,14 @@
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 import {
   BenchmarkError,
   compareBenchmarks,
   inventoryBenchmark,
   probeVerificationOutput,
+  probePrRereview,
   recordBenchmark,
   runBenchmark,
   validateBenchmark,
@@ -21,6 +23,7 @@ function usage() {
     "  validate",
     "  inventory",
     "  verification-output-probe",
+    "  pr-rereview-probe --baseline <summary> --candidate <summary> [--target <ratio>]",
     "  run --model <id> --reasoning <effort> [--scenario <id>]",
     "  record --run <summary> --baseline <path>",
     "  compare --baseline <path> --candidate <path>",
@@ -66,6 +69,26 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), environ
   if (command === "verification-output-probe") {
     requireOnly(parsed, []);
     return probeVerificationOutput(root);
+  }
+  if (command === "pr-rereview-probe") {
+    requireOnly(parsed, ["baseline", "candidate", "target"]);
+    if (!parsed.baseline || !parsed.candidate) {
+      throw new BenchmarkError("missing_argument", "pr-rereview-probe requires --baseline and --candidate");
+    }
+    const target = parsed.target === undefined ? 0.3 : Number(parsed.target);
+    if (!Number.isFinite(target)) {
+      throw new BenchmarkError("invalid_target", "--target must be a numeric ratio");
+    }
+    try {
+      return probePrRereview(
+        JSON.parse(readFileSync(resolve(parsed.baseline), "utf8")),
+        JSON.parse(readFileSync(resolve(parsed.candidate), "utf8")),
+        target
+      );
+    } catch (error) {
+      if (error instanceof BenchmarkError) throw error;
+      throw new BenchmarkError("invalid_json", `Could not read probe summaries: ${error.message}`);
+    }
   }
   if (command === "run") {
     requireOnly(parsed, ["model", "reasoning", "scenario"]);

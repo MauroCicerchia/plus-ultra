@@ -9,6 +9,9 @@ import { main as reducerMain } from "../scripts/context-reducers.mjs";
 import {
   compactPrSnapshot,
   compactReviewState,
+  assessIncrementalReview,
+  encodeReviewSnapshot,
+  parseReviewSnapshot,
   indexSpecs,
   resolveContract,
 } from "../scripts/context-reducers/core.mjs";
@@ -44,7 +47,7 @@ if (args[0] === "pr" && args[1] === "view") {
   json({ number: 17, url: "https://example.invalid/example/reading-list/pull/17", state: "OPEN", baseRefName: "main", baseRefOid: nextPrBase(), headRefName: "feature/issue-101-tags", headRefOid: nextPrHead(), headRepository: { nameWithOwner: "example/reading-list" }, closingIssuesReferences: [{ number: 101, url: "https://example.invalid/issues/101" }] });
 } else if (args[0] === "api" && args[1].startsWith("repos/example/reading-list/compare/")) {
   const files = Array.from({ length: truncatedComparison ? 300 : 1 }, (_, index) => ({ filename: "src/library-" + index + ".mjs", status: "modified", additions: 2, deletions: 1, changes: 3, patch: "large raw patch" }));
-  json({ base_commit: { sha: "${"c".repeat(40)}" }, files });
+  json({ base_commit: { sha: "${"c".repeat(40)}" }, status: args[1].includes("${"b".repeat(40)}...${headOid}") ? "ahead" : "identical", files });
 } else if (args[0] === "api" && args[1] === "repos/example/reading-list/contents/specs?ref=" + head) {
   json([{ type: "file", path: "specs/001-tags.md", sha: "${"1".repeat(40)}" }]);
 } else if (args[0] === "api" && args[1] === "repos/example/reading-list/contents/specs/001-tags.md?ref=" + head) {
@@ -58,7 +61,7 @@ if (args[0] === "pr" && args[1] === "view") {
 } else if (args[0] === "api" && args[1] === "--paginate" && args[3] === "repos/example/reading-list/pulls/17/files?per_page=100") {
   json([Array.from({ length: truncatedComparison ? 301 : 1 }, (_, index) => ({ filename: "src/library-" + index + ".mjs", status: "modified", additions: 2, deletions: 1, changes: 3, patch: "large raw patch" }))]);
 } else if (args[0] === "api" && args[1] === "--paginate") {
-  json([[{ id: 201, html_url: "https://example.invalid/comments/201", user: { login: "reviewer" }, body: "<!-- plus-ultra:pr-review:summary -->\\nLong summary", updated_at: "2026-09-16T00:00:00Z" }]]);
+  json([[{ id: 201, html_url: "https://example.invalid/comments/201", user: { login: "reviewer" }, body: "<!-- plus-ultra:pr-review:summary -->\\nLong summary" + (process.env.PLUS_ULTRA_CONTEXT_REDUCER_SNAPSHOT ?? ""), updated_at: "2026-09-16T00:00:00Z" }]]);
 } else if (args[0] === "api" && args[1] === "repos/example/reading-list/pulls/comments/101") {
   json({ id: 101, url: "https://example.invalid/comments/101", author: { login: "reviewer" }, body: "<!-- plus-ultra:pr-review:inline -->\\nLong finding", updated_at: "2026-09-16T00:00:00Z" });
 } else {
@@ -371,6 +374,113 @@ test("compactReviewState retains only tagged metadata and omits comment bodies",
   });
 });
 
+test("review snapshots round-trip a canonical compact v1 payload", () => {
+  const snapshot = {
+    source: {
+      repository,
+      pull_number: 17,
+      head_oid: "a".repeat(40),
+      base: { ref: "main", oid: "c".repeat(40) },
+    },
+    contract: { path: "specs/001-tags.md", sha: "1".repeat(40) },
+    reviewed_paths: ["src/z.mjs", "src/a.mjs"],
+    findings: [
+      {
+        thread_id: "THREAD_1",
+        comment_database_id: 101,
+        path: "src/library.mjs",
+        line: 5,
+        side: "RIGHT",
+        fingerprint: "f".repeat(64),
+        status: "unresolved",
+      },
+    ],
+    evidence: [],
+  };
+  const encoded = encodeReviewSnapshot(snapshot);
+  assert.equal(encoded.ok, true);
+  assert.match(encoded.value.marker, /^<!-- plus-ultra:pr-review:snapshot:v1 [A-Za-z0-9_-]+ -->$/);
+
+  const parsed = parseReviewSnapshot(encoded.value.marker);
+  assert.deepEqual(parsed, {
+    ok: true,
+    value: {
+      ...snapshot,
+      reviewed_paths: ["src/a.mjs", "src/z.mjs"],
+    },
+  });
+
+  const oversized = encodeReviewSnapshot({
+    ...snapshot,
+    reviewed_paths: Array.from({ length: 6000 }, (_, index) => `src/${String(index).padStart(5, "0")}.mjs`),
+  });
+  assert.deepEqual(oversized, {
+    ok: false,
+    error: {
+      code: "review_snapshot_too_large",
+      message: "Review snapshot exceeds its safe summary size limit",
+    },
+  });
+});
+
+test("incremental review requires matching provenance, contract, base, and ancestry", () => {
+  const prior = {
+    source: {
+      repository,
+      pull_number: 17,
+      head_oid: "a".repeat(40),
+      base: { ref: "main", oid: "c".repeat(40) },
+    },
+    contract: { path: "specs/001-tags.md", sha: "1".repeat(40) },
+    reviewed_paths: ["src/library.mjs"],
+    findings: [],
+    evidence: [],
+  };
+  const candidate = assessIncrementalReview({
+    repository,
+    pullNumber: 17,
+    current: {
+      head_oid: "b".repeat(40),
+      base: { ref: "main", oid: "c".repeat(40) },
+      contract: { path: "specs/001-tags.md", sha: "1".repeat(40) },
+    },
+    prior,
+    comparison: {
+      status: "ahead",
+      files: [{ filename: "src/library.mjs", status: "modified", additions: 1, deletions: 1, changes: 2 }],
+    },
+  });
+  assert.deepEqual(candidate, {
+    ok: true,
+    value: {
+      disposition: "candidate",
+      reason: "eligible",
+      prior: { head_oid: "a".repeat(40), contract_sha: "1".repeat(40) },
+      delta: {
+        previous_head_oid: "a".repeat(40),
+        current_head_oid: "b".repeat(40),
+        changed_files: [{ path: "src/library.mjs", status: "modified", additions: 1, deletions: 1, changes: 2 }],
+      },
+    },
+  });
+
+  const changedContract = assessIncrementalReview({
+    repository,
+    pullNumber: 17,
+    current: {
+      head_oid: "b".repeat(40),
+      base: { ref: "main", oid: "c".repeat(40) },
+      contract: { path: "specs/001-tags.md", sha: "2".repeat(40) },
+    },
+    prior,
+    comparison: { status: "ahead", files: [] },
+  });
+  assert.deepEqual(changedContract, {
+    ok: true,
+    value: { disposition: "full", reason: "contract_changed", prior: null, delta: null },
+  });
+});
+
 test("pr-review-context fetches remote data and emits a compact provenance-preserving envelope", () => {
   const directory = fakeGhDirectory();
   try {
@@ -390,9 +500,54 @@ test("pr-review-context fetches remote data and emits a compact provenance-prese
       { path: "specs/001-tags.md", status: "approved", issue: 101, sha: "1".repeat(40) },
     ]);
     assert.equal(payload.value.contract.resolution, "closing_issue");
+    assert.deepEqual(payload.value.incremental, {
+      disposition: "full",
+      reason: "no_snapshot",
+      prior: null,
+      delta: null,
+    });
     assert.equal(payload.value.review_state.threads[0].comments[0].body, undefined);
     assert.equal(JSON.stringify(payload).includes("large raw patch"), false);
     assert.equal(JSON.stringify(payload).includes("Long finding"), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("pr-review-context emits an incremental candidate from the authenticated canonical snapshot", () => {
+  const directory = fakeGhDirectory();
+  const encoded = encodeReviewSnapshot({
+    source: {
+      repository,
+      pull_number: 17,
+      head_oid: "b".repeat(40),
+      base: { ref: "main", oid: "c".repeat(40) },
+    },
+    contract: { path: "specs/001-tags.md", sha: "1".repeat(40) },
+    reviewed_paths: ["src/library.mjs"],
+    findings: [],
+    evidence: [],
+  });
+  assert.equal(encoded.ok, true);
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [reducerCli, "pr-review-context", "--repo", repository, "--pr", "17"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+          PLUS_ULTRA_CONTEXT_REDUCER_SNAPSHOT: `\\n${encoded.value.marker}`,
+        },
+      }
+    );
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.value.incremental.disposition, "candidate");
+    assert.equal(payload.value.incremental.reason, "eligible");
+    assert.equal(payload.value.incremental.delta.previous_head_oid, "b".repeat(40));
+    assert.equal(payload.value.incremental.delta.current_head_oid, headOid);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

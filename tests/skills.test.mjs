@@ -965,6 +965,10 @@ test("local context reducers remain optional and preserve PR-review freshness", 
   assert.match(operations, /only when.*checkout.*contains|checkout.*contains.*only when/i);
   assert.match(operations, /headRefOid.*changed.*restart|changed.*headRefOid.*restart/i);
   assert.match(operations, /comment-evidence/);
+  assert.match(operations, /plus-ultra:pr-review:snapshot:v1/);
+  assert.match(operations, /incremental.*candidate|candidate.*incremental/i);
+  assert.match(operations, /unresolved.*fresh evidence|fresh evidence.*unresolved/i);
+  assert.match(operations, /ambiguous.*dependency.*full review|full review.*ambiguous.*dependency/i);
   assert.match(maintainerGuide, /context-reducers/i);
   assert.match(maintainerGuide, /no dependencies/i);
 });
