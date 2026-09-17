@@ -107,6 +107,15 @@ comment bodies. When deduplication or a resolution needs one tagged comment's te
 that item with `node scripts/context-reducers.mjs comment-evidence --repo <owner/repo> --pr
 <positive-integer> --kind <inline|summary> --id <positive-integer>`.
 
+When the envelope contains `incremental.disposition: "candidate"`, it identifies an authenticated
+reviewer's prior canonical snapshot, the unchanged approved contract, and the remote delta from
+that immutable reviewed head. Read the delta, then obtain fresh evidence for every unresolved finding
+at the current head before resolving it. Reuse only bookkeeping and conclusions for surfaces that
+are demonstrably unaffected. Ambiguous dependency impact requires a full review. A `full`
+disposition—including missing, malformed, foreign-author, base-changed,
+contract-changed, or non-ancestral snapshot state—requires the normal full review. Limited reviews
+and reviews without an approved contract are always full.
+
 Treat a structured error, including malformed metadata, ambiguous contract resolution, incomplete
 pagination, or a stale expected head, as a stop before writes. The helper is read-only and does not
 replace the required re-fetch immediately before a mutation: re-run `pr-review-context` with
@@ -170,6 +179,20 @@ it changed. In addition, only resolve a tagged thread when its review comment wa
 authenticated reviewer; leave other authors’ threads untouched and report that skip. In a limited
 review, resolve only findings whose evidence does not depend on a contract. Resolve with the GraphQL
 `resolveReviewThread` mutation and report the thread ID.
+
+For a contractual review, prepare a compact v1 snapshot after completing the current-head review:
+repository, PR number, remote head and base ref/SHA, selected contract path/SHA, every reviewed
+path, compact finding anchors/fingerprints, and only reusable evidence hashes. Sort equivalent
+collections deterministically; never copy comment bodies, patches, test logs, or local paths. Encode
+the canonical JSON as base64url on exactly one hidden line:
+
+```text
+<!-- plus-ultra:pr-review:snapshot:v1 <base64url-json> -->
+```
+
+Keep the line below the safe comment-size cap. If it cannot fit or cannot be validated, publish the
+normal summary without it and report that the next re-review must be full. Do not reuse another
+author's snapshot.
 
 ## Publish and update the summary
 
@@ -252,7 +275,9 @@ comments created by the authenticated reviewer. Update the most recently updated
 comment as the canonical comment; otherwise create it via `issues/comments`. Do not create a new
 summary marker comment on every run. Leave untagged comments and other authors' marker comments
 alone, reporting any existing duplicate marker comments as an ambiguity. Use `gh api` for these
-calls and report the comment ID and whether it was created or updated.
+calls and report the comment ID and whether it was created or updated. After the required remote-head
+re-fetch succeeds, write or replace the single snapshot line in that same canonical summary so it
+represents exactly the reviewed `headRefOid`; never retain a stale snapshot line.
 
 ## Final report
 

@@ -13,12 +13,64 @@ import {
   fetchReviewThreads,
   fetchSummaryComments,
 } from "./context-reducers/github.mjs";
-import { compactPrSnapshot, compactReviewState, indexSpecs, resolveContract } from "./context-reducers/core.mjs";
+import {
+  assessIncrementalReview,
+  compactPrSnapshot,
+  compactReviewState,
+  indexSpecs,
+  parseReviewSnapshot,
+  resolveContract,
+} from "./context-reducers/core.mjs";
 
 const validRepository = (value) => typeof value === "string" && /^[^/\s]+\/[^/\s]+$/.test(value);
 const validSha = (value) => typeof value === "string" && /^[0-9a-f]{40}$/i.test(value);
 const validPositiveInteger = (value) => /^\d+$/.test(value) && Number(value) > 0;
 const failure = (code, message) => ({ ok: false, error: { code, message } });
+const fullIncremental = (reason) => ({
+  ok: true,
+  value: { disposition: "full", reason, prior: null, delta: null },
+});
+
+function snapshotMarkerFromSummary(summary) {
+  if (typeof summary?.body !== "string") return null;
+  const markers = summary.body.match(/<!-- plus-ultra:pr-review:snapshot:v1 [A-Za-z0-9_-]+ -->/g) ?? [];
+  return markers.length === 1 ? markers[0] : markers.length === 0 ? null : false;
+}
+
+function incrementalReview(input) {
+  const candidates = input.summaries
+    .filter(
+      (summary) =>
+        typeof summary?.body === "string" &&
+        summary.body.startsWith("<!-- plus-ultra:pr-review:summary -->") &&
+        summary.user?.login === input.reviewer.login
+    )
+    .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)) || right.id - left.id);
+  const summary = candidates[0];
+  if (!summary) return fullIncremental("no_snapshot");
+  const marker = snapshotMarkerFromSummary(summary);
+  if (marker === null) return fullIncremental("no_snapshot");
+  if (marker === false) return fullIncremental("invalid_snapshot");
+  const parsed = parseReviewSnapshot(marker);
+  if (!parsed.ok) return fullIncremental("invalid_snapshot");
+  if (!input.contract) return fullIncremental("no_contract");
+  const comparison =
+    parsed.value.source.head_oid === input.snapshot.source.head_oid
+      ? { status: "identical", files: [] }
+      : fetchComparison(input.repository, parsed.value.source.head_oid, input.snapshot.source.head_oid);
+  if (!comparison.ok && comparison.ok !== undefined) return comparison;
+  return assessIncrementalReview({
+    repository: input.repository,
+    pullNumber: input.pullNumber,
+    current: {
+      head_oid: input.snapshot.source.head_oid,
+      base: input.snapshot.pr.base,
+      contract: input.contract,
+    },
+    prior: parsed.value,
+    comparison: comparison.value ?? comparison,
+  });
+}
 
 function parseOptions(args, allowed) {
   const options = {};
@@ -110,6 +162,15 @@ function reviewContext(input) {
   if (!threads.ok) return threads;
   const summaries = fetchSummaryComments(input.repository, input.pullNumber);
   if (!summaries.ok) return summaries;
+  const incremental = incrementalReview({
+    repository: input.repository,
+    pullNumber: input.pullNumber,
+    snapshot: snapshot.value,
+    contract: contract.value.contract,
+    reviewer: reviewer.value,
+    summaries: summaries.value,
+  });
+  if (!incremental.ok) return incremental;
   const reviewState = compactReviewState({
     repository: input.repository,
     pullNumber: input.pullNumber,
@@ -126,6 +187,7 @@ function reviewContext(input) {
       pr: snapshot.value.pr,
       specs: index.value.specs,
       contract: contract.value,
+      incremental: incremental.value,
       review_state: {
         reviewer: reviewState.value.reviewer,
         threads: reviewState.value.threads,

@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   aggregateMeasurements,
+  assessPrRereviewReduction,
   assessComparability,
   calculateBudgets,
   canonicalSha256,
@@ -29,7 +30,7 @@ import {
   requiresThirdSample,
   sanitizeBaseline,
 } from "../scripts/benchmark/core.mjs";
-import { runBenchmark } from "../scripts/benchmark/runner.mjs";
+import { probePrRereview, runBenchmark } from "../scripts/benchmark/runner.mjs";
 
 const exact = (value) => ({ value, label: "exact" });
 const observed = (value) => ({ value, label: "observed" });
@@ -101,6 +102,75 @@ test("parseJsonl parses valid records and ignores blank lines", () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.value.map(({ type }) => type), ["thread.started", "turn.started"]);
+});
+
+test("assessPrRereviewReduction prefers exact total tokens and reports the 30 percent target", () => {
+  const result = assessPrRereviewReduction(
+    sample({ input_tokens: exact(1000), output_tokens: exact(100), visible_context_bytes: observed(900) }),
+    sample({ input_tokens: exact(700), output_tokens: exact(70), visible_context_bytes: observed(800) })
+  );
+
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      metric: "total_tokens",
+      baseline: 1100,
+      candidate: 770,
+      reduction: 0.3,
+      target: 0.3,
+      meets_target: true,
+    },
+  });
+});
+
+test("probePrRereview compares only matched re-review summaries", () => {
+  const control = baseline({
+    phases: [{ phase: "pr-re-review", aggregate: sample({ input_tokens: exact(1000), output_tokens: exact(100) }) }],
+  });
+  const candidate = baseline({
+    phases: [{ phase: "pr-re-review", aggregate: sample({ input_tokens: exact(700), output_tokens: exact(70) }) }],
+  });
+  assert.deepEqual(probePrRereview(control, candidate), {
+    metric: "total_tokens",
+    baseline: 1100,
+    candidate: 770,
+    reduction: 0.3,
+    target: 0.3,
+    meets_target: true,
+  });
+});
+
+test("benchmark CLI reports the manual PR re-review probe target", () => {
+  const directory = mkdtempSync(join(tmpdir(), "plus-ultra-rereview-probe-"));
+  try {
+    const controlPath = join(directory, "control.json");
+    const candidatePath = join(directory, "candidate.json");
+    writeFileSync(
+      controlPath,
+      JSON.stringify(
+        baseline({
+          phases: [{ phase: "pr-re-review", aggregate: sample({ input_tokens: exact(1000), output_tokens: exact(100) }) }],
+        })
+      )
+    );
+    writeFileSync(
+      candidatePath,
+      JSON.stringify(
+        baseline({
+          phases: [{ phase: "pr-re-review", aggregate: sample({ input_tokens: exact(700), output_tokens: exact(70) }) }],
+        })
+      )
+    );
+    const result = spawnSync(
+      process.execPath,
+      [benchmarkCli, "pr-rereview-probe", "--baseline", controlPath, "--candidate", candidatePath],
+      { encoding: "utf8" }
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).meets_target, true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("parseJsonl reports malformed JSON with its source line", () => {

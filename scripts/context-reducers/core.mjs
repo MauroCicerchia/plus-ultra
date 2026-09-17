@@ -27,6 +27,178 @@ function validPositiveInteger(value) {
   return Number.isInteger(value) && value > 0;
 }
 
+const snapshotMarkerPrefix = "<!-- plus-ultra:pr-review:snapshot:v1 ";
+const snapshotMarkerSuffix = " -->";
+const snapshotMaximumBytes = 48 * 1024;
+
+function validSnapshotPath(value) {
+  return typeof value === "string" && value.length > 0 && !value.includes("\n");
+}
+
+function validFingerprint(value) {
+  return typeof value === "string" && /^[0-9a-f]{64}$/i.test(value);
+}
+
+function canonicalReviewSnapshot(input) {
+  const source = input?.source;
+  if (
+    !validRepository(source?.repository) ||
+    !validPositiveInteger(source?.pull_number) ||
+    !validSha(source?.head_oid) ||
+    typeof source?.base?.ref !== "string" ||
+    source.base.ref.length === 0 ||
+    !validSha(source.base.oid) ||
+    !/^specs\/\d{3}-.+\.md$/.test(input?.contract?.path) ||
+    !validSha(input.contract.sha) ||
+    !Array.isArray(input.reviewed_paths) ||
+    !Array.isArray(input.findings) ||
+    !Array.isArray(input.evidence)
+  ) {
+    return failure("invalid_review_snapshot", "Review snapshot has invalid provenance or structure");
+  }
+  const paths = [...input.reviewed_paths];
+  if (!paths.every(validSnapshotPath) || new Set(paths).size !== paths.length) {
+    return failure("invalid_review_snapshot", "Review snapshot paths must be unique non-empty strings");
+  }
+  const findings = [];
+  for (const finding of input.findings) {
+    if (
+      !finding ||
+      !validId(finding.thread_id) ||
+      !validPositiveInteger(finding.comment_database_id) ||
+      !validSnapshotPath(finding.path) ||
+      !Number.isInteger(finding.line) ||
+      finding.line < 1 ||
+      typeof finding.side !== "string" ||
+      !validFingerprint(finding.fingerprint) ||
+      !["unresolved", "resolved"].includes(finding.status)
+    ) {
+      return failure("invalid_review_snapshot", "Review snapshot finding has invalid provenance");
+    }
+    findings.push({
+      thread_id: finding.thread_id,
+      comment_database_id: finding.comment_database_id,
+      path: finding.path,
+      line: finding.line,
+      side: finding.side,
+      fingerprint: finding.fingerprint.toLowerCase(),
+      status: finding.status,
+    });
+  }
+  if (new Set(findings.map(({ thread_id }) => String(thread_id))).size !== findings.length) {
+    return failure("invalid_review_snapshot", "Review snapshot findings must have unique threads");
+  }
+  const evidence = [];
+  for (const item of input.evidence) {
+    if (
+      !item ||
+      typeof item.kind !== "string" ||
+      item.kind.length === 0 ||
+      !validFingerprint(item.sha256) ||
+      !validSha(item.source_oid)
+    ) {
+      return failure("invalid_review_snapshot", "Review snapshot evidence has invalid provenance");
+    }
+    evidence.push({ kind: item.kind, sha256: item.sha256.toLowerCase(), source_oid: item.source_oid });
+  }
+  return ok({
+    source: {
+      repository: source.repository,
+      pull_number: source.pull_number,
+      head_oid: source.head_oid,
+      base: { ref: source.base.ref, oid: source.base.oid },
+    },
+    contract: { path: input.contract.path, sha: input.contract.sha },
+    reviewed_paths: paths.sort((left, right) => left.localeCompare(right)),
+    findings: findings.sort((left, right) => String(left.thread_id).localeCompare(String(right.thread_id))),
+    evidence: evidence.sort((left, right) => `${left.kind}:${left.sha256}`.localeCompare(`${right.kind}:${right.sha256}`)),
+  });
+}
+
+export function encodeReviewSnapshot(input) {
+  const canonical = canonicalReviewSnapshot(input);
+  if (!canonical.ok) return canonical;
+  const encoded = Buffer.from(JSON.stringify(canonical.value), "utf8").toString("base64url");
+  const marker = `${snapshotMarkerPrefix}${encoded}${snapshotMarkerSuffix}`;
+  if (Buffer.byteLength(marker, "utf8") > snapshotMaximumBytes) {
+    return failure("review_snapshot_too_large", "Review snapshot exceeds its safe summary size limit");
+  }
+  return ok({ marker, snapshot: canonical.value });
+}
+
+export function parseReviewSnapshot(marker) {
+  if (typeof marker !== "string" || !marker.startsWith(snapshotMarkerPrefix) || !marker.endsWith(snapshotMarkerSuffix)) {
+    return failure("invalid_review_snapshot", "Review summary does not contain a v1 snapshot marker");
+  }
+  if (Buffer.byteLength(marker, "utf8") > snapshotMaximumBytes) {
+    return failure("review_snapshot_too_large", "Review snapshot exceeds its safe summary size limit");
+  }
+  const encoded = marker.slice(snapshotMarkerPrefix.length, -snapshotMarkerSuffix.length);
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded)) {
+    return failure("invalid_review_snapshot", "Review snapshot encoding is invalid");
+  }
+  try {
+    const decoded = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    const canonical = canonicalReviewSnapshot(decoded);
+    if (!canonical.ok) return canonical;
+    if (Buffer.from(JSON.stringify(canonical.value), "utf8").toString("base64url") !== encoded) {
+      return failure("invalid_review_snapshot", "Review snapshot is not canonically encoded");
+    }
+    return canonical;
+  } catch {
+    return failure("invalid_review_snapshot", "Review snapshot payload is invalid");
+  }
+}
+
+function fullIncrementalReview(reason) {
+  return ok({ disposition: "full", reason, prior: null, delta: null });
+}
+
+export function assessIncrementalReview(input) {
+  const prior = canonicalReviewSnapshot(input?.prior);
+  if (!prior.ok) return fullIncrementalReview("invalid_snapshot");
+  const current = input?.current;
+  if (!validRepository(input?.repository) || !validPositiveInteger(input?.pullNumber) || !validSha(current?.head_oid)) {
+    return fullIncrementalReview("invalid_current_snapshot");
+  }
+  if (prior.value.source.repository !== input.repository || prior.value.source.pull_number !== input.pullNumber) {
+    return fullIncrementalReview("snapshot_provenance_mismatch");
+  }
+  if (
+    current.base?.ref !== prior.value.source.base.ref ||
+    current.base?.oid !== prior.value.source.base.oid
+  ) {
+    return fullIncrementalReview("base_changed");
+  }
+  if (
+    current.contract?.path !== prior.value.contract.path ||
+    current.contract?.sha !== prior.value.contract.sha
+  ) {
+    return fullIncrementalReview("contract_changed");
+  }
+  const comparison = input.comparison;
+  if (!comparison || !["ahead", "identical"].includes(comparison.status) || !Array.isArray(comparison.files)) {
+    return fullIncrementalReview("history_not_ancestral");
+  }
+  const changedFiles = [];
+  for (const file of comparison.files) {
+    const compact = compactChangedFile(file);
+    if (!compact.ok) return fullIncrementalReview("invalid_delta");
+    changedFiles.push(compact.value);
+  }
+  changedFiles.sort((left, right) => left.path.localeCompare(right.path));
+  return ok({
+    disposition: "candidate",
+    reason: "eligible",
+    prior: { head_oid: prior.value.source.head_oid, contract_sha: prior.value.contract.sha },
+    delta: {
+      previous_head_oid: prior.value.source.head_oid,
+      current_head_oid: current.head_oid,
+      changed_files: changedFiles,
+    },
+  });
+}
+
 function frontmatter(path, content) {
   if (typeof content !== "string") {
     return failure("malformed_spec", `${path} must contain Markdown text`);

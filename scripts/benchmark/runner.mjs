@@ -31,6 +31,7 @@ import {
 
 import {
   aggregateMeasurements,
+  assessPrRereviewReduction,
   assessComparability,
   calculateBudgets,
   canonicalSha256,
@@ -1427,6 +1428,44 @@ function identity(value, phase) {
     operating_system: value.environment?.operating_system,
     architecture: value.environment?.architecture,
   };
+}
+
+export function probePrRereview(baseline, candidate, target = 0.3) {
+  const baselinePhase = baseline?.phases?.find(({ phase }) => phase === "pr-re-review");
+  const candidatePhase = candidate?.phases?.find(({ phase }) => phase === "pr-re-review");
+  if (!baselinePhase?.aggregate || !candidatePhase?.aggregate) {
+    fail("missing_phase", "PR re-review probe requires pr-re-review aggregates in both summaries");
+  }
+  const baselineIdentity = identity(baseline, "pr-re-review");
+  const candidateIdentity = identity(candidate, "pr-re-review");
+  const inputComparable = assessComparability(baselineIdentity, candidateIdentity, "input_tokens");
+  const outputComparable = assessComparability(baselineIdentity, candidateIdentity, "output_tokens");
+  const visibleComparable = assessComparability(
+    baselineIdentity,
+    candidateIdentity,
+    "visible_context_bytes"
+  );
+  const exactTotals =
+    baselinePhase.aggregate.input_tokens?.label === "exact" &&
+    baselinePhase.aggregate.output_tokens?.label === "exact" &&
+    candidatePhase.aggregate.input_tokens?.label === "exact" &&
+    candidatePhase.aggregate.output_tokens?.label === "exact" &&
+    [
+      baselinePhase.aggregate.input_tokens.value,
+      baselinePhase.aggregate.output_tokens.value,
+      candidatePhase.aggregate.input_tokens.value,
+      candidatePhase.aggregate.output_tokens.value,
+    ].every((value) => typeof value === "number" && Number.isFinite(value));
+  const comparable = exactTotals ? inputComparable.comparable && outputComparable.comparable : visibleComparable.comparable;
+  if (!comparable) {
+    const drift = exactTotals
+      ? [...new Set([...inputComparable.drift, ...outputComparable.drift])]
+      : visibleComparable.drift;
+    fail("environment_drift", `PR re-review probe inputs are not comparable: ${drift.join(", ")}`);
+  }
+  const result = assessPrRereviewReduction(baselinePhase.aggregate, candidatePhase.aggregate, target);
+  if (!result.ok) fail(result.error.code, result.error.message);
+  return result.value;
 }
 
 export function compareBenchmarks(baselinePath, candidatePath) {

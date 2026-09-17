@@ -125,6 +125,24 @@ state stale.
 This diagnostic is deliberately outside the canonical suite. It does not add a scenario or phase,
 does not affect suite hashes or baseline comparability, and cannot be recorded as workflow data.
 
+### PR re-review A/B probe
+
+Measure the same small-fix `pr-review-cycle` re-review with a control plugin built from an explicit
+baseline Git SHA and with the candidate plugin, using the same model, reasoning effort, Codex
+version, and benchmark inputs. Run the two diagnostic `pr-review-cycle` samples separately, retain
+their local summaries, then compare them without adding a CI gate:
+
+```sh
+node scripts/benchmark-workflows.mjs pr-rereview-probe \
+  --baseline .context/benchmarks/<control-run>/summary.json \
+  --candidate .context/benchmarks/<candidate-run>/summary.json
+```
+
+The probe rejects unmatched model, reasoning, Codex version, suite, or scenario identities. It uses
+exact `input_tokens + output_tokens` when both runs provide them; otherwise it reports observed
+`visible_context_bytes`. Its result includes `reduction`, a `0.3` target, and `meets_target`; raw
+control and candidate artifacts remain under `.context/benchmarks/`.
+
 ## Run and adaptive sampling
 
 Run the complete canonical suite explicitly:
