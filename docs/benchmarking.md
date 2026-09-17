@@ -106,6 +106,25 @@ The descending ranking covers `AGENTS.md`, session-start injection, invoked skil
 artifacts, prompts, fake tool payloads, and verification/review outputs. Each contributor retains
 its observed or estimated label; its byte count is a context proxy, not token accounting.
 
+### Verification-output A/B probe
+
+Measure the deterministic direct-versus-wrapper success-output corpus with:
+
+```sh
+node scripts/benchmark-workflows.mjs verification-output-probe
+```
+
+The probe creates a temporary Git fixture, runs the same deterministic TAP-emitting verification
+directly and through `skills/verification/assets/plus-ultra-verify.mjs`, then compares their
+model-visible UTF-8 byte counts. It reports observed bytes, bytes removed, and the reduction ratio.
+It requires no model run, network access, or project checkout; it is not a claim of exact token
+usage. The wrapper projection must stay at or below 1 KiB and reduce the direct visible-byte proxy
+by at least 80%. The fixture ignores `.context/`, so the wrapper receipt cannot make its own source
+state stale.
+
+This diagnostic is deliberately outside the canonical suite. It does not add a scenario or phase,
+does not affect suite hashes or baseline comparability, and cannot be recorded as workflow data.
+
 ## Run and adaptive sampling
 
 Run the complete canonical suite explicitly:

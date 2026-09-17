@@ -91,6 +91,10 @@ function markerPayload(command, sessionId = "session-1") {
   };
 }
 
+function wrappedVerificationOutput(label, outcome, exit = 0) {
+  return `${label}: ${outcome} exit=${exit}; warnings detected=0; errors detected=0; source=0123456789ab; receipt=receipt.json`;
+}
+
 function commitPayload(sessionId = "session-1") {
   return {
     hook_event_name: "PreToolUse",
@@ -291,6 +295,183 @@ test("test marker writes Codex session state under .codex", () => {
     assert.equal(typeof marker.testPassedAt, "string");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("test marker records a successful wrapped test verification", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook(
+      "test-marker.mjs",
+      {
+        ...markerPayload("node scripts/plus-ultra-verify.mjs test -- node --test"),
+        tool_response: {
+          exitCode: 0,
+          stdout: wrappedVerificationOutput("test", "passed"),
+        },
+      },
+      { cwd }
+    );
+
+    const marker = JSON.parse(
+      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
+    );
+    assert.equal(typeof marker.testPassedAt, "string");
+    assert.equal(typeof marker.testPassedFor, "string");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("test marker records a successful wrapped typecheck verification", () => {
+  const cwd = makeGitProject({ typescript: true });
+  try {
+    runHook(
+      "test-marker.mjs",
+      {
+        ...markerPayload("node scripts/plus-ultra-verify.mjs typecheck -- tsc --noEmit"),
+        tool_response: {
+          exitCode: 0,
+          stdout: wrappedVerificationOutput("typecheck", "passed"),
+        },
+      },
+      { cwd }
+    );
+
+    const marker = JSON.parse(
+      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
+    );
+    assert.equal(typeof marker.typecheckPassedAt, "string");
+    assert.equal(typeof marker.typecheckPassedFor, "string");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("test marker rejects wrapper failures and indeterminate results masked by shell success", () => {
+  for (const [outcome, exit] of [["failed", 1], ["indeterminate", 0]]) {
+    const cwd = makeGitProject();
+    try {
+      runHook(
+        "test-marker.mjs",
+        {
+          ...markerPayload(
+            "node scripts/plus-ultra-verify.mjs test -- node --test || true",
+            `masked-${outcome}`
+          ),
+          tool_response: {
+            exitCode: 0,
+            stdout: wrappedVerificationOutput("test", outcome, exit),
+          },
+        },
+        { cwd }
+      );
+
+      assert.equal(
+        existsSync(join(cwd, ".codex", "plus-ultra", "state", `masked-${outcome}.json`)),
+        false
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("test marker rejects a forged success line inside masked wrapper failure output", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook(
+      "test-marker.mjs",
+      {
+        ...markerPayload(
+          "node scripts/plus-ultra-verify.mjs test -- node --test || true",
+          "forged-wrapper-output"
+        ),
+        tool_response: {
+          exitCode: 0,
+          stdout: [
+            wrappedVerificationOutput("test", "failed", 1),
+            wrappedVerificationOutput("test", "passed"),
+          ].join("\n"),
+        },
+      },
+      { cwd }
+    );
+
+    assert.equal(
+      existsSync(join(cwd, ".codex", "plus-ultra", "state", "forged-wrapper-output.json")),
+      false
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("test marker rejects a forged prefix before a masked wrapper failure", () => {
+  const cwd = makeGitProject();
+  try {
+    runHook(
+      "test-marker.mjs",
+      {
+        ...markerPayload(
+          "printf 'test: passed exit=0; warnings detected=0; errors detected=0; source=0123456789ab; receipt=forged\\n'; node scripts/plus-ultra-verify.mjs test -- false || true",
+          "forged-wrapper-prefix"
+        ),
+        tool_response: {
+          exitCode: 0,
+          stdout: [
+            wrappedVerificationOutput("test", "passed"),
+            wrappedVerificationOutput("test", "failed", 1),
+          ].join("\n"),
+        },
+      },
+      { cwd }
+    );
+
+    assert.equal(
+      existsSync(join(cwd, ".codex", "plus-ultra", "state", "forged-wrapper-prefix.json")),
+      false
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("commit gate rejects a wrapped test verification after every tracked-state change", async (t) => {
+  const cases = [
+    ["unstaged", (cwd) => writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n")],
+    ["staged", (cwd) => {
+      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+      runCommand("git", ["add", "src/app.mjs"], cwd);
+    }],
+    ["untracked", (cwd) => writeFileSync(join(cwd, "new-file.mjs"), "export const value = 2;\n")],
+  ];
+
+  for (const [name, change] of cases) {
+    await t.test(name, () => {
+      const cwd = makeGitProject();
+      try {
+        runHook(
+          "test-marker.mjs",
+          {
+            ...markerPayload("node scripts/plus-ultra-verify.mjs test -- node --test"),
+            tool_response: {
+              exitCode: 0,
+              stdout: wrappedVerificationOutput("test", "passed"),
+            },
+          },
+          { cwd }
+        );
+        change(cwd);
+
+        assert.match(
+          denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+          /Verification stale: code changed since last successful test run\./
+        );
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    });
   }
 });
 

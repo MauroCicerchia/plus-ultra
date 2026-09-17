@@ -17,7 +17,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import {
   basename,
   delimiter,
@@ -555,6 +555,75 @@ export function inventoryBenchmark(root = process.cwd()) {
   const ranked = rankContributors(contributors);
   if (!ranked.ok) fail(ranked.error.code, ranked.error.message);
   return { contributors: ranked.value };
+}
+
+function representativeVerificationSource() {
+  return [
+    "const rows = [",
+    '  "TAP version 13",',
+    "  ...Array.from(",
+    "    { length: 48 },",
+    '    (_, index) => `# Subtest: representative verification case ${String(index + 1).padStart(2, "0")}`',
+    "  ),",
+    "  ...Array.from(",
+    "    { length: 48 },",
+    '    (_, index) => `ok ${index + 1} - representative verification case ${String(index + 1).padStart(2, "0")}`',
+    "  ),",
+    '  "1..48",',
+    '  "# tests 48",',
+    '  "# suites 0",',
+    '  "# pass 48",',
+    '  "# fail 0",',
+    '  "# cancelled 0",',
+    '  "# skipped 0",',
+    '  "# todo 0",',
+    '  "# duration_ms 1248.640",',
+    '];\nprocess.stdout.write(`${rows.join("\\n")}\\n`);',
+  ].join("\n");
+}
+
+export function probeVerificationOutput(root = process.cwd()) {
+  const source = resolve(root);
+  const wrapper = join(source, "skills", "verification", "assets", "plus-ultra-verify.mjs");
+  if (!existsSync(wrapper)) {
+    fail("missing_verification_wrapper", "Verification-output probe requires the portable wrapper asset");
+  }
+
+  const repository = mkdtempSync(join(tmpdir(), "plus-ultra-verification-probe-"));
+  const command = [process.execPath, "scripts/representative-test.mjs"];
+  try {
+    mkdirSync(join(repository, "scripts"), { recursive: true });
+    writeFileSync(join(repository, ".gitignore"), ".context/\n");
+    writeFileSync(join(repository, "scripts", "representative-test.mjs"), representativeVerificationSource());
+    initializeFixtureRepository(repository);
+
+    const direct = run(command[0], command.slice(1), { cwd: repository });
+    if (direct.status !== 0 || direct.error) {
+      fail("verification_probe_direct_failed", "Representative direct verification did not pass");
+    }
+    const wrapped = run(process.execPath, [wrapper, "test", "--", ...command], { cwd: repository });
+    if (wrapped.status !== 0 || wrapped.error) {
+      fail("verification_probe_wrapper_failed", "Representative wrapped verification did not pass");
+    }
+
+    const directVisibleBytes = Buffer.byteLength(direct.stdout ?? "", "utf8");
+    const wrapperVisibleBytes = Buffer.byteLength(wrapped.stdout ?? "", "utf8");
+    const reducedVisibleBytes = directVisibleBytes - wrapperVisibleBytes;
+    return {
+      check: {
+        label: "test",
+        command: ["node", "scripts/representative-test.mjs"],
+        direct_exit_status: direct.status,
+        wrapper_exit_status: wrapped.status,
+      },
+      direct_visible_bytes: { value: directVisibleBytes, label: "observed" },
+      wrapper_visible_bytes: { value: wrapperVisibleBytes, label: "observed" },
+      reduced_visible_bytes: reducedVisibleBytes,
+      reduction_ratio: reducedVisibleBytes / directVisibleBytes,
+    };
+  } finally {
+    rmSync(repository, { recursive: true, force: true });
+  }
 }
 
 function initializeFixtureRepository(repository) {

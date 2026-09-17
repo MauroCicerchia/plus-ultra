@@ -52,3 +52,7 @@ test("CI runs the context budget check", () => {
   const workflow = readFileSync(join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
   assert.match(workflow, /node scripts\/check-context-budget\.mjs/);
 });
+
+test("verification skill has a bounded core budget", () => {
+  assert.equal(contextBudgets.skills.verification, 2048);
+});

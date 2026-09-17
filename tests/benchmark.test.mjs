@@ -1214,6 +1214,7 @@ function createBenchmarkRepository() {
   temporaryBenchmarkRepositories.add(root);
   mkdirSync(join(root, "hooks"), { recursive: true });
   mkdirSync(join(root, "skills", "example"), { recursive: true });
+  mkdirSync(join(root, "skills", "verification", "assets"), { recursive: true });
   mkdirSync(join(root, "specs"), { recursive: true });
   mkdirSync(join(root, "benchmarks", "fixtures", "reading-list"), { recursive: true });
   mkdirSync(join(root, "benchmarks", "prompts"), { recursive: true });
@@ -1223,6 +1224,10 @@ function createBenchmarkRepository() {
   writeFileSync(join(root, "AGENTS.md"), "fixture agent instructions\n");
   writeFileSync(join(root, "hooks", "session-start.mjs"), "// visible session context\n");
   writeFileSync(join(root, "skills", "example", "SKILL.md"), "# Example skill\n");
+  cpSync(
+    join(testRoot, "skills", "verification", "assets", "plus-ultra-verify.mjs"),
+    join(root, "skills", "verification", "assets", "plus-ultra-verify.mjs")
+  );
   writeFileSync(join(root, "specs", "fixture.md"), "# Durable artifact\n");
   writeFileSync(join(root, "benchmarks", "fixtures", "reading-list", "README.md"), "fixture\n");
   writeJson(join(root, ".codex-plugin", "plugin.json"), { name: "plus-ultra", version: "0.0.0" });
@@ -1379,6 +1384,34 @@ test("benchmark CLI validates immutable inputs and inventories ranked contributo
       "verification/review outputs",
     ])
   );
+});
+
+test("verification-output-probe measures a bounded wrapper summary against the same successful check", () => {
+  const repository = createBenchmarkRepository();
+
+  const probe = runBenchmarkCli(repository, ["verification-output-probe"]);
+
+  assert.equal(probe.status, 0, probe.stderr);
+  const result = cliJson(probe);
+  assert.deepEqual(result.check, {
+    label: "test",
+    command: ["node", "scripts/representative-test.mjs"],
+    direct_exit_status: 0,
+    wrapper_exit_status: 0,
+  });
+  assert.equal(result.direct_visible_bytes.label, "observed");
+  assert.equal(result.wrapper_visible_bytes.label, "observed");
+  assert.ok(result.direct_visible_bytes.value > 1024, "the direct transcript is representative");
+  assert.ok(
+    result.wrapper_visible_bytes.value <= 1024,
+    "the clean wrapper summary stays within its model-facing bound"
+  );
+  assert.ok(
+    result.wrapper_visible_bytes.value < result.direct_visible_bytes.value,
+    "both variants describe the same check, but the wrapper exposes less output"
+  );
+  assert.ok(result.reduction_ratio >= 0.8, "the probe requires a material output reduction");
+  assert.equal(result.reduction_ratio, result.reduced_visible_bytes / result.direct_visible_bytes.value);
 });
 
 test("validate refuses dirty source trees and stale managed development stages", () => {

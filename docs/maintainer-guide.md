@@ -38,6 +38,14 @@ stale inputs; before any review mutation, re-run it with `--expect-head <headRef
 the review if the head changed. This helper does not cache semantic conclusions, suppress
 verification output, or replace the existing write guards.
 
+## Project-local verification wrapper
+
+Unlike the context reducer, `skills/verification/assets/plus-ultra-verify.mjs` is a consumer
+template. Copy it into each project's `scripts/plus-ultra-verify.mjs` through the
+`plus-ultra:verification` skill or the new-project scaffold, then version it with that project.
+Do not make a consumer project invoke a plugin-cache path. The skill's operations reference covers
+updates, receipts, and bounded Git/GitHub inspection.
+
 ## Installation and update reference
 
 Install the stable Codex plugin with `codex plugin marketplace add maurocicerchia/plus-ultra --ref main`
