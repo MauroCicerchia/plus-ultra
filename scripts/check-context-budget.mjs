@@ -10,6 +10,7 @@ export const contextBudgets = Object.freeze({
     "design-artifacts": 4096,
     "new-project": 4096,
     verification: 2048,
+    "context-handoffs": 2048,
   }),
 });
 

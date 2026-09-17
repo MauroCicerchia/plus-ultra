@@ -123,6 +123,12 @@ replace the required re-fetch immediately before a mutation: re-run `pr-review-c
 review. Do not copy this helper into a consumer repository or infer a plugin-cache path when the
 checkout does not contain it; follow the standard workflow instead.
 
+When a `plus-ultra:context-handoffs` header is available, validate its remote base/head and contract
+revisions against this envelope before reuse. The header may retain compact scope and verification
+references, but it cannot replace the required remote-head reads. Use the context reducer first,
+then expand only identified source, contract, receipt, or finding evidence when the review question
+or an expansion trigger requires it; do not load implementer reasoning or unneeded comment bodies.
+
 1. Fetch the submitted change at the same remote-head snapshot. Prefer the GitHub API comparison
    `repos/<owner>/<repo>/compare/<baseRefOid>...<headRefOid>` and file contents at `headRefOid`.
    `gh pr diff <pull_number>` is only a visual aid: after it returns, re-fetch PR metadata and use

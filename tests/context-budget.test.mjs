@@ -39,10 +39,15 @@ test("context budget validation reports every file above its limit", () => {
       join(root, "skills", "pr-review", "SKILL.md"),
       "a".repeat(contextBudgets.skills["pr-review"] + 1)
     );
+    writeFileSync(
+      join(root, "skills", "context-handoffs", "SKILL.md"),
+      "a".repeat(contextBudgets.skills["context-handoffs"] + 1)
+    );
     const errors = validateContextBudgets(root);
-    assert.equal(errors.length, 2);
+    assert.equal(errors.length, 3);
     assert.match(errors[0], /AGENTS\.md.*2048/);
     assert.match(errors[1], /skills\/pr-review\/SKILL\.md.*4096/);
+    assert.match(errors[2], /skills\/context-handoffs\/SKILL\.md.*2048/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -55,4 +60,8 @@ test("CI runs the context budget check", () => {
 
 test("verification skill has a bounded core budget", () => {
   assert.equal(contextBudgets.skills.verification, 2048);
+});
+
+test("context-handoffs skill has a bounded core budget", () => {
+  assert.equal(contextBudgets.skills["context-handoffs"], 2048);
 });

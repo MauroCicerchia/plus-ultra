@@ -36,6 +36,9 @@ required verification: <baseline rigor plus dimension controls>
 explicit override: <none, or who/what explicitly changes level or dimensions>
 ```
 
+When a phase is handed off, `plus-ultra:context-handoffs` consumes this output as the authoritative
+rigor reference. It does not reclassify the work, remove dimensions, or lower the effective level.
+
 At `initial`, effective level normally equals the suggested level. At `pre-ship`, preserve the
 classification history: effective level is the maximum of prior and current classification, and
 dimensions accumulate. Missing prior classification must not silently infer a downgrade; say so.
