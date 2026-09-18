@@ -1,6 +1,6 @@
 {
   "name": "plus-ultra",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Issue-first harness for solo product development: product discovery, roadmap, Issue refinement, and Issue-to-PR implementation with human integration guardrails.",
   "author": {
     "name": "Mauro Cicerchia",
