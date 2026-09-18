@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refine Issue"
+  short_description: "Make a GitHub Issue ready to implement"
+  default_prompt: "Use $refine-issue to make GitHub Issue #<number> ready to implement."

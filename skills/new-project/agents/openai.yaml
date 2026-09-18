@@ -1,0 +1,4 @@
+interface:
+  display_name: "New Project"
+  short_description: "Turn an idea into an approved brief and an initialized repository"
+  default_prompt: "Use $new-project to start a new project for <describe the idea>."

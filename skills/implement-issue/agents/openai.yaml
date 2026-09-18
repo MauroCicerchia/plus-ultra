@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Issue"
+  short_description: "Take a GitHub Issue to a tested pull request ready for human review"
+  default_prompt: "Use $implement-issue to implement GitHub Issue #<number> end to end."

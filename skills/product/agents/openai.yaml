@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product"
+  short_description: "Establish or update the approved product brief"
+  default_prompt: "Use $product to establish or update this project's product brief."

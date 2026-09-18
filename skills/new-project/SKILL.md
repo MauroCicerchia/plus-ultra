@@ -1,27 +1,54 @@
 ---
 name: new-project
-description: Scaffold a new project with the Plus Ultra default TypeScript stack when the user has not selected another stack. Use when bootstrapping a new app or repository.
+description: Use when starting a new product from an incomplete idea — runs product discovery, records the approved brief, and initializes a repository that is ready for roadmap work.
 ---
 
-# plus-ultra new project scaffold
+# Start a new project
 
-Use the default stack only to fill an unstated preference; it never overrides an explicit user
-choice. Confirm the project name and whether a full monorepo or a single package is intended.
+Turn an incomplete idea into a repository that is ready to plan work in. Three steps, in order:
+discovery, then the approved brief, then a working repository.
 
-## Product discovery gate
+## 1. Product discovery
 
-Before stack selection or scaffolding, treat a greenfield project missing `docs/product.md` as
-product discovery work: invoke `$product-discovery` for initial adaptive discovery and require
-explicit human approval before stack selection. When `docs/product.md` exists, read it as the approved brief and product context;
-it informs stack selection and scaffolding. Read `docs/product.md` before scaffolding. An existing
-repository without a brief remains compatible and must never gain one implicitly. A durable
-contradiction pauses this workflow: invoke `$product-discovery` for a focused update; after explicit
-human approval, resume. Never create, edit, write, or mutate `docs/product.md` here.
+A greenfield project without `docs/product.md` is product work before it is engineering work.
+Invoke `plus-ultra:product` for initial discovery and wait for explicit human approval of the brief.
 
-## Load the scaffold blueprint
+Do not choose a stack, create files, or run an init command before that approval. If
+`docs/product.md` already exists, read it as approved context and continue.
 
-Before choosing companion capabilities, fetching current setup commands, creating the workspace,
-or verifying the result, read
-[`references/scaffold-blueprint.md`](./references/scaffold-blueprint.md). It contains the default
-layout, package and architecture boundaries, optional companion guidance, CI template, transient
-artifact rules, and exact verification steps. Use only the sections needed for the chosen scope.
+## 2. Decide only what the first commit needs
+
+From the approved brief, settle the project name, the kind of application, and the language or
+runtime. Ask about anything else only when the answer changes the first commit.
+
+Explicit user choices always win. Where the user has no opinion, prefer the smallest thing that can
+run and be tested, and leave every decision the product does not yet need — database, deployment
+target, architecture layering, component library — unmade. Adding these later is cheap; removing an
+unnecessary framework from a young codebase is not.
+
+## 3. Initialize the repository
+
+Create the workspace and give it a baseline a coding agent and a CI run can both work with:
+
+- a package manifest with `test`, `lint` or `format`, and (for typed languages) `typecheck` scripts;
+- a test runner with one real passing test;
+- a formatter or linter with its configuration;
+- a CI workflow that installs, then runs those same scripts;
+- a `README.md` stating what the product is, taken from the brief;
+- a short `AGENTS.md` pointing at `docs/product.md` and the conventions below;
+- a `.gitignore` that includes `/.context/`.
+
+Fetch current setup commands from the tools' own documentation rather than recalling flags. Follow
+`plus-ultra:conventions` for artifact locations and the first commit message.
+
+A canonical Plus Ultra template repository will replace this step in a later iteration; until then,
+build the baseline with your own judgment and keep it minimal.
+
+## 4. Verify and hand back
+
+Install, then run the project's own test and typecheck scripts and confirm they exit zero. Make the
+first commit. Report the repository location, the stack chosen, what was deliberately left out, and
+point the user at `plus-ultra:roadmap` for the first Epics and Stories.
+
+Creating the GitHub repository and pushing it is ordinary preparation work, but
+`plus-ultra:integration-boundary` still applies to everything beyond it.
