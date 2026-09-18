@@ -16,7 +16,7 @@ Idea → new-project → product → roadmap → refine-issue → implement-issu
 
 | Capability | What it does |
 | --- | --- |
-| `plus-ultra:new-project` | Runs discovery, records the approved brief and design brief, and initializes a repository from the canonical template |
+| `plus-ultra:new-project` | Runs discovery, records the approved brief and design brief, and initializes a repository — from the canonical template when the product is compatible with it |
 | `plus-ultra:product` | Owns `docs/product.md` — the approved statement of what is being built |
 | `plus-ultra:roadmap` | Turns product direction into GitHub Epics and Stories |
 | `plus-ultra:refine-issue` | Makes one Issue ready to implement: ambiguity, acceptance criteria, UI direction |

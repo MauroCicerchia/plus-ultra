@@ -23,19 +23,29 @@ not walk the human through defaults the template already owns. An explicit human
 requirement overrides the template — for the whole choice when it is incompatible, for that one
 piece when it is isolated.
 
-## Instantiate locally, with fresh history
+## Instantiate into the product root that already exists
 
-Clone shallowly into the project directory, discard the template's history, and start a new one:
+The root is not empty by the time you get here: `docs/product.md` is in it, and `DESIGN.md` too when
+the product has an interface. Cloning over that root fails, and cloning elsewhere strands the
+approved context outside the generated project. Stage the template under the transient `.context/`
+directory instead, then materialize its working-tree files into the root. From the project root:
 
 ```sh
-gh repo clone MauroCicerchia/plus-ultra-template <project-dir> -- --depth 1
-rm -rf <project-dir>/.git
-git -C <project-dir> init
+mkdir -p .context
+gh api repos/MauroCicerchia/plus-ultra-template/tarball > .context/template.tar.gz
+tar -xzf .context/template.tar.gz --strip-components=1
+rm .context/template.tar.gz
+git init -b main
 ```
 
-Do not use `gh repo create --template`: it publishes a remote repository, which
-`plus-ultra:integration-boundary` reserves for a human. The generated project must carry none of the
-template's commits.
+The tarball holds the template's tracked files and none of its commits, so `git init -b main` starts
+a genuinely fresh history on a deterministic default branch. Extraction leaves `docs/product.md` and
+`DESIGN.md` alone: the template ships neither, so nothing collides.
+
+Do not use `gh repo create --template`; it publishes a remote repository, which
+`plus-ultra:integration-boundary` reserves for a human. Do not clone and then delete a `.git`
+directory either: that needs a recursive force-delete, which Plus Ultra blocks, and this path never
+creates one.
 
 ## Customize it yourself
 
