@@ -5,8 +5,8 @@ description: Use when starting a new product from an incomplete idea — runs pr
 
 # Start a new project
 
-Turn an incomplete idea into a repository that is ready to plan work in. Three steps, in order:
-discovery, then the approved brief, then a working repository.
+Turn an incomplete idea into a repository that is ready to plan work in. Discovery first, then the
+approved brief, then a working repository.
 
 ## 1. Product discovery
 
@@ -16,7 +16,17 @@ Invoke `plus-ultra:product` for initial discovery and wait for explicit human ap
 Do not choose a stack, create files, or run an init command before that approval. If
 `docs/product.md` already exists, read it as approved context and continue.
 
-## 2. Decide only what the first commit needs
+## 2. Design discovery, only for a product with a real interface
+
+Judge from the approved brief whether the product has a meaningful user interface. A library, CLI,
+service, or data pipeline does not: skip this step, load nothing for it, and do not raise it again.
+
+When it does, hold a short adaptive conversation about durable visual direction and produce one
+human-approved `DESIGN.md` at the repository root. Follow
+[`references/design-brief.md`](./references/design-brief.md), which is the only place this material
+lives. Feature-specific UI stays where it already is, in the Issue design checkpoint.
+
+## 3. Decide only what the first commit needs
 
 From the approved brief, settle the project name, the kind of application, and the language or
 runtime. Ask about anything else only when the answer changes the first commit.
@@ -26,7 +36,7 @@ run and be tested, and leave every decision the product does not yet need — da
 target, architecture layering, component library — unmade. Adding these later is cheap; removing an
 unnecessary framework from a young codebase is not.
 
-## 3. Initialize the repository
+## 4. Initialize the repository
 
 Create the workspace and give it a baseline a coding agent and a CI run can both work with:
 
@@ -36,7 +46,8 @@ Create the workspace and give it a baseline a coding agent and a CI run can both
 - a CI workflow that installs, then runs those same scripts;
 - a `README.md` stating what the product is, taken from the brief;
 - a short `AGENTS.md` pointing at `docs/product.md` and the conventions below;
-- a `.gitignore` that includes `/.context/`.
+- a `.gitignore` that includes `/.context/`;
+- the approved `DESIGN.md` at the root, when step 2 produced one.
 
 Fetch current setup commands from the tools' own documentation rather than recalling flags. Follow
 `plus-ultra:conventions` for artifact locations and the first commit message.
@@ -44,7 +55,7 @@ Fetch current setup commands from the tools' own documentation rather than recal
 A canonical Plus Ultra template repository will replace this step in a later iteration; until then,
 build the baseline with your own judgment and keep it minimal.
 
-## 4. Verify, then stop before the remote
+## 5. Verify, then stop before the remote
 
 Install, then run the project's own test and typecheck scripts and confirm they exit zero. Make the
 first commit locally.

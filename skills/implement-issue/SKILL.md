@@ -7,14 +7,13 @@ description: Use when taking a GitHub Issue end to end — clarify what is mater
 
 Take one GitHub Issue to a pull request ready for human review, then stop. The Issue is the
 behavioural contract: its Context, Goal, and Acceptance Criteria define done. A separate spec is
-optional and usually unnecessary.
+optional.
 
-## 1. Check the Issue is a Story, then load what the work needs
+## 1. Check the Issue is a Story, then load what it needs
 
 The implementation unit is a Story. If the Issue carries `type:epic`, stop: an Epic is a container,
-not a unit of work. Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition,
-then implement one of the resulting Stories. A `type:story` Issue, or an untyped Issue in an
-existing repository, proceeds normally.
+not a unit of work. Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition.
+A `type:story` Issue, or an untyped Issue in an existing repository, proceeds normally.
 
 Read the Issue with `gh issue view <number>`, its parent if any, `docs/product.md` when present, and
 the repository areas the change touches. Do not sweep the whole repository or restate the Issue.
@@ -37,22 +36,26 @@ decision contradicts `docs/product.md`, say so and ask; do not edit the brief he
 | --- | --- | --- |
 | **Small** | Localized and understood; no material decision | implement → focused tests → PR |
 | **Normal** | Significant behaviour, or several files or modules | short plan → implement → tests → review when warranted → fix → PR |
-| **High-risk** | Auth, authorization, payments, destructive data, sensitive migration, concurrency, critical infrastructure | technical contract → plan → stronger verification → **mandatory** review → PR |
+| **High-risk** | Auth, payments, destructive data, migrations, concurrency, critical infrastructure | technical contract → plan → stronger verification → **mandatory** review → PR |
 
 Unresolved uncertainty raises depth; it never lowers it. [`references/depth.md`](./references/depth.md)
-holds each depth's controls, where to keep a design reference, and when a spec earns its cost.
+holds each depth's controls, where a design reference lives, and when a spec earns its cost.
 
 ## 4. Design checkpoint
 
-Never invent significant interface direction while coding. If the work introduces or significantly
-changes a user interface and refinement did not settle it, stop, reason about the UX, propose one
-concrete direction, and get explicit human approval before implementing it.
+Non-UI work reads nothing here. When the change touches a user interface, read root `DESIGN.md` if
+it exists: approved product-level visual context. Build consistently with it, and never change its
+product-level direction here.
+
+Never invent significant interface direction while coding. If refinement did not settle the
+interface, stop, reason about the UX, propose one concrete direction, and get explicit human
+approval before implementing it.
 
 ## 5. Plan and implement
 
-Work on a feature branch. Keep plans in `.context/`, which is local and never committed. Normal and
-high-risk work gets a written plan first. Use test-driven development where the project supports it.
-Follow the repository's own conventions over any default.
+Work on a feature branch. Keep plans in `.context/`, which is local and never committed. Use
+test-driven development where the project supports it, and follow the repository's own conventions
+over any default.
 
 When the change materially involves business rules, architecture, persistence, external
 integrations, or side-effect isolation, read the engineering principles in `plus-ultra:conventions`.
@@ -82,5 +85,4 @@ the branch, PR URL, what was verified, open assumptions, and what to review firs
 or publish a release or tag. End at **ready for review** and stop.
 
 Close with one line of harness feedback only when this Issue exposed real friction in Plus Ultra
-itself, such as a missing acceptance criterion that forced an avoidable interruption. Never file it.
-
+itself. Never file it.
