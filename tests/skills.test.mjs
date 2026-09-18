@@ -1,1527 +1,389 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
 const repoRoot = new URL("..", import.meta.url).pathname;
 
-function readRelative(path) {
+function read(path) {
   return readFileSync(join(repoRoot, path), "utf8");
 }
 
-function markdownSection(markdown, heading) {
-  const marker = `## ${heading}\n`;
-  const start = markdown.indexOf(marker);
-  assert.notEqual(start, -1, `${heading} section exists`);
-
-  const content = markdown.slice(start + marker.length);
-  const nextHeading = content.search(/^## /m);
-  return nextHeading === -1 ? content : content.slice(0, nextHeading);
+function listDir(path) {
+  try {
+    return readdirSync(join(repoRoot, path), { withFileTypes: true });
+  } catch {
+    return [];
+  }
 }
 
-function markdownSubsection(markdown, heading) {
-  const marker = `### ${heading}\n`;
-  const start = markdown.indexOf(marker);
-  assert.notEqual(start, -1, `${heading} subsection exists`);
-
-  const content = markdown.slice(start + marker.length);
-  const nextHeading = content.search(/^### /m);
-  return nextHeading === -1 ? content : content.slice(0, nextHeading);
+function frontmatter(markdown) {
+  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  assert.ok(match, "file must start with YAML frontmatter");
+  const name = match[1].match(/^name:\s*(.+)$/m);
+  const description = match[1].match(/^description:\s*(.+)$/m);
+  return { name: name?.[1].trim(), description: description?.[1].trim() };
 }
 
-function detailsBlock(markdown, label) {
-  const match = markdown.match(
-    new RegExp(`<details>\\s*<summary>${label}</summary>[\\s\\S]*?</details>`)
-  );
-  assert.ok(match, `${label} is contained in a details block`);
-  return match[0];
-}
+// The five user-facing capabilities, in workflow order.
+const CAPABILITIES = ["new-project", "product", "roadmap", "refine-issue", "implement-issue"];
+// Shared policy and helper skills the capabilities lean on.
+const SUPPORTING = ["code-review", "conventions", "integration-boundary"];
+const SKILLS = [...CAPABILITIES, ...SUPPORTING];
 
-function parseFrontmatter(markdown) {
-  const match = markdown.match(/^---\n([\s\S]*?)\n---\n/);
-  assert.ok(match, "skill has YAML frontmatter");
+test("the plugin ships exactly the reboot skill set", () => {
+  const present = listDir("skills")
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  assert.deepEqual(present, [...SKILLS].sort());
+});
 
-  return Object.fromEntries(
-    match[1]
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        const separator = line.indexOf(":");
-        assert.notEqual(separator, -1, `frontmatter line has key/value: ${line}`);
-        const key = line.slice(0, separator).trim();
-        const value = line
-          .slice(separator + 1)
-          .trim()
-          .replace(/^"(.*)"$/, "$1");
-        return [key, value];
-      })
-  );
-}
+test("every skill declares frontmatter whose name matches its directory", () => {
+  for (const skill of SKILLS) {
+    const { name, description } = frontmatter(read(`skills/${skill}/SKILL.md`));
+    assert.equal(name, skill, `skills/${skill}/SKILL.md name must match its directory`);
+    assert.ok(description && description.length > 20, `skills/${skill} needs a usable description`);
+  }
+});
 
-function skillWithReferences(name, reference) {
-  return [
-    readRelative(`skills/${name}/SKILL.md`),
-    readRelative(`skills/${name}/references/${reference}`),
-  ].join("\n");
-}
+test("each capability is reachable from Claude commands and Codex interfaces", () => {
+  for (const capability of CAPABILITIES) {
+    const command = read(`commands/${capability}.md`);
+    assert.match(command, new RegExp(`plus-ultra:${capability}`), `${capability} command must route to its skill`);
 
-function prReviewContract() {
-  return skillWithReferences("pr-review", "review-operations.md");
-}
+    const codexInterface = read(`skills/${capability}/agents/openai.yaml`);
+    assert.match(codexInterface, /display_name:/);
+    assert.match(codexInterface, new RegExp(`\\$${capability}`));
+  }
 
-function newProjectContract() {
-  return skillWithReferences("new-project", "scaffold-blueprint.md");
-}
+  const commands = listDir("commands").map((entry) => entry.name).sort();
+  assert.deepEqual(commands, CAPABILITIES.map((name) => `${name}.md`).sort());
+});
 
-test("product-discovery defines the portable, approval-gated product brief contract", () => {
-  const skillPath = "skills/product-discovery/SKILL.md";
-  const templatePath = "skills/product-discovery/assets/product.md";
-  const metadataPath = "skills/product-discovery/agents/openai.yaml";
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-  assert.ok(existsSync(join(repoRoot, templatePath)), `${templatePath} exists`);
-  assert.ok(existsSync(join(repoRoot, metadataPath)), `${metadataPath} exists`);
+test("retired subsystems leave no implementation or reference behind", () => {
+  for (const path of [
+    "benchmarks",
+    "specs",
+    "skills/pr-review",
+    "skills/context-handoffs",
+    "skills/design-artifacts",
+    "skills/verification",
+    "skills/workflow-risk",
+    "skills/spec-conventions",
+    "scripts/context-reducers.mjs",
+    "scripts/benchmark",
+    "scripts/codex-local.mjs",
+    "hooks/session-start.mjs",
+    "hooks/pr-description-reminder.mjs",
+    "agents/pr-reviewer.md",
+    "docs/benchmarking.md",
+  ]) {
+    assert.ok(!existsSync(join(repoRoot, path)), `${path} must not exist after the reboot`);
+  }
 
-  const skill = readRelative(skillPath);
-  const template = readRelative(templatePath);
-  const metadata = readRelative(metadataPath);
-  const frontmatter = parseFrontmatter(skill);
-  const normalized = skill.replace(/\s+/g, " ");
-
-  assert.equal(frontmatter.name, "product-discovery");
-  assert.match(frontmatter.description, /^Use when/);
-  assert.match(frontmatter.description, /product|discovery|brief/i);
-  assert.match(metadata, /display_name:/);
-  assert.match(metadata, /short_description:/);
-  assert.match(metadata, /default_prompt:/);
-
-  const canonicalSections = [
-    "Target user",
-    "Core problem",
-    "Current alternative",
-    "Value proposition",
-    "MVP hypothesis",
-    "Core user journeys",
-    "Non-goals",
-    "Success criteria",
-    "Product principles and constraints",
+  const retired = [
+    /plus-ultra:pr-review\b/,
+    /plus-ultra:context-handoffs/,
+    /plus-ultra:design-artifacts/,
+    /plus-ultra:verification/,
+    /plus-ultra:workflow-risk/,
+    /plus-ultra:spec-conventions/,
+    /plus-ultra:issue-management/,
+    /plus-ultra:tech-stack/,
+    /context reducer/i,
+    /verification receipt/i,
+    /review snapshot/i,
+    /token benchmark/i,
+    /plus-ultra-verify/,
   ];
-  const templateSections = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
-  assert.deepEqual(templateSections, canonicalSections, "template has exactly the canonical sections in order");
-  assert.equal((template.match(/^# Product brief$/gm) ?? []).length, 1, "template has one title");
-
-  assert.match(normalized, /initial adaptive discovery/i);
-  assert.match(normalized, /focused (?:strategic )?update/i);
-  assert.match(normalized, /read-only (?:consumption )?mode/i);
-  assert.match(normalized, /only .*?product-discovery.*?(?:may|is authorized to).*(?:create|write|strategic(?:ally)? update).*?`?docs\/product\.md`?/i);
-  assert.match(normalized, /conversation.*?(?:repository|context)|repository.*?conversation.*?context/i);
-  assert.match(normalized, /material assumptions?.*?(?:visible|label)|(?:visible|label).*?material assumptions?/i);
-  assert.match(normalized, /one (?:relevant )?decision at a time/i);
-  assert.match(normalized, /two (?:or three|-to-three|to three)|2.?3 alternatives/i);
-  assert.match(normalized, /trade-offs?/i);
-  assert.match(normalized, /recommendation/i);
-  assert.match(normalized, /challenge.*?scope.*?MVP hypothesis|MVP hypothesis.*?challenge.*?scope/i);
-  assert.match(
-    normalized,
-    /(?:complete|full).*?visible proposal.*?(?:before|prior to).*?(?:creating|create|writing|write|updating|update)/i,
-    "a complete visible proposal precedes a durable write"
-  );
-  assert.match(normalized, /explicit human approval.*?(?:before|prior to).*?(?:create|write|update)|(?:create|write|update).*?only after.*?explicit human approval/i);
-  assert.match(
-    normalized,
-    /(?:write.*?only after.*?explicit human approval|do not write.*?until approval).*?(?:declined|unapproved).*?(?:leave|keep).*?unchanged/i,
-    "approval gating links a no-write condition to unchanged durable state"
-  );
-  assert.match(normalized, /focused update.*?only.*?affected decisions/i);
-  assert.match(normalized, /preserv.*?unaffected.*?sections/i);
-  assert.match(normalized, /rewrite|replacement.*?current.state/i);
-  assert.match(normalized, /not.*?(?:append|journal|history)|(?:append|journal|history).*?not/i);
-  assert.match(normalized, /without.*?brief.*?read-only|read-only.*?without.*?brief/i);
-  assert.match(normalized, /must not create.*?implicitly|never.*?create.*?implicitly/i);
-  assert.doesNotMatch(skill, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\//i, "skill stays portable");
-});
-
-test("product-brief consumers preserve read-only ownership and pause for approved rediscovery", () => {
-  const consumers = [
-    { name: "new-project", path: "skills/new-project/SKILL.md" },
-    { name: "roadmap-planning", path: "skills/roadmap-planning/SKILL.md" },
-    { name: "refine-issues", path: "skills/refine-issues/SKILL.md" },
-    { name: "spec", path: "skills/spec/SKILL.md" },
-    { name: "spec-conventions", path: "skills/spec-conventions/SKILL.md" },
-  ];
-
-  for (const consumer of consumers) {
-    const skill = readRelative(consumer.path);
-    const normalized = skill.replace(/\s+/g, " ");
-
-    assert.match(normalized, /(?:read|consume).*?`?docs\/product\.md`?.*(?:brief|context)|(?:brief|context).*?(?:read|consume).*?`?docs\/product\.md`?/i, `${consumer.name} reads a present brief`);
-    assert.match(normalized, /(?:missing|without|absent).*?(?:brief|docs\/product\.md).*?(?:continue|compatible|normal)|(?:continue|compatible|normal).*?(?:missing|without|absent).*?(?:brief|docs\/product\.md)/i, `${consumer.name} remains compatible when the brief is absent`);
-    assert.match(normalized, /(?:must not|never|do not).*?(?:create|edit|write|mutate).*?`?docs\/product\.md`?/i, `${consumer.name} never takes ownership of the brief`);
-    assert.match(normalized, /durable contradiction.*?pause.*?\$product-discovery.*?focused.*?(?:update|rediscovery).*?explicit human approval.*?resume/i, `${consumer.name} pauses for approved focused rediscovery`);
-  }
-
-  const newProject = readRelative("skills/new-project/SKILL.md").replace(/\s+/g, " ");
-  assert.match(newProject, /greenfield.*?missing.*?docs\/product\.md.*?\$product-discovery.*?initial adaptive discovery.*?explicit human approval.*?(?:before|prior to).*?stack selection/i, "greenfield scaffolding discovers an approved brief before choosing a stack");
-  assert.match(newProject, /existing repositor(?:y|ies).*?(?:must not|never|do not).*?(?:create|edit|write).*?docs\/product\.md/i, "existing repositories do not implicitly gain a brief");
-  assert.match(newProject, /docs\/product\.md.*?exists.*?read.*?approved brief.*?product context.*?informs.*?stack.*?scaffolding/i, "an existing approved brief informs stack and scaffolding decisions");
-
-  const roadmap = readRelative("skills/roadmap-planning/SKILL.md").replace(/\s+/g, " ");
-  assert.match(roadmap, /MVP hypothesis.*?core user journeys.*?non-goals.*?success criteria.*?bound.*?milestones.*?epics.*?stories/i, "roadmaps are bounded by every required product-brief dimension");
-
-  const refiner = readRelative("skills/refine-issues/SKILL.md").replace(/\s+/g, " ");
-  assert.match(refiner, /proposed story.*?fits.*?approved direction/i, "refinement checks a story against approved product direction");
-
-  const spec = readRelative("skills/spec/SKILL.md").replace(/\s+/g, " ");
-  assert.match(spec, /new.*?(?:read|consume).*?docs\/product\.md/i, "new technical contracts consume a present brief");
-  assert.match(spec, /(?:list|link|status).*?(?:continue|do not block|compatible).*?(?:without|missing|absent).*?(?:brief|docs\/product\.md)/i, "administrative spec operations remain available without a brief");
-
-  const conventions = readRelative("skills/spec-conventions/SKILL.md").replace(/\s+/g, " ");
-  assert.match(conventions, /docs\/product\.md.*?exists.*?before.*?brainstorming.*?feature work.*?significant design/i, "product context is applied before brainstorming, feature work, and significant design");
-});
-
-test("README documents the durable product-discovery workflow", () => {
-  const readme = readRelative("README.md").replace(/\s+/g, " ");
-
-  assert.match(readme, /greenfield.*?(?:before|prior to).*?(?:stack selection|scaffolding).*?\$?product-discovery/i);
-  assert.match(readme, /only.*?product-discovery.*?(?:create|write|strategic(?:ally)? update).*?docs\/product\.md/i);
-  assert.match(readme, /existing repositor(?:y|ies).*?(?:without|missing).*?(?:brief|docs\/product\.md).*?(?:continue|compatible)/i);
-  assert.match(readme, /read-only.*?(?:roadmap|refin(?:e|ement)|spec|design|feature)/i);
-  assert.match(readme, /durable contradiction.*?focused.*?(?:rediscovery|update).*?explicit human approval/i);
-  assert.doesNotMatch(readme, /product.discovery[\s\S]{0,100}(?:hook|script|dependency|command)/i, "product-discovery documentation stays portable");
-});
-
-function designArtifactFile(path) {
-  if (path === undefined) return skillWithReferences("design-artifacts", "design-operations.md");
-  const relativePath = `skills/design-artifacts/${path}`;
-  assert.ok(existsSync(join(repoRoot, relativePath)), `${relativePath} exists`);
-  return readRelative(relativePath);
-}
-
-test("design-artifacts ships a discoverable portable skill and optional Pencil capability", () => {
-  const skill = designArtifactFile();
-  const frontmatter = parseFrontmatter(skill);
-  const metadata = designArtifactFile("agents/openai.yaml");
-  assert.equal(frontmatter.name, "design-artifacts");
-  assert.match(frontmatter.description, /^Use when/);
-  assert.match(frontmatter.description, /design|Pencil|DESIGN\.md/);
-  assert.match(skill, /plus-ultra:design-artifacts/);
-  assert.match(metadata, /display_name: "Design Artifacts"/);
-  assert.match(metadata, /short_description: ".+"/);
-  assert.match(metadata, /default_prompt: "Use \$design-artifacts /);
-  assert.match(metadata, /policy:\n  allow_implicit_invocation: true/);
-  for (const path of ["SKILL.md", "assets/design-artifact.md", "assets/DESIGN.md"]) {
-    assert.doesNotMatch(designArtifactFile(path), /Claude|Codex|CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\/|\.claude|\.codex|subagents?/i, `${path} stays portable`);
-  }
-  assert.match(skill.replace(/\s+/g, " "), /Pencil.*?optional.*?external/i);
-  for (const path of ["commands/design-artifacts.md", "hooks/design-artifacts.mjs", "scripts/design-artifacts.mjs"]) {
-    assert.ok(!existsSync(join(repoRoot, path)), `${path} is not introduced`);
+  for (const skill of SKILLS) {
+    const content = read(`skills/${skill}/SKILL.md`);
+    for (const pattern of retired) {
+      assert.doesNotMatch(content, pattern, `skills/${skill}/SKILL.md still references retired machinery`);
+    }
   }
 });
 
-test("design artifacts define typed paired manifests with explicit Issue coverage", () => {
-  const skill = designArtifactFile();
-  const contract = markdownSection(skill, "Artifact contract").replace(/\s+/g, " ");
-  const template = designArtifactFile("assets/design-artifact.md");
-  assert.match(skill, /DesignStatus = draft \| approved \| superseded/);
-  for (const declaration of [
-    "title: string", "status: DesignStatus", "issues: PositiveInteger[]",
-    "pencil: RelativePenPath", "surfaces: { id: PencilNodeId, name: string }[]",
-    "created: YYYY-MM-DD", 'supersedes?: "NNN"',
-  ]) assert.ok(skill.includes(declaration), `manifest declares ${declaration}`);
-  assert.match(contract, /designs\/NNN-slug\.md.*?designs\/NNN-slug\.pen/);
-  assert.match(contract, /highest.*?number.*?add one|maximum.*?number.*?plus one/i);
-  assert.match(contract, /relative to.*?manifest.*?directory/i);
-  assert.match(contract, /(?:no|reject).*?absolute.*?(?:traversal|\.\.)/i);
-  assert.match(contract, /explicitly.*?epic.*?(?:every|all).*?stor(?:y|ies)/i);
-  assert.match(contract, /(?:never|do not).*?infer.*?(?:remote|hierarchy)/i);
-  assert.match(contract, /positive integers/i);
-  assert.match(contract, /nonempty.*?surfaces/i);
-  assert.match(contract, /(?:unique|distinct).*?IDs/i);
-  for (const key of ["title", "status", "issues", "pencil", "surfaces", "created"]) {
-    assert.match(template, new RegExp(`^${key}:`, "m"), `template provides ${key}`);
+test("implement-issue owns the whole Issue-to-PR path", () => {
+  const skill = read("skills/implement-issue/SKILL.md");
+
+  // Material decisions escalate; only reversible details are assumed.
+  assert.match(skill, /\*\*Ask the human\*\*/);
+  assert.match(skill, /product behaviour, user-visible UX, security or\n?privacy, data shape or migration, a public or cross-service contract/);
+  assert.match(skill, /\*\*Assume and proceed\*\* only for low-impact, reversible implementation details/);
+
+  // Depth is a heuristic inside this skill, not a user-facing protocol.
+  for (const depth of ["Small", "Normal", "High-risk"]) {
+    assert.match(skill, new RegExp(`\\*\\*${depth}\\*\\*`), `depth table must contain ${depth}`);
   }
-  assert.match(template, /^status: draft$/m);
-  assert.match(template, /^issues: \[100, 101, 102\]/m);
-  assert.match(template, /^pencil: \.\/NNN-slug\.pen$/m);
-  assert.match(template, /^  - id: /m);
-  assert.match(template, /^    name: /m);
-  assert.match(template, /^# supersedes: "NNN"$/m);
-  for (const heading of ["Scope and Issue coverage", "Surfaces", "Visual decisions", "Review evidence"]) {
-    markdownSection(template, heading);
-  }
+  assert.match(skill, /Unresolved uncertainty raises depth; it never lowers it\./);
+
+  // The remaining steps of the loop.
+  assert.match(skill, /## 4\. Design checkpoint/);
+  assert.match(skill, /## 6\. Verify/);
+  assert.match(skill, /## 7\. Independent review/);
+  assert.match(skill, /plus-ultra:code-review/);
+  assert.match(skill, /plus-ultra:integration-boundary/);
+  assert.match(skill, /ready for review\*\* and stop/);
+
+  // No verification wrapper, no persisted workflow state, no mandatory handoff.
+  assert.match(skill, /do not add a verification\nwrapper/);
+  assert.doesNotMatch(skill, /handoff/i);
 });
 
-test("design resolution selects only exact approved Issue matches and never guesses ambiguity", () => {
-  const skill = designArtifactFile();
-  const resolution = markdownSection(skill, "Resolve an Issue").replace(/\s+/g, " ");
-  assert.match(skill, /DesignResolution =/);
-  for (const result of ["{ result: selected, manifest, pencil, surfaces }", "{ result: none }", "{ result: ambiguous, candidates }"]) {
-    assert.ok(skill.includes(result), `resolution declares ${result}`);
-  }
-  assert.match(resolution, /approved.*?exact.*?issues/i);
-  assert.match(resolution, /ignore.*?draft.*?superseded/i);
-  assert.match(resolution, /(?:zero|0) matches.*?none/i);
-  assert.match(resolution, /(?:one|1) match.*?selected.*?manifest.*?pencil.*?surfaces/i);
-  assert.match(resolution, /(?:multiple|two or more) matches.*?ambiguous.*?candidates.*?explicit.*?selection/i);
-  assert.match(resolution, /(?:never|do not).*?(?:guess|choose).*?recency.*?(?:filename|file order)/i);
-  assert.match(resolution, /(?:read-only|without.*?mutat)/i);
-  assert.match(resolution, /(?:without|does not require).*?Pencil/i);
+test("independent review is mandatory only for high-risk work", () => {
+  const skill = read("skills/implement-issue/SKILL.md");
+  assert.match(skill, /\*\*Mandatory\*\* for high-risk work/);
+  assert.match(skill, /For normal work use it \*\*when warranted\*\*/);
+  assert.match(skill, /Small work skips it by default/);
+
+  const depth = read("skills/implement-issue/references/depth.md");
+  assert.match(depth, /Independent review \*\*when warranted\*\*/);
+  assert.match(depth, /Independent review is \*\*mandatory\*\* and cannot be waived by confidence/);
+  assert.match(depth, /No written plan, no spec, no independent review by default/);
 });
 
-test("design approval requires verified visual evidence and a distinct explicit human decision", () => {
-  const approval = markdownSection(designArtifactFile(), "Approve a draft").replace(/\s+/g, " ");
-  assert.match(approval, /(?:\.pen|pencil).*?(?:exist|saved)/i);
-  assert.match(approval, /get_app_state.*?active.*?(?:path|file).*?(?:match|same)/i);
-  assert.match(approval, /execute.*?Get.*?(?:every|all).*?(?:surface|IDs)/i);
-  assert.match(approval, /TakeScreenshot.*?(?:every|each|all).*?surface/i);
-  assert.match(approval, /(?:show|present).*?(?:manifest|coverage).*?(?:capture|screenshot)/i);
-  assert.match(approval, /only.*?explicit human approval.*?(?:status|approved)/i);
-  assert.match(approval, /(?:request|plan).*?(?:not|never).*?approval/i);
-  assert.match(approval, /(?:declined|unapproved).*?draft.*?(?:unchanged|no.*?transition)/i);
-  assert.match(approval, /missing.*?surface.*?(?:pause|stop).*?(?:never|do not).*?(?:invent|guess)/i);
-});
-
-test("design revisions preserve the prior pair until replacement approval", () => {
-  const revision = markdownSection(designArtifactFile(), "Revise an approved design").replace(/\s+/g, " ");
-  assert.match(revision, /next.*?number.*?pair.*?draft/i);
-  assert.match(revision, /supersedes.*?(?:previous|prior|old).*?NNN/i);
-  assert.match(revision, /(?:never|do not).*?(?:modify|edit|overwrite).*?approved.*?\.pen/i);
-  assert.match(revision, /prior.*?remains approved.*?until.*?(?:replacement|revision|new).*?(?:approved|approval)/i);
-  assert.match(revision, /(?:only after|once).*?explicit human approval.*?superseded/i);
-  assert.match(revision, /(?:declined|unapproved).*?(?:prior|old).*?unchanged/i);
-  assert.match(revision, /(?:copy|duplicate).*?(?:before|then).*?(?:edit|author)/i);
-});
-
-test("Pencil outages and wrong documents pause only visual work", () => {
-  const capability = markdownSection(designArtifactFile(), "Pencil capability").replace(/\s+/g, " ");
-  assert.match(capability, /get_app_state.*?execute/);
-  assert.match(capability, /(?:unavailable|absent|missing).*?(?:wrong|incorrect).*?(?:file|document).*?pause only.*?authoring.*?review.*?approval/i);
-  assert.match(capability, /resolution.*?nonvisual.*?continue/i);
-  assert.match(capability, /(?:do not|never).*?(?:fabricate|claim|invent).*?(?:capture|screenshot|verification)/i);
-  assert.match(capability, /get_app_state.*?(?:before|prior to).*?(?:mutation|edit)/i);
-  assert.match(capability, /https:\/\/docs\.pencil\.dev\/getting-started\/ai-integration/);
-  assert.match(capability, /https:\/\/docs\.pencil\.dev\/core-concepts\/pen-files/);
-});
-
-test("design-artifacts consumes product context read-only and routes durable contradictions", () => {
-  const context = markdownSection(designArtifactFile(), "Product context").replace(/\s+/g, " ");
-  assert.match(context, /docs\/product\.md.*?exists.*?read.*?read-only/i);
-  assert.match(context, /(?:absent|missing).*?continue.*?(?:never|do not).*?create/i);
-  assert.match(context, /(?:never|do not).*?(?:create|edit|write).*?docs\/product\.md/i);
-  assert.match(context, /durable contradiction.*?pause.*?(?:\$|plus-ultra:)product-discovery.*?focused.*?explicit human approval.*?resume/i);
-});
-
-test("DESIGN.md defines reusable design rules without duplicating concrete screens", () => {
-  const skill = designArtifactFile();
-  const template = designArtifactFile("assets/DESIGN.md");
-  const designSystem = markdownSection(skill, "Maintain DESIGN.md").replace(/\s+/g, " ");
-  const headings = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
-  assert.deepEqual(headings, [
-    "Principles", "Tokens", "Typography", "Color", "Spacing and density",
-    "Components and states", "Responsive behavior", "Motion", "Accessibility",
-  ]);
-  assert.deepEqual([...template.matchAll(/^### (.+)$/gm)].map((match) => match[1]), [
-    "Primitive tokens", "Semantic tokens", "Component tokens",
-  ]);
-  assert.match(designSystem, /(?:root|root-level).*?DESIGN\.md|DESIGN\.md.*?(?:root|root-level)/i);
-  assert.match(designSystem, /assets\/DESIGN\.md/);
-  assert.match(designSystem, /reusable.*?(?:rules|principles|tokens)/i);
-  assert.match(designSystem, /(?:do not|never).*?duplicat.*?(?:screen|layout).*?\.pen/i);
-  assert.match(designSystem, /(?:show|present).*?proposal.*?explicit human approval.*?(?:write|update|creat)/i);
-  assert.match(designSystem, /(?:declined|unapproved).*?unchanged/i);
-  assert.match(designSystem, /preserv.*?unaffected/i);
-  assert.match(designSystem, /(?:does not|never).*?(?:approve|approval).*?(?:artifact|\.pen)/i);
-});
-
-test("design review is read-only and reports evidence without silently approving or repairing", () => {
-  const review = markdownSection(designArtifactFile(), "Review a design").replace(/\s+/g, " ");
-  assert.match(review, /read-only/i);
-  assert.match(review, /(?:manifest|Issue).*?(?:surface|IDs).*?DESIGN\.md/);
-  assert.match(review, /(?:finding|mismatch).*?(?:path|ID).*?evidence.*?(?:required|proposed).*?change/i);
-  assert.match(review, /(?:do not|never).*?(?:edit|mutat).*?(?:approve|status)/i);
-  assert.match(review, /(?:missing|unavailable).*?(?:evidence|Pencil).*?(?:incomplete|unverified)/i);
-});
-
-test("design resolution worked cases cover story, journey, exclusions, none, and ambiguity", () => {
-  const scenarios = markdownSection(designArtifactFile(), "Resolution examples");
-  const rows = scenarios.split("\n").filter((line) => line.startsWith("| "));
-  const row = (label) => {
-    const match = rows.find((line) => line.startsWith(`| ${label} |`));
-    assert.ok(match, `${label} example exists`);
-    return match;
-  };
-  assert.match(row("Single story"), /184.*?approved.*?\[184\].*?selected/);
-  assert.match(row("Shared journey"), /185.*?approved.*?\[180, 184, 185\].*?selected/);
-  assert.match(row("Excluded statuses"), /184.*?draft.*?superseded.*?none/);
-  assert.match(row("No match"), /186.*?approved.*?\[180, 184, 185\].*?none/);
-  assert.match(row("Ambiguous"), /184.*?approved.*?approved.*?ambiguous.*?explicit selection/);
-});
-
-test("approved spec 011 and README document the bounded design-artifact workflow", () => {
-  const specPath = "specs/011-define-pencil-backed-design-artifacts.md";
-  assert.ok(existsSync(join(repoRoot, specPath)), `${specPath} exists`);
-  const spec = readRelative(specPath);
-  const frontmatter = parseFrontmatter(spec);
-  assert.equal(frontmatter.title, "Define Pencil-backed design artifacts");
-  assert.equal(frontmatter.status, "approved");
-  assert.equal(frontmatter.issue, "16");
-  assert.match(frontmatter.created, /^\d{4}-\d{2}-\d{2}$/);
-  for (const heading of ["Problem", "Goals / Non-goals", "Acceptance criteria", "Interface contracts", "Architecture boundaries", "Functional core", "Data model", "Test plan", "Risks"]) {
-    markdownSection(spec, heading);
-  }
-  for (const issue of ["#35", "#24", "#22"]) assert.ok(spec.includes(issue), `${issue} retains its boundary`);
-  assert.match(spec, /DesignArtifactManifest/);
-  assert.match(spec, /DesignResolution/);
-  const readme = markdownSection(readRelative("README.md"), "Design artifacts").replace(/\s+/g, " ");
-  assert.match(readme, /plus-ultra:design-artifacts/);
-  assert.match(readme, /designs\/NNN-slug\.md.*?designs\/NNN-slug\.pen/);
-  assert.match(readme, /draft.*?approved.*?superseded/);
-  assert.match(readme, /issues.*?epic.*?stor(?:y|ies)/i);
-  assert.match(readme, /exact.*?approved.*?none.*?ambiguous.*?explicit.*?selection/i);
-  assert.match(readme, /explicit human approval/);
-  assert.match(readme, /DESIGN\.md.*?reusable/i);
-  assert.match(readme, /Pencil.*?optional.*?nonvisual.*?continue/i);
-});
-
-test("workflow-risk is a portable, issue-linked FAST/STANDARD/CRITICAL contract", () => {
-  const skillPath = "skills/workflow-risk/SKILL.md";
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-
-  const skill = readRelative(skillPath);
-  const spec = readRelative("specs/009-classify-workflow-risk.md");
-  const readme = readRelative("README.md");
-  const frontmatter = parseFrontmatter(skill);
-  const normalized = skill.replace(/\s+/g, " ");
-  const precedence = markdownSection(skill, "Classification precedence").replace(/\s+/g, " ");
-  const standardOutput = markdownSection(skill, "Standard output").replace(/\s+/g, " ");
-  const baselineRigor = markdownSection(skill, "Baseline rigor").replace(/\s+/g, " ");
-  const scenarios = markdownSection(skill, "Worked classification scenarios").replace(/\s+/g, " ");
-
-  assert.equal(frontmatter.name, "workflow-risk");
-  assert.match(frontmatter.description, /^Use when/);
-  assert.match(readme, /workflow-risk/);
-  assert.match(spec, /^title: Classify workflow risk$/m);
-  assert.match(spec, /^status: approved$/m);
-  assert.match(spec, /^issue: 23$/m);
-  assert.match(spec, /^created: 2026-09-07$/m);
-
-  assert.match(skill, /WorkflowLevel\s*=\s*FAST\s*\|\s*STANDARD\s*\|\s*CRITICAL/);
-  assert.match(skill, /Phase\s*=\s*initial\s*\|\s*pre-ship/);
-  const dimensions = [
-    "authentication",
-    "authorization",
-    "security-boundary",
-    "payments",
-    "database-migration",
-    "destructive-data",
-    "concurrency",
-    "persistence-integrity",
-    "critical-infrastructure",
-  ];
-  const dimensionDefinition = skill.match(/RiskDimension\s*=\s*([\s\S]*?)\n```/);
-  assert.ok(dimensionDefinition, "RiskDimension is defined in a code block");
-  assert.deepEqual(
-    dimensionDefinition[1].match(/[a-z]+(?:-[a-z]+)*/g),
-    dimensions,
-    "RiskDimension has the exact nine-dimension vocabulary"
-  );
-
-  for (const field of [
-    "phase",
-    "prior level",
-    "suggested level",
-    "effective level",
-    "detected/new dimensions",
-    "evidence",
-    "required verification",
-    "explicit override",
-  ]) {
-    assert.match(normalized, new RegExp(field, "i"), `output contains ${field}`);
-  }
-  for (const [rule, outcome] of [
-    ["1", "known critical trigger.*?CRITICAL"],
-    ["2", "FAST.*?every restriction"],
-    ["3", "uncertainty.*?without critical evidence.*?STANDARD"],
-    ["4", "pre-ship.*?max.*?prior.*?current.*?dimensions.*?accumulate"],
-    ["5", "only.*?explicit override.*?(?:lower|remove).*?visible.*?baseline guardrails"],
-    ["6", "missing prior.*?must not.*?downgrade"],
-  ]) {
-    assert.match(precedence, new RegExp(`${rule}\\. .*?${outcome}`, "i"), `precedence rule ${rule}`);
-  }
-  assert.ok(
-    precedence.indexOf("1.") < precedence.indexOf("2.") &&
-      precedence.indexOf("2.") < precedence.indexOf("3.") &&
-      precedence.indexOf("3.") < precedence.indexOf("4.") &&
-      precedence.indexOf("4.") < precedence.indexOf("5.") &&
-      precedence.indexOf("5.") < precedence.indexOf("6."),
-    "precedence rules retain their ordered outcomes"
-  );
-  assert.match(standardOutput, /pre-ship.*?maximum of prior and current classification.*?dimensions accumulate/i);
-  assert.match(standardOutput, /only an explicit override.*?(?:lower|remove).*?override visible.*?baseline guardrails/i);
-  assert.match(baselineRigor, /CRITICAL.*?de-duplicated union.*?every detected\/new dimension/i);
-
-  assert.match(normalized, /FAST.*?small.*?localized.*?focused verification.*?commit guardrails.*?optional review.*?no required durable artifact/i);
-  assert.match(normalized, /STANDARD.*?Issue.*?design.*?spec.*?plan.*?TDD.*?relevant suite.*?review.*?PR/i);
-  assert.match(normalized, /CRITICAL.*?all STANDARD.*?approved spec.*?mandatory review.*?de-duplicated union/i);
-
-  for (const [dimension, checks] of [
-    ["authentication", ["permitted", "denied", "sessions", "roles", "tenancy", "integration", "security review"]],
-    ["authorization", ["permitted", "denied", "sessions", "roles", "tenancy", "integration", "security review"]],
-    ["security-boundary", ["abuse", "trust-boundary", "Semgrep when available"]],
-    ["payments", ["idempotency", "retries", "duplicates", "amounts", "currencies", "rounding", "reconciliation"]],
-    ["database-migration", ["representative fixtures", "compatibility", "roll-forward", "rollback", "data safety"]],
-    ["destructive-data", ["authorization", "confirmation", "scope", "recovery", "partial failures"]],
-    ["concurrency", ["races", "ordering", "retries", "concurrent integration"]],
-    ["persistence-integrity", ["atomicity", "invariants", "restarts", "idempotency", "partial failures"]],
-    ["critical-infrastructure", ["configuration", "permissions", "integration", "degradation", "recovery", "rollback"]],
-  ]) {
-    const section = markdownSubsection(skill, dimension).replace(/\s+/g, " ");
-    for (const check of checks) assert.match(section, new RegExp(check, "i"), `${dimension}: ${check}`);
-  }
-
-  const typeOnlyText = "WorkflowLevel = FAST | STANDARD | CRITICAL";
-  assert.doesNotMatch(typeOnlyText, /\*\*FAST→STANDARD:\*\*/, "type-only text is not a transition scenario");
-  function workedScenario(label) {
-    const marker = `**${label}:**`;
-    const start = scenarios.indexOf(marker);
-    assert.notEqual(start, -1, `${label} exists in worked scenarios`);
-    const end = scenarios.indexOf(" - **", start + marker.length);
-    return scenarios.slice(start + marker.length, end === -1 ? undefined : end);
-  }
-  function assertRetainedPriorScenario(text) {
-    assert.match(text, /smaller pre-ship diff/i);
-    assert.match(text, /CRITICAL prior level/i);
-    assert.match(text, /remains CRITICAL/i);
-    assert.match(text, /prior dimensions/i);
-  }
-
-  assert.match(
-    workedScenario("FAST-localized change"),
-    /small.*?localized.*?no critical (?:trigger|new risk).*?(?:is|results) FAST/i,
-    "localized FAST scenario proves eligibility and outcome"
-  );
-  assert.match(
-    workedScenario("Ambiguous STANDARD"),
-    /incompletely understood.*?(?:is|results) STANDARD/i,
-    "ambiguous scenario selects STANDARD"
-  );
-  assert.match(
-    workedScenario("One CRITICAL dimension"),
-    /tenancy authorization.*?CRITICAL.*?authorization controls/i,
-    "one critical dimension selects CRITICAL with its controls"
-  );
-  assert.match(
-    workedScenario("Multiple CRITICAL dimensions"),
-    /payment migration.*?CRITICAL.*?de-duplicated union.*?payments.*?database-migration controls/i,
-    "multiple critical dimensions retain both dimensions and union controls"
-  );
-  assert.match(
-    workedScenario("FAST→STANDARD"),
-    /previously localized.*?expands.*?becomes STANDARD at pre-ship/i,
-    "FAST→STANDARD names its source condition and outcome in the worked scenarios"
-  );
-  assert.match(
-    workedScenario("STANDARD→CRITICAL"),
-    /standard change.*?security-boundary trigger.*?becomes CRITICAL at pre-ship/i,
-    "STANDARD→CRITICAL names its source condition and outcome in the worked scenarios"
-  );
-  assertRetainedPriorScenario(workedScenario("Smaller diff retaining prior level"));
-  assert.throws(
-    () => assertRetainedPriorScenario("A smaller pre-ship diff after a CRITICAL prior level remains FAST."),
-    /remains CRITICAL|prior dimensions/,
-    "retained-prior validator rejects a FAST downgrade without prior dimensions"
-  );
-  assert.match(
-    workedScenario("Explicit override"),
-    /lowers a level or removes dimensions.*?visible.*?baseline guardrails/i,
-    "explicit override remains visible and preserves baseline guardrails"
-  );
-  assert.match(
-    workedScenario("Missing prior classification"),
-    /pre-ship.*?no known critical (?:evidence|trigger).*?remains STANDARD.*?(?:no|does not infer a) silent downgrade.*?known critical trigger.*?remains CRITICAL/i,
-    "missing prior classification remains STANDARD only without critical evidence and preserves CRITICAL precedence"
-  );
-  assert.match(normalized, /significant UI impact.*?prevents.*?FAST.*?never.*?critical dimension/i);
-  assert.match(normalized, /#35.*?UI classification/i);
-  assert.match(normalized, /#22.*?(?:orchestration|persistence)/i);
-  assert.match(normalized, /#26.*?Semgrep.*?when available/i);
-  assert.match(normalized, /no commands.*?hooks.*?state/i);
-  assert.match(readme, /#22[\s\S]*?#26[\s\S]*?#35/);
-  assert.doesNotMatch(readme, /workflow-risk[^\n]*(?:command|hook|state)/i);
-});
-
-test("context handoffs define portable, reference-first phase contracts", () => {
-  const skillPath = "skills/context-handoffs/SKILL.md";
-  const operationsPath = "skills/context-handoffs/references/handoff-operations.md";
-  const specPath = "specs/015-make-plans-handoffs-and-orchestration-token-aware.md";
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-  assert.ok(existsSync(join(repoRoot, operationsPath)), `${operationsPath} exists`);
-
-  const skill = readRelative(skillPath);
-  const operations = readRelative(operationsPath);
-  const contract = `${skill}\n${operations}`;
-  const normalized = contract.replace(/\s+/g, " ");
-  const frontmatter = parseFrontmatter(skill);
-  const spec = readRelative(specPath);
-
-  assert.equal(frontmatter.name, "context-handoffs");
-  assert.match(frontmatter.description, /^Use when/);
-  assert.match(spec, /^title: Make plans, handoffs, and orchestration token-aware$/m);
-  assert.match(spec, /^status: approved$/m);
-  assert.match(spec, /^issue: 67$/m);
-  assert.match(spec, /^created: 2026-09-17$/m);
-
-  for (const field of [
-    "phase",
-    "rigor",
-    "source",
-    "issue",
-    "product",
-    "spec",
-    "plan",
-    "design",
-    "scope",
-    "verification",
-    "open_decisions",
-  ]) {
-    assert.match(contract, new RegExp(`\\b${field}\\b`, "i"), `handoff declares ${field}`);
-  }
-  assert.match(normalized, /Git blob SHA.*?sha256/i);
-  assert.match(normalized, /do not.*?artifact bodies.*?transcripts.*?raw patches.*?broad logs/i);
-  assert.match(normalized, /planner.*?Issue.*?product.*?architecture.*?prior test logs/i);
-  assert.match(normalized, /implementer.*?approved spec.*?implementation plan.*?risk.*?focused files/i);
-  assert.match(normalized, /verifier.*?source snapshot.*?commands.*?risk controls.*?receipts/i);
-  assert.match(normalized, /reviewer.*?approved contract.*?remote diff.*?verification.*?finding metadata/i);
-  for (const trigger of [
-    "missing or stale reference",
-    "revision mismatch",
-    "unresolved decision",
-    "outside `scope`",
-    "risk escalation",
-    "failed or unknown verification",
-    "contract or dependency ambiguity",
-  ]) {
-    assert.match(contract, new RegExp(trigger, "i"), `contract expands for ${trigger}`);
-  }
-  assert.match(normalized, /FAST.*?localized.*?STANDARD.*?normally? scoped.*?CRITICAL.*?risk dimensions/i);
-  assert.match(normalized, /baseline guardrails/i);
-  assert.match(normalized, /resume.*?reconstruct.*?durable sources/i);
-  assert.match(normalized, /#22.*?(?:orchestration|persistence).*?(?:does not|never|no)/i);
-  assert.doesNotMatch(contract, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\/|subagents?/i);
-
-  const conventions = readRelative("skills/spec-conventions/SKILL.md").replace(/\s+/g, " ");
-  const risk = readRelative("skills/workflow-risk/SKILL.md").replace(/\s+/g, " ");
-  const verification = `${readRelative("skills/verification/SKILL.md")}\n${readRelative("skills/verification/references/verification-operations.md")}`.replace(/\s+/g, " ");
-  const review = `${readRelative("skills/pr-review/SKILL.md")}\n${readRelative("skills/pr-review/references/review-operations.md")}`.replace(/\s+/g, " ");
-  for (const consumer of [conventions, risk, verification, review]) {
-    assert.match(consumer, /context-handoffs/i, "phase guidance consumes the handoff contract");
-  }
-  assert.match(review, /context reducer.*?expand.*?identified.*?evidence|expand.*?identified.*?evidence.*?context reducer/i);
-});
-
-test("spec lifecycle links optional GitHub Issues without owning work state", () => {
-  const template = readRelative("skills/spec-conventions/template.md");
-  const conventions = readRelative("skills/spec-conventions/SKILL.md");
-  const spec = readRelative("skills/spec/SKILL.md");
-  const command = readRelative("commands/spec.md");
-
-  assert.match(template, /status: draft # draft → approved → superseded/);
-  assert.match(template, /issue: <positive GitHub Issue number> # optional/);
-  assert.match(conventions, /draft → approved → superseded/);
-  assert.doesNotMatch(conventions, /status: in-progress|status: done/);
-  assert.match(spec, /new --issue <positive-integer>/);
-  assert.match(spec, /new <kebab-case-slug> --issue <positive-integer>/);
-  assert.match(spec, /link <NNN\|slug> <positive-integer>/);
-  assert.match(spec, /gh issue view <number>/);
-  assert.match(spec, /type:story.*not.*require|not.*require.*type:story/i);
-  assert.match(spec, /explicit confirmation/i);
-  assert.match(command, /new \[<slug>\] --issue <positive-integer>/);
-  assert.match(command, /link <NNN\|slug> <positive-integer>/);
-});
-
-test("Issue-linked spec documentation", () => {
-  const refiner = readRelative("skills/refine-issues/SKILL.md");
-  const readme = readRelative("README.md");
-  const codexManifest = JSON.parse(readRelative(".codex-plugin/plugin.json"));
-  const prReviewCommand = parseFrontmatter(readRelative("commands/pr-review.md"));
-
-  assert.match(refiner, /plus-ultra:spec new --issue <number>/);
-  assert.match(refiner, /do not create|never create.*spec/i);
-  assert.match(readme, /draft → approved → superseded/);
-  assert.match(readme, /approved.*Issue #|Issue.*approved/i);
-  assert.match(codexManifest.interface.longDescription, /draft -> approved -> superseded/);
-  assert.doesNotMatch(JSON.stringify(codexManifest), /draft -> approved -> in-progress -> done/);
-  assert.match(codexManifest.interface.defaultPrompt[1], /approved technical contract/i);
-  assert.doesNotMatch(JSON.stringify(codexManifest), /in-progress plus-ultra spec|active spec/i);
-  assert.match(prReviewCommand.description, /approved technical contract/i);
-  assert.doesNotMatch(prReviewCommand.description, /active spec|in-progress/i);
-});
-
-test("pull-request-descriptions skill is packaged and discoverable", () => {
-  const skillPath = "skills/pull-request-descriptions/SKILL.md";
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-
-  const skill = readRelative(skillPath);
-  const frontmatter = parseFrontmatter(skill);
-
-  assert.equal(frontmatter.name, "pull-request-descriptions");
-  assert.match(frontmatter.description, /Use when/i);
-  assert.match(frontmatter.description, /pull request|PR/i);
-
-  for (const expectedSection of [
-    "Context",
-    "Traceability",
-    "Summary",
-    "Testing",
-    "Risks",
-    "Review Guidance",
-  ]) {
-    assert.match(skill, new RegExp(expectedSection, "i"));
-  }
-
-  const readme = readRelative("README.md");
-  assert.match(readme, /pull-request-descriptions/);
-});
-
-test("pull-request-descriptions leads with a human-first overview and conditional Mermaid diagrams", () => {
-  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
-  const templateStart = skill.indexOf("## Recommended Template");
-  const templateEnd = skill.indexOf("## Section Guidance");
-  assert.notEqual(templateStart, -1, "Recommended Template section exists");
-  assert.notEqual(templateEnd, -1, "Section Guidance section exists");
-  const template = skill.slice(templateStart, templateEnd);
-  const metadata = readRelative("skills/pull-request-descriptions/agents/openai.yaml");
-  const readme = readRelative("README.md");
-
-  const orderedSections = [
-    "At a glance",
-    "Diagram",
-    "Context",
-    "Traceability",
-    "Summary",
-    "Testing",
-    "Risks",
-    "Review Guidance",
-  ];
-  let previousIndex = -1;
-  for (const heading of orderedSections) {
-    const headingIndex = template.indexOf(`## ${heading}`);
-    assert.notEqual(headingIndex, -1, `${heading} is present in the template`);
-    assert.ok(headingIndex > previousIndex, `${heading} follows the previous template section`);
-    previousIndex = headingIndex;
-  }
-
-  const normalized = skill.replace(/\s+/g, " ");
-  assert.match(normalized, /At a glance.*?at most three sentences/i);
-  assert.match(normalized, /problem.*?observable outcome.*?affected audience/i);
-  assert.match(normalized, /exactly one compact Mermaid diagram/i);
-  assert.match(normalized, /three or more components, services, or modules/i);
-  assert.match(normalized, /request, data, control, or dependency flow/i);
-  assert.match(normalized, /lifecycle or state transitions/i);
-  assert.match(normalized, /non-obvious before\/after architecture/i);
-  assert.match(normalized, /localized fixes.*?straightforward documentation\/configuration\/dependency updates/i);
-  assert.match(normalized, /Never invent relationships.*?placeholder Mermaid/i);
-
-  for (const diagram of ["flowchart", "sequenceDiagram", "stateDiagram-v2"]) {
-    assert.match(skill, new RegExp(diagram));
-  }
-  assert.match(normalized, /no more than eight nodes or participants/i);
-
-  for (const expectedSection of [
-    "Context",
-    "Summary",
-    "Testing",
-    "Risks",
-    "Review Guidance",
-  ]) {
-    assert.match(template, new RegExp(`## ${expectedSection}`));
-  }
-
-  assert.match(readme, /human-first overview/i);
-  assert.match(readme, /conditional Mermaid diagrams/i);
-  assert.match(metadata, /human-first overview/i);
-  assert.match(metadata, /conditional Mermaid diagrams/i);
-});
-
-test("pull-request-descriptions preserve Issue-Spec traceability without closing partial stories", () => {
-  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
-  const readme = readRelative("README.md");
-  const normalized = skill.replace(/\s+/g, " ");
-
-  assert.match(skill, /Issue: #<number>/);
-  assert.match(skill, /Spec: `specs\/<path>`/);
-  assert.match(skill, /Refs #<number>/);
-  assert.match(skill, /Closes #<number>/);
-  assert.match(normalized, /exactly one of `Refs #<number>` or `Closes #<number>`.*?each Issue independently/i);
-  assert.match(normalized, /`type:story`/i);
-  assert.match(normalized, /approved.*?spec.*?linked/i);
-  assert.match(normalized, /scope.*?acceptance criteria.*?complete/i);
-  assert.match(normalized, /`ready`.*?no blockers/i);
-  assert.match(normalized, /no required work.*?deferred/i);
-  assert.match(normalized, /state.*?against.*?base/i);
-  assert.match(normalized, /ambigu(?:ity|ous).*?`Refs #<number>`.*?never.*?`Closes #<number>`/i);
-  assert.match(readme, /Refs #N.*?Closes #N|Closes #N.*?Refs #N/i);
-});
-
-test("pull-request-descriptions demonstrates diagram decisions for common review scenarios", () => {
-  const skill = readRelative("skills/pull-request-descriptions/SKILL.md");
-  const examples = markdownSection(skill, "Diagram Examples").replace(/\s+/g, " ");
-
-  assert.match(examples, /localized fix.*?omit the Diagram section/i);
-  assert.match(examples, /cross-component flow.*?flowchart/i);
-  assert.match(examples, /ordered interaction.*?sequenceDiagram/i);
-  assert.match(examples, /lifecycle change.*?stateDiagram-v2/i);
-});
-
-test("engineering-principles skill is packaged and connected to project workflow", () => {
-  const skillPath = "skills/engineering-principles/SKILL.md";
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-
-  const skill = readRelative(skillPath);
-  const frontmatter = parseFrontmatter(skill);
-
-  assert.equal(frontmatter.name, "engineering-principles");
-  assert.match(frontmatter.description, /Use when/i);
-  assert.match(frontmatter.description, /hexagonal|functional/i);
-
-  for (const expectedTerm of [
-    "domain",
-    "application",
-    "ports",
-    "adapters",
-    "pure functions",
-    "dependency rule",
-  ]) {
-    assert.match(skill, new RegExp(expectedTerm, "i"));
-  }
-
-  const readme = readRelative("README.md");
-  assert.match(readme, /engineering-principles/);
-  assert.match(readme, /hexagonal architecture/i);
-  assert.match(readme, /functional programming/i);
-});
-
-test("project scaffolding and review guidance enforce architecture and FP conventions", () => {
-  const techStack = readRelative("skills/tech-stack/SKILL.md");
-  assert.match(techStack, /engineering-principles/);
-  assert.match(techStack, /hexagonal/i);
-  assert.match(techStack, /functional core/i);
-
-  const newProject = newProjectContract();
-  for (const expectedPath of [
-    "src/domain",
-    "src/application",
-    "src/ports",
-    "src/adapters",
-    "src/http",
-  ]) {
-    assert.match(newProject, new RegExp(expectedPath.replace("/", "\\/")));
-  }
-  assert.match(newProject, /pure use case/i);
-
-  const specTemplate = readRelative("skills/spec-conventions/template.md");
-  assert.match(specTemplate, /Architecture boundaries/i);
-  assert.match(specTemplate, /Functional core/i);
-
-  const codeReviewer = readRelative("skills/code-reviewer/SKILL.md");
-  assert.match(codeReviewer, /dependency rule/i);
-  assert.match(codeReviewer, /side effects/i);
-  assert.match(codeReviewer, /adapters/i);
-});
-
-test("quality companions are documented and remain optional and technology-scoped", () => {
-  const readme = readRelative("README.md");
-  const techStack = readRelative("skills/tech-stack/SKILL.md");
-  const newProject = newProjectContract();
-  const readmeCompanions = markdownSection(readme, "Optional companions");
-  const techCompanions = markdownSection(techStack, "Companion capabilities");
-  const beforeScaffolding = markdownSection(newProject, "Before scaffolding");
-  const scaffoldSteps = markdownSection(newProject, "Steps");
-
-  const companions = [
-    "vercel-react-best-practices",
-    "vercel-composition-patterns",
-    "vitest",
-    "playwright-best-practices",
-  ];
-
-  for (const companion of companions) {
-    assert.match(readmeCompanions, new RegExp(companion));
-    assert.match(techCompanions, new RegExp(companion));
-    assert.match(beforeScaffolding, new RegExp(companion));
-  }
-
-  const installCommands = [
-    "npx skills add vercel-labs/agent-skills@vercel-react-best-practices",
-    "npx skills add vercel-labs/agent-skills@vercel-composition-patterns",
-    "npx skills add pproenca/dot-skills@vitest",
-    "npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices",
-  ];
-  const readmeLines = readmeCompanions.split("\n");
-  for (const command of installCommands) {
-    assert.ok(readmeLines.includes(command), `${command} is an exact command line`);
-  }
-
-  assert.match(readmeCompanions, /not bundled as dependencies/i);
-  assert.match(readmeCompanions, /not\s+installed automatically/i);
-  assert.match(techCompanions, /technology-specific advisors/i);
-  assert.match(techCompanions, /do not replace Superpowers' methodology/i);
-  assert.match(techCompanions, /does not make Playwright a stack dependency/i);
-  assert.match(beforeScaffolding, /Companions are optional advisors: do not install them/i);
-
-  assert.match(
-    beforeScaffolding,
-    /`vercel-react-best-practices` for React rendering,[\s\S]*performance guidance\./
-  );
-  assert.match(
-    beforeScaffolding,
-    /`vercel-composition-patterns` for reusable React component API design\./
-  );
-  assert.match(
-    beforeScaffolding,
-    /`vitest` for Vitest-specific test design,[\s\S]*reliability\./
-  );
-  assert.match(
-    beforeScaffolding,
-    /`playwright-best-practices` only if the user selects Playwright[\s\S]*browser E2E tests\./
-  );
-  assert.match(
-    scaffoldSteps,
-    /use `vercel-react-best-practices` for React[\s\S]*`vercel-composition-patterns`[\s\S]*reusable component APIs\./
-  );
-  assert.match(
-    scaffoldSteps,
-    /Add Playwright browser E2E only when the user requests it[\s\S]*`playwright-best-practices` is available/
-  );
-
-  const claudeManifest = JSON.parse(readRelative(".claude-plugin/plugin.json"));
-  assert.deepEqual(claudeManifest.dependencies, ["superpowers"]);
-});
-
-test("repository ignores transient Superpowers workflow artifacts", () => {
-  const gitignorePath = join(repoRoot, ".gitignore");
-  assert.ok(existsSync(gitignorePath), ".gitignore exists");
-
-  const ignoredPaths = readFileSync(gitignorePath, "utf8").split("\n");
-  assert.ok(ignoredPaths.includes("/.context/"), ".context is ignored at the repository root");
-  assert.ok(
-    ignoredPaths.includes("/docs/superpowers/"),
-    "Superpowers' default workflow artifact directory is ignored"
-  );
-});
-
-test("spec conventions separate transient workflow artifacts from durable documents", () => {
-  const specConventions = readRelative("skills/spec-conventions/SKILL.md");
-  const frontmatter = parseFrontmatter(specConventions);
-  const normalized = specConventions.replace(/\s+/g, " ");
-
-  assert.match(frontmatter.description, /workflow artifacts/i);
-  assert.match(normalized, /`.context\/superpowers\/`/);
-  assert.match(normalized, /do not commit.*?`.context\/`/i);
-  assert.match(normalized, /do not commit.*?`docs\/superpowers\/`/i);
-  assert.match(normalized, /trivial changes.*?skip/i);
-  assert.match(normalized, /approved.*?`specs\/NNN-slug\.md`.*?commit/i);
-  assert.match(normalized, /durable.*?`docs\/`.*?commit/i);
-  assert.match(normalized, /ensure `.gitignore` contains `\/\.context\/` and `\/docs\/superpowers\/`/i);
-});
-
-test("new project scaffolding keeps workflow artifacts transient", () => {
-  const newProject = newProjectContract();
-  const scaffoldSteps = markdownSection(newProject, "Steps");
-  const normalized = scaffoldSteps.replace(/\s+/g, " ");
-
-  assert.match(scaffoldSteps, /`\/\.context\/`/);
-  assert.match(scaffoldSteps, /`\/docs\/superpowers\/`/);
-  assert.match(normalized, /transient workflow artifacts.*?`.context\/superpowers\/`/i);
-  assert.match(normalized, /durable specs.*?`specs\/`/i);
-  assert.match(normalized, /durable project documentation.*?`docs\/`/i);
-  assert.match(normalized, /trivial changes.*?skip/i);
-});
-
-test("Quick start activates artifact conventions before Superpowers", () => {
-  const readme = readRelative("README.md");
-  const quickStart = markdownSection(readme, "Quick start");
-
-  for (const heading of ["Start a new project", "Use an existing repository"]) {
-    const path = markdownSubsection(quickStart, heading);
-    const conventionsIndex = path.indexOf("plus-ultra:spec-conventions");
-    const superpowersIndex = path.indexOf("Superpowers");
-
-    assert.notEqual(conventionsIndex, -1, `${heading} activates spec-conventions`);
-    assert.notEqual(superpowersIndex, -1, `${heading} invokes Superpowers`);
-    assert.ok(conventionsIndex < superpowersIndex, `${heading} activates conventions first`);
-  }
-});
-
-test("pr-review workflow is packaged, safe, and available through Claude", () => {
-  const skillPath = "skills/pr-review/SKILL.md";
-  const commandPath = "commands/pr-review.md";
-  const agentPath = "agents/pr-reviewer.md";
-
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-  assert.ok(existsSync(join(repoRoot, commandPath)), `${commandPath} exists`);
-  assert.ok(existsSync(join(repoRoot, agentPath)), `${agentPath} exists`);
-
-  const skill = prReviewContract();
-  const command = readRelative(commandPath);
-  const agent = readRelative(agentPath);
-  const readme = readRelative("README.md");
-  const codeReviewer = readRelative("skills/code-reviewer/SKILL.md");
-  const frontmatter = parseFrontmatter(skill);
-
-  assert.equal(frontmatter.name, "pr-review");
-  assert.match(frontmatter.description, /Use when/i);
-  assert.match(frontmatter.description, /pull request|PR|GitHub/i);
-  assert.match(skill, /no PR argument/i);
-  assert.match(skill, /positive decimal integer/i);
-  assert.match(skill, /gh auth status/i);
-  assert.match(skill, /gh pr view/i);
-  assert.match(skill, /gh pr diff/i);
-  assert.match(skill, /headRefOid/i);
-  assert.match(skill, /remote PR head/i);
-  assert.match(skill, /spec.*GitHub API|GitHub API.*spec/i);
-  assert.match(skill, /approved spec/i);
-  assert.match(skill, /closingIssuesReferences/);
-  assert.match(skill, /gh pr view <pr-number> --json closingIssuesReferences/);
-  assert.match(skill, /exactly one approved spec matches[\s\S]*?closing\s+Issues/i);
-  assert.match(skill, /Do not parse.*?closing keyword/i);
-  assert.match(skill, /Do not use GraphQL.*?discover\s+closing Issues/i);
-  assert.match(skill, /explicit.*?selector.*?fallback/i);
-  const normalizedReview = skill.replace(/\s+/g, " ");
-  assert.match(normalizedReview, /before writes if.*ambiguous|ambiguous.*before writes/i);
-  assert.match(normalizedReview, /If zero or several match.*?continue/i);
-  assert.doesNotMatch(skill, /status: in-progress/);
-  assert.match(codeReviewer, /status: approved/);
-  assert.match(codeReviewer, /explicitly select|ask.*select/i);
-  assert.doesNotMatch(codeReviewer, /status: in-progress/);
-  assert.doesNotMatch(codeReviewer, /ready or not ready to mark done/i);
-  assert.match(skill, /plus-ultra:pr-review:inline/i);
-  assert.match(skill, /plus-ultra:pr-review:summary/i);
-  assert.match(skill, /pulls\/\{pull_number\}\/comments/i);
-  assert.match(skill, /issues\/comments/i);
-  assert.match(skill, /resolveReviewThread/i);
-  assert.match(skill, /paginate/i);
-  assert.match(skill, /authenticated reviewer/i);
-  assert.match(skill, /summary marker.*authenticated reviewer|authenticated reviewer.*summary marker/i);
-  assert.match(skill, /equivalent unresolved/i);
-  assert.match(skill, /unanchorable/i);
-  assert.match(skill, /Report every mutation/i);
-
-  assert.match(command, /argument-hint: "\[pr-number\] \[--spec <NNN\|slug>\]"/);
-  assert.match(command, /positive integer/i);
-  assert.match(command, /plus-ultra:pr-reviewer/);
-  assert.match(agent, /^name: pr-reviewer$/m);
-  assert.match(agent, /^tools: .*Bash/m);
-  assert.match(agent, /plus-ultra:pr-review/);
-  assert.match(agent, /canonical.*?closing Issue/i);
-  assert.match(agent, /Do not parse.*?closing keyword/i);
-  assert.match(agent, /headRefOid/);
-
-  assert.match(readme, /plus-ultra:pr-review/);
-  assert.match(readme, /\/plus-ultra:pr-review \[pr-number\]/);
-  assert.match(readme, /GitHub.*write|write.*GitHub/i);
-  assert.match(readme, /pr-reviewer/);
-
-  assert.doesNotMatch(codeReviewer, /\bgh\b/i);
-  assert.match(codeReviewer, /Do not modify files/i);
-});
-
-test("local context reducers remain optional and preserve PR-review freshness", () => {
-  const operations = readRelative("skills/pr-review/references/review-operations.md");
-  const maintainerGuide = readRelative("docs/maintainer-guide.md");
-
-  assert.match(operations, /scripts\/context-reducers\.mjs/);
-  assert.match(operations, /pr-review-context/);
-  assert.match(operations, /only when.*checkout.*contains|checkout.*contains.*only when/i);
-  assert.match(operations, /headRefOid.*changed.*restart|changed.*headRefOid.*restart/i);
-  assert.match(operations, /comment-evidence/);
-  assert.match(operations, /plus-ultra:pr-review:snapshot:v1/);
-  assert.match(operations, /incremental.*candidate|candidate.*incremental/i);
-  assert.match(operations, /unresolved.*fresh evidence|fresh evidence.*unresolved/i);
-  assert.match(operations, /ambiguous.*dependency.*full review|full review.*ambiguous.*dependency/i);
-  assert.match(maintainerGuide, /context-reducers/i);
-  assert.match(maintainerGuide, /no dependencies/i);
-});
-
-test("pr-review resolves an approved contract deterministically and can publish a limited review", () => {
-  const skill = prReviewContract();
-  const command = readRelative("commands/pr-review.md");
-  const agent = readRelative("agents/pr-reviewer.md");
-  const readme = readRelative("README.md");
-  const spec = readRelative("specs/003-gracefully-resolve-ambiguous-pr-to-spec-association.md");
-  const commandFrontmatter = parseFrontmatter(command);
-  const normalizedSkill = skill.replace(/\s+/g, " ");
-
-  assert.equal(commandFrontmatter["argument-hint"], "[pr-number] [--spec <NNN|slug>]");
-  for (const invocation of [
-    "pr-review",
-    "pr-review <PR>",
-    "pr-review --spec <NNN|slug>",
-    "pr-review <PR> --spec <NNN|slug>",
-  ]) {
-    assert.match(command, new RegExp(invocation.replace(/[|<>]/g, "\\$&")));
-  }
-  assert.match(normalizedSkill, /only.*?pr-review.*?pr-review <PR>.*?pr-review --spec <NNN\|slug>.*?pr-review <PR> --spec <NNN\|slug>/i);
-  assert.match(normalizedSkill, /reject.*?unknown flag/i);
-  assert.match(normalizedSkill, /duplicate.*?--spec/i);
-  assert.match(normalizedSkill, /zero.*?negative.*?non-integer/i);
-  assert.match(normalizedSkill, /before any network write/i);
-
-  const canonicalIndex = normalizedSkill.indexOf("Canonical closing-Issue match");
-  const explicitIndex = normalizedSkill.indexOf("Explicit selector");
-  const branchIndex = normalizedSkill.indexOf("Branch association");
-  const discoveryIndex = normalizedSkill.indexOf("Approved-spec discovery");
-  assert.ok(canonicalIndex < explicitIndex && explicitIndex < branchIndex && branchIndex < discoveryIndex);
-  assert.match(normalizedSkill, /canonical.*?exactly one.*?select.*?without consulting.*?--spec/i);
-  assert.match(normalizedSkill, /explicit.*?fallback.*?never.*?override.*?canonical/i);
-  assert.match(normalizedSkill, /headRefOid.*?source of truth|source of truth.*?headRefOid/i);
-  assert.match(normalizedSkill, /not.*?local checkout|local checkout.*?not/i);
-  assert.match(normalizedSkill, /gh pr diff.*?headRefOid.*?same remote-head snapshot/i);
-  assert.match(normalizedSkill, /issue-<N>.*?hyphen.*?component/i);
-  assert.match(normalizedSkill, /NNN-slug.*?exact.*?component.*?\//i);
-  assert.match(normalizedSkill, /union.*?deduplicat.*?direct.*?indirect/i);
-  assert.match(normalizedSkill, /one candidate.*?continue.*?multiple.*?selection.*?none.*?discovery/i);
-  assert.match(normalizedSkill, /path.*?Issue #<N>.*?sin Issue.*?before.*?writ/i);
-  assert.match(normalizedSkill, /approved.*?unlinked.*?legacy/i);
-  assert.match(normalizedSkill, /exclude.*?draft.*?superseded/i);
-  assert.match(normalizedSkill, /selector.*?nonexistent.*?ambiguous.*?draft.*?superseded.*?fail-closed/i);
-  assert.match(normalizedSkill, /selector.*?stop without any GitHub write/i);
-  assert.match(normalizedSkill, /selector.*?non-approved.*?missing.*?malformed.*?unknown.*?stop.*?without.*?write/i);
-
-  assert.match(normalizedSkill, /no approved spec.*?review without (?:a )?contract.*?explicit acceptance/i);
-  assert.match(normalizedSkill, /correctness.*?regressions.*?tests.*?engineering[- ]principles/i);
-  assert.match(normalizedSkill, /Spec: none/);
-  assert.match(normalizedSkill, /limited review; no contractual verdict/i);
-  assert.match(normalizedSkill, /do not.*?acceptance criteria.*?do not.*?ready/i);
-  assert.match(normalizedSkill, /only.*?resolve.*?evidence.*?does not depend.*?contract/i);
-
-  assert.match(spec, /^status: approved$/m);
-  assert.match(spec, /^issue: 17$/m);
-  assert.match(spec, /closingIssuesReferences/);
-  assert.match(spec, /headRefOid/);
-  assert.match(agent, /headRefOid/);
-  assert.match(agent, /limited review|without contract/i);
-  assert.match(readme, /--spec <NNN\|slug>/);
-  assert.match(readme, /fallback/i);
-  for (const path of ["skills/pr-review/SKILL.md", "agents/pr-reviewer.md", "README.md"]) {
-    assert.doesNotMatch(readRelative(path), /delegate.*?#17|#17.*?delegate/i, `${path} has no pending #17 delegation`);
-  }
-});
-
-test("pr-review defines verdict semantics in its publish-and-update summary guidance", () => {
-  const contract = markdownSection(
-    prReviewContract(),
-    "Publish and update the summary"
-  );
-  const statusStart = contract.indexOf("## Status");
-  const findingsStart = contract.indexOf("## Findings");
-
-  assert.notEqual(statusStart, -1, "Status is in the publish-and-update summary guidance");
-  assert.notEqual(findingsStart, -1, "Findings follows Status in the publish-and-update summary guidance");
-  const status = contract.slice(statusStart, findingsStart);
-
-  assert.match(status, /✅ Ready — no findings or non-blocking findings\./);
-  assert.match(status, /⛔ Changes required — one or more blockers\./);
-  assert.match(status, /⚠️ Limited review/);
-  assert.match(status, /Spec: none/);
-  assert.match(status, /limited review; no contractual verdict/);
-});
-
-test("pr-review makes its publish-and-update summary guidance complete and bounded", () => {
-  const contract = markdownSection(
-    prReviewContract(),
-    "Publish and update the summary"
-  );
-  const marker = "<!-- plus-ultra:pr-review:summary -->";
-  const markerIndex = contract.indexOf(marker);
-  const titleIndex = contract.indexOf("# Plus Ultra PR Review");
-  const statusIndex = contract.indexOf("## Status");
-  const findingsIndex = contract.indexOf("## Findings");
-  const traceabilityIndex = contract.indexOf("| Issue | Spec | Contract |");
-  const resolutionsHeading = contract.match(/^\s*## .*resolv.*$/im);
-  const resolutionsIndex = resolutionsHeading ? contract.indexOf(resolutionsHeading[0]) : -1;
-  const evidenceIndex = contract.indexOf("<summary>Evidence</summary>");
-  const metadataIndex = contract.indexOf("<summary>Metadata</summary>");
-  const findings = contract.slice(findingsIndex, traceabilityIndex);
-  const evidence = detailsBlock(contract, "Evidence");
-  const metadata = detailsBlock(contract, "Metadata");
-
-  assert.equal(contract.split(marker).length - 1, 1, "the contract has one summary marker");
-  assert.match(contract, /^# Plus Ultra PR Review$/m);
-  assert.doesNotMatch(contract, /^# .*Plus Ultra PR Review.*[✅⛔⚠️]/m);
-  for (const [name, index] of [
-    ["summary marker", markerIndex],
-    ["title", titleIndex],
-    ["status", statusIndex],
-    ["findings", findingsIndex],
-    ["traceability table", traceabilityIndex],
-    ["evidence", evidenceIndex],
-    ["metadata", metadataIndex],
-  ]) {
-    assert.notEqual(index, -1, `${name} is present in publish-and-update summary guidance`);
-  }
-  assert.ok(
-    markerIndex < titleIndex &&
-      titleIndex < statusIndex &&
-      statusIndex < findingsIndex &&
-      findingsIndex < traceabilityIndex &&
-      traceabilityIndex < evidenceIndex &&
-      evidenceIndex < metadataIndex,
-    "publish-and-update summary guidance keeps its required order"
-  );
-
-  if (resolutionsIndex !== -1) {
-    assert.ok(
-      traceabilityIndex < resolutionsIndex && resolutionsIndex < evidenceIndex,
-      "the optional resolutions section follows traceability and precedes evidence"
-    );
-  }
-
-  assert.match(
-    findings,
-    /(?:<Severity>|severity)[\s\S]*?summary-only[\s\S]*?unanchorable/i,
-    "the visible Findings portion identifies unanchorable findings as summary-only"
-  );
-  assert.match(
-    contract.replace(/\s+/g, " "),
-    /(?:resolutions?.{0,120}(?:only if|only when|when).{0,120}(?:exist|non[- ]?empty|one or more)|(?:include|omit).{0,120}resolutions?.{0,120}(?:only if|only when|when).{0,120}(?:exist|non[- ]?empty|one or more))/i,
-    "resolutions are conditional on resolutions existing"
-  );
-  for (const field of ["IDs", "SHAs", "duplicate thread references", "counts"]) {
-    const declaration = metadata
-      .split("\n")
-      .find((line) => new RegExp(field, "i").test(line));
-    assert.ok(declaration, `${field} has a declaration in Metadata`);
-    assert.match(
-      declaration,
-      /metadata/i,
-      `${field} is identified as metadata-only`
-    );
-    assert.match(
-      declaration,
-      /(?:omit|exclude|leave out|include)[\s\S]*(?:empty|non[- ]?empty)|(?:if|when)[\s\S]*(?:empty|non[- ]?empty)/i,
-      `${field} is included only when nonempty`
-    );
-  }
-  assert.match(evidence, /<details>[\s\S]*<summary>Evidence<\/summary>[\s\S]*<\/details>/);
-  assert.match(metadata, /<details>[\s\S]*<summary>Metadata<\/summary>[\s\S]*<\/details>/);
-});
-
-test("pr-review distinguishes legacy approved-contract and limited-review traceability", () => {
-  const contract = markdownSection(
-    prReviewContract(),
-    "Publish and update the summary"
-  );
-  const traceabilityStart = contract.indexOf("| Issue | Spec | Contract |");
-  const resolutionsHeading = contract.match(/^\s*## .*resolv.*$/im);
-  const resolutionsStart = resolutionsHeading ? contract.indexOf(resolutionsHeading[0]) : -1;
-  const evidenceStart = contract.indexOf("<summary>Evidence</summary>");
-  const traceabilityEnd = resolutionsStart === -1 ? evidenceStart : resolutionsStart;
-  const traceability = contract.slice(traceabilityStart, traceabilityEnd);
-
-  assert.notEqual(traceabilityStart, -1, "the compact traceability table exists");
-  assert.match(
-    traceability,
-    /\| none \| `specs\/<path>` \(approved\) \| Contractual review \|/,
-    "an approved legacy contract without issue: has a distinct traceability row"
-  );
-  assert.match(
-    traceability,
-    /\| none \| none \| Limited review \|/,
-    "a limited review remains distinguishable from a legacy contractual review"
-  );
-});
-
-test("pr-review omits empty severity headings from visible findings", () => {
-  const contract = markdownSection(
-    prReviewContract(),
-    "Publish and update the summary"
-  );
-  const findingsStart = contract.indexOf("## Findings");
-  const traceabilityStart = contract.indexOf("| Issue | Spec | Contract |");
-  const findings = contract.slice(findingsStart, traceabilityStart);
-  const normalizedFindings = findings.replace(/\s+/g, " ");
-
-  assert.match(
-    normalizedFindings,
-    /group visible findings only beneath the severity headings that are present/i,
-    "findings are grouped only under severities that are present"
-  );
-  assert.match(
-    normalizedFindings,
-    /omit every empty severity heading/i,
-    "empty severity headings are omitted"
-  );
-  assert.doesNotMatch(
-    findings,
-    /###\s+Unanchorable/i,
-    "unanchorable findings do not get a separate visible severity"
-  );
-});
-
-test("pr-review keeps prior resolutions human-readable and thread IDs metadata-only", () => {
-  const contract = markdownSection(
-    prReviewContract(),
-    "Publish and update the summary"
-  );
-  const resolutionsStart = contract.search(/^\s*## .*resol.*$/im);
-  const evidenceStart = contract.indexOf("<summary>Evidence</summary>");
-  const metadata = detailsBlock(contract, "Metadata");
-  const resolutions = contract.slice(resolutionsStart, evidenceStart);
-  const normalizedResolutions = resolutions.replace(/\s+/g, " ");
-
-  assert.notEqual(resolutionsStart, -1, "the optional resolutions guidance exists");
-  assert.match(
-    normalizedResolutions,
-    /Describe each resolution human-first \(the behavior that is now fixed and the evidence\), not as an internal identifier/i,
-    "prior resolutions lead with behavior and evidence"
-  );
-  assert.match(
-    normalizedResolutions,
-    /Keep thread IDs in Metadata only/i,
-    "thread IDs are excluded from visible resolution descriptions"
-  );
-  assert.ok(
-    normalizedResolutions.indexOf("human-first") < normalizedResolutions.indexOf("thread IDs"),
-    "human-readable resolution guidance precedes ID handling"
-  );
-  assert.match(metadata, /IDs are metadata-only/i, "IDs remain metadata-only");
-});
-
-test("GitHub Issues workflows are portable, confirmation-gated, and available through Claude", () => {
-  const workflows = [
-    {
-      name: "issue-management",
-      command: "issue-management",
-      agent: "issue-manager",
-      displayName: "Issue Management",
-    },
-    {
-      name: "refine-issues",
-      command: "refine-issues",
-      agent: "issue-refiner",
-      displayName: "Refine Issues",
-    },
-    {
-      name: "roadmap-planning",
-      command: "roadmap-planning",
-      agent: "roadmap-planner",
-      displayName: "Roadmap Planning",
-    },
-  ];
-
-  const readme = readRelative("README.md");
-  for (const workflow of workflows) {
-    const skillPath = `skills/${workflow.name}/SKILL.md`;
-    const commandPath = `commands/${workflow.command}.md`;
-    const agentPath = `agents/${workflow.agent}.md`;
-    const metadataPath = `skills/${workflow.name}/agents/openai.yaml`;
-
-    assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-    assert.ok(existsSync(join(repoRoot, commandPath)), `${commandPath} exists`);
-    assert.ok(existsSync(join(repoRoot, agentPath)), `${agentPath} exists`);
-    assert.ok(existsSync(join(repoRoot, metadataPath)), `${metadataPath} exists`);
-
-    const skill = readRelative(skillPath);
-    const command = readRelative(commandPath);
-    const agent = readRelative(agentPath);
-    const metadata = readRelative(metadataPath);
-    const frontmatter = parseFrontmatter(skill);
-
-    assert.equal(frontmatter.name, workflow.name);
-    assert.match(frontmatter.description, /Use when/i);
-    assert.match(command, new RegExp(`plus-ultra:${workflow.agent}`));
-    assert.match(agent, new RegExp(`^name: ${workflow.agent}$`, "m"));
-    assert.match(agent, new RegExp(`plus-ultra:${workflow.name}`));
-    assert.match(metadata, new RegExp(`display_name: "${workflow.displayName}"`));
-    assert.match(readme, new RegExp(`plus-ultra:${workflow.name}`));
-  }
-
-  const management = readRelative("skills/issue-management/SKILL.md");
-  assert.match(management, /type:epic/);
-  assert.match(management, /type:story/);
-  for (const status of ["backlog", "ready", "in-progress", "blocked"]) {
-    assert.match(management, new RegExp(`status:${status}`));
-  }
-  for (const priority of ["high", "medium", "low"]) {
-    assert.match(management, new RegExp(`priority:${priority}`));
-  }
-  assert.match(management, /gh auth status/);
-  assert.match(management, /ADMIN/);
-  assert.match(management, /explicit confirmation/i);
-  assert.match(management, /v2\.94\.0/);
-  assert.match(management, /gh issue create --parent/);
-  assert.match(management, /gh issue edit <parent> --add-sub-issue <child>/);
-  assert.match(management, /gh issue view <issue> --json parent,subIssues,subIssuesSummary/);
-  assert.match(management, /capabilit(?:y|ies).*absent|absent.*capabilit(?:y|ies)/i);
-  assert.match(management, /GraphQL.*fallback|fallback.*GraphQL/i);
-  assert.match(management, /node IDs only.*?fallback/i);
-  assert.doesNotMatch(management, /Create issues through the GitHub\s+GraphQL/i);
-  assert.match(management, /GitHub Projects/i);
-  assert.match(management, /not.*GitHub Projects|GitHub Projects.*not/i);
-  assert.match(management, /replace.*status|status.*replace/i);
-  assert.match(management, /replace.*priority|priority.*replace/i);
-  assert.match(management, /remove.*same group|same group.*remove/i);
-  for (const label of ["type:epic", "type:story", "status:backlog", "priority:high"]) {
-    assert.match(management, new RegExp(`${label}.*#[0-9A-Fa-f]{6}`));
-  }
-
-  const refiner = readRelative("skills/refine-issues/SKILL.md");
-  for (const section of [
-    "Context",
-    "Goal",
-    "Scope",
-    "Acceptance Criteria",
-    "Dependencies",
-    "Risks",
-  ]) {
-    assert.match(refiner, new RegExp(section));
-  }
-  assert.match(refiner, /issue number/i);
-  assert.match(refiner, /explicit confirmation/i);
-  assert.match(refiner, /do not.*edit|never.*edit/i);
-
-  const roadmap = readRelative("skills/roadmap-planning/SKILL.md");
-  const normalizedRoadmap = roadmap.replace(/\s+/g, " ");
-  assert.match(roadmap, /brief.*issue|issue.*brief/i);
-  assert.match(roadmap, /Milestone/);
-  assert.match(roadmap, /Epic/);
-  assert.match(roadmap, /Story/);
-  assert.match(roadmap, /dependencies/i);
-  assert.match(roadmap, /explicit confirmation/i);
-  assert.match(normalizedRoadmap, /do not invent.*dates.*assignees.*estimates.*priorities/i);
-  assert.match(roadmap, /v2\.94\.0/);
-  assert.match(roadmap, /gh issue create --parent/);
-  assert.match(roadmap, /gh issue edit <parent> --add-sub-issue <child>/);
-  assert.match(roadmap, /capabilit(?:y|ies).*absent|absent.*capabilit(?:y|ies)/i);
-  assert.match(normalizedRoadmap, /GraphQL.*fallback|fallback.*GraphQL/i);
-
-  const issueWorkflows = markdownSection(readme, "GitHub Issue workflows");
-  assert.match(issueWorkflows, /v2\.94\.0/);
-  assert.match(issueWorkflows, /native.*hierarch|hierarch.*native/i);
-  assert.match(issueWorkflows, /GraphQL.*fallback|fallback.*GraphQL/i);
-});
-
-test("high-context skills keep a bounded core and route detailed work to references", () => {
-  const targets = [
-    ["pr-review", "review-operations.md", /review evidence|prior review state|publish/i],
-    ["design-artifacts", "design-operations.md", /Pencil|approve|revise/i],
-    ["new-project", "scaffold-blueprint.md", /layout|scaffold|companion/i],
-  ];
-
-  for (const [name, reference, detail] of targets) {
-    const core = readRelative(`skills/${name}/SKILL.md`);
-    const referencePath = `skills/${name}/references/${reference}`;
-    assert.ok(Buffer.byteLength(core, "utf8") <= 4096, `${name} core stays within 4 KiB`);
-    assert.ok(existsSync(join(repoRoot, referencePath)), `${referencePath} exists`);
-    assert.match(core, new RegExp(`references/${reference.replace(".", "\\.")}`));
-    assert.match(readRelative(referencePath), detail);
+test("a technical spec is optional and has no lifecycle", () => {
+  const depth = read("skills/implement-issue/references/depth.md");
+  assert.match(depth, /A refined Issue is the default contract/);
+  assert.match(depth, /If you\ncannot name which decision the spec settles, the Issue is enough — skip it\./);
+
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(conventions, /Specs are optional/);
+  assert.match(conventions, /There is no draft\/approved\/superseded\nlifecycle/);
+
+  // No skill may treat an approved spec as a precondition for reviewing or
+  // shipping. `conventions` is exempt: it is the file that denies the lifecycle.
+  for (const skill of SKILLS.filter((name) => name !== "conventions")) {
     assert.doesNotMatch(
-      skillWithReferences(name, reference),
-      /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\/|commands\//i,
-      `${name} remains portable across its core and reference`
+      read(`skills/${skill}/SKILL.md`),
+      /status:\s*approved|approved technical contract|superseded/i,
+      `skills/${skill}/SKILL.md must not revive the spec lifecycle`
     );
   }
 });
 
-test("verification skill documents portable, bounded project-local verification", () => {
-  const skillPath = "skills/verification/SKILL.md";
-  const referencePath = "skills/verification/references/verification-operations.md";
-  const assetPath = "skills/verification/assets/plus-ultra-verify.mjs";
+test("code review is Issue-first, read-only, and does not require a spec", () => {
+  const skill = read("skills/code-review/SKILL.md");
+  assert.match(skill, /The contract is the Issue's acceptance criteria/);
+  assert.match(skill, /Do not require a spec\./);
+  assert.match(skill, /\*\*Do not modify files\.\*\*/);
+  assert.match(skill, /gh issue view <number>/);
+  assert.match(skill, /Only report what you can substantiate/);
 
-  for (const path of [skillPath, referencePath, assetPath]) {
-    assert.ok(existsSync(join(repoRoot, path)), `${path} exists`);
+  const agent = read("agents/code-reviewer.md");
+  assert.match(agent, /plus-ultra:code-review/);
+  assert.match(agent, /A spec is optional; never treat its absence as a reason to stop\./);
+  assert.match(agent, /must not modify files/);
+  // The reviewer subagent must not be handed write tools.
+  assert.match(agent, /^tools: Read, Grep, Glob, Bash$/m);
+});
+
+test("engineering principles are a conditional reference, not a ninth skill", () => {
+  const reference = read("skills/conventions/references/engineering-principles.md");
+
+  // Principles, not a layout to reproduce.
+  assert.match(reference, /simplest architecture that keeps the important logic testable and changeable/i);
+  assert.match(reference, /Keep non-trivial business rules out of transport, UI, and persistence glue/i);
+  assert.match(reference, /Isolate side effects when isolation materially helps/i);
+  assert.match(reference, /Prefer explicit, pure business logic where it fits/i);
+  assert.match(reference, /Repository conventions override these defaults/i);
+  assert.match(reference, /Never add layers, ports, or adapters to trivial work to satisfy a pattern/i);
+  assert.match(reference, /They tell you what to weigh;\nthey do not tell you which directories to create/);
+
+  // It must not smuggle back a mandated layout or a default stack.
+  assert.doesNotMatch(reference, /^\s*(?:src\/|apps\/|packages\/)/m, "must not mandate a folder layout");
+  assert.doesNotMatch(reference, /Hono|Drizzle|Neon|React|shadcn|pnpm|vitest|Biome/i, "must not name a stack");
+
+  // Both consumers load it, and only for work that warrants it. Line wrapping
+  // differs per file, so compare on normalized whitespace.
+  const trigger =
+    "materially involves business rules, architecture, persistence, external integrations, " +
+    "or side-effect isolation";
+  for (const skill of ["conventions", "implement-issue", "code-review"]) {
+    const content = read(`skills/${skill}/SKILL.md`).replace(/\s+/g, " ");
+    assert.match(
+      content,
+      /engineering principles|engineering-principles/i,
+      `skills/${skill}/SKILL.md must reference the principles`
+    );
+    assert.ok(content.includes(trigger), `skills/${skill}/SKILL.md must state the load condition`);
+    assert.match(
+      content,
+      /(?:ordinary )?small and local|small, local/i,
+      `skills/${skill}/SKILL.md must exclude ordinary small work`
+    );
   }
 
-  const skill = readRelative(skillPath);
-  const reference = readRelative(referencePath);
-  const asset = readRelative(assetPath);
-  const frontmatter = parseFrontmatter(skill);
-  const portableContract = `${skill}\n${reference}`;
-  const normalizedReference = reference.replace(/\s+/g, " ");
-
-  assert.equal(frontmatter.name, "verification");
-  assert.match(frontmatter.description, /^Use when/);
-  assert.match(frontmatter.description, /verification|test|typecheck|lint|build/i);
-  assert.match(skill, /references\/verification-operations\.md/);
-  assert.match(skill, /node scripts\/plus-ultra-verify\.mjs <label> -- <command> \[args…\]/);
-  assert.match(reference, /cp .*plus-ultra-verify\.mjs scripts\/plus-ultra-verify\.mjs/);
-  assert.match(normalizedReference, /version.*project/i);
-  assert.match(normalizedReference, /\.context\/plus-ultra\/verification/i);
-  assert.match(normalizedReference, /test.*typecheck/i);
-  assert.match(normalizedReference, /clean.*1 KiB|1 KiB.*clean/i);
-  assert.match(normalizedReference, /warning.*20 lines.*8 KiB/i);
-  assert.match(normalizedReference, /(?:failure|unknown).*80 lines.*16 KiB/i);
-  assert.match(normalizedReference, /gh .*--json/i);
-  assert.match(normalizedReference, /git status --short/i);
-  assert.match(normalizedReference, /--limit|limit/i);
-  assert.match(normalizedReference, /do not.*(?:intercept|wrap).*arbitrary.*(?:git|gh)/i);
-  assert.doesNotMatch(portableContract, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|hooks\//i, "verification skill stays portable");
-  assert.doesNotMatch(asset, /CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|\.\.\//i, "copyable wrapper stays self-contained");
+  // Still eight skills; the reference must not become one.
+  assert.ok(!existsSync(join(repoRoot, "skills/engineering-principles")));
+  assert.ok(!existsSync(join(repoRoot, "skills/tech-stack")));
 });
 
-test("new-project scaffolding installs the versioned verification wrapper", () => {
-  const scaffold = readRelative("skills/new-project/references/scaffold-blueprint.md");
-  assert.match(scaffold, /skills\/verification\/assets\/plus-ultra-verify\.mjs/);
-  assert.match(scaffold, /scripts\/plus-ultra-verify\.mjs/);
-  assert.match(scaffold, /copy/i);
-  assert.match(scaffold, /node scripts\/plus-ultra-verify\.mjs test -- pnpm -r test/);
-  assert.match(scaffold, /node scripts\/plus-ultra-verify\.mjs typecheck -- pnpm -r typecheck/);
+test("only Stories take the Issue-to-PR path", () => {
+  const implement = read("skills/implement-issue/SKILL.md");
+  assert.match(implement, /The implementation unit is a Story\./);
+  assert.match(implement, /If the Issue carries `type:epic`, stop/);
+  assert.match(implement, /an Epic is a container,\nnot a unit of work/);
+  assert.match(implement, /Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition/);
+  // Existing repositories without the taxonomy must not be blocked by it.
+  assert.match(implement, /untyped Issue in an\nexisting repository, proceeds normally/);
+
+  const refine = read("skills/refine-issue/SKILL.md");
+  // Refinement may sharpen an Epic, but may never declare one ready to build.
+  assert.match(refine, /An Epic may be refined/);
+  assert.match(refine, /it is never ready to implement/);
+  assert.match(refine, /Only a Story, or an untyped Issue\nin an existing repository, may be marked ready/);
+  assert.match(refine, /hand a refined Epic to decomposition instead/);
 });
 
-test("human integration boundary is a durable, portable policy", () => {
-  const specPath = "specs/007-require-human-approval-before-integration.md";
-  const skillPath = "skills/integration-boundary/SKILL.md";
+test("new-project stops before publishing the initial default branch", () => {
+  const skill = read("skills/new-project/SKILL.md");
+  assert.match(skill, /Make the\nfirst commit locally\./);
+  assert.match(skill, /\*\*Stop there\.\*\*/);
+  assert.match(skill, /`plus-ultra:integration-boundary` reserves default-branch pushes for a human/);
+  // The gate does not classify `gh repo create --push`, so the prose must.
+  assert.match(skill, /including `gh repo create --push`/);
+  assert.match(skill, /Do not look for a bootstrap exception; there is none\./);
+  assert.match(skill, /the exact\ncommands the human runs to create the remote/);
 
-  assert.ok(existsSync(join(repoRoot, specPath)), `${specPath} exists`);
-  assert.ok(existsSync(join(repoRoot, skillPath)), `${skillPath} exists`);
-
-  const spec = readRelative(specPath);
-  const skill = readRelative(skillPath);
-  const frontmatter = parseFrontmatter(skill);
-  const normalizedSkill = skill.replace(/\s+/g, " ");
-
-  assert.match(spec, /^title: Require human approval before integration$/m);
-  assert.match(spec, /^status: approved$/m);
-  assert.match(spec, /^issue: 52$/m);
-  assert.match(spec, /^created: 2026-09-06$/m);
-  assert.match(spec, /^# 007 — Require human approval before integration$/m);
-  const acceptanceCriteria = spec.match(/^- \[[ x]\]/gm) ?? [];
-  const checkedCriteria = spec.match(/^- \[x\]/gm) ?? [];
-  assert.equal(acceptanceCriteria.length, 11, "Issue 52 has 11 acceptance criteria");
-  assert.equal(checkedCriteria.length, 11, "all Issue 52 acceptance criteria are checked after verification");
-
-  assert.equal(frontmatter.name, "integration-boundary");
-  assert.match(frontmatter.description, /Use when/i);
-  assert.match(frontmatter.description, /finish|merge|release|tag|protected push/i);
-  assert.match(normalizedSkill, /plans?.*?specs?.*?issues?.*?earlier messages?.*?never.*?authori[sz].*?integration/i);
-  assert.match(normalizedSkill, /ready for (?:integration|review).*?stop/i);
-  assert.match(normalizedSkill, /commit.*?feature branch.*?pull request.*?stack/i);
-  assert.match(normalizedSkill, /must not.*?merge.*?auto-merge.*?default branch.*?release.*?tag/i);
-  assert.match(normalizedSkill, /no `plus-ultra:integrate` command/i);
+  // No skill may claim publishing a repository is ordinary preparation.
+  for (const name of SKILLS) {
+    assert.doesNotMatch(
+      read(`skills/${name}/SKILL.md`),
+      /pushing it is ordinary preparation|bootstrap exception is|initial push is allowed/i,
+      `skills/${name}/SKILL.md must not carve out a bootstrap exception`
+    );
+  }
 });
 
-test("integration guidance separates manual rollout from executable work across platforms", () => {
-  const conventions = readRelative("skills/spec-conventions/SKILL.md");
-  const readme = readRelative("README.md");
-  const agents = readRelative("AGENTS.md");
-  const normalizedConventions = conventions.replace(/\s+/g, " ");
-  const normalizedReadme = readme.replace(/\s+/g, " ");
-  const normalizedAgents = agents.replace(/\s+/g, " ");
+test("the design checkpoint is human-approved and carries no artifact platform", () => {
+  const refine = read("skills/refine-issue/SKILL.md");
+  assert.match(refine, /\*\*Design checkpoint\.\*\*/);
+  assert.match(refine, /get explicit human approval/);
 
-  const postApproval = markdownSection(conventions, "Post-approval integration");
-  assert.match(postApproval, /manual.*?integration/i);
-  assert.match(postApproval, /must not.*?execut(?:e|ed).*?implementation agent/i);
-  assert.match(normalizedConventions, /outside.*?executable checklist/i);
+  const implement = read("skills/implement-issue/SKILL.md");
+  assert.match(implement, /Never invent significant interface direction while coding\./);
+  assert.match(implement, /get explicit human approval before implementing it/);
+  // Where the approved reference lives moved to the on-demand reference.
+  assert.match(read("skills/implement-issue/references/depth.md"), /wherever it is cheapest/);
+  assert.match(
+    read("skills/implement-issue/references/depth.md"),
+    /Do not build a versioning scheme, a manifest, or\na lifecycle around it\./
+  );
 
-  for (const document of [normalizedReadme, normalizedAgents]) {
-    assert.match(document, /plans?.*?specs?.*?issues?.*?never.*?authori[sz].*?(?:merge|publish)/i);
-    assert.match(document, /ready for (?:integration|review).*?stop/i);
-    assert.match(document, /feature branch.*?pull request.*?stack/i);
-    assert.match(document, /merge.*?auto-merge.*?default branch.*?(?:release|tag)/i);
+  for (const content of [refine, implement]) {
+    assert.doesNotMatch(content, /manifest/i, "the design checkpoint must not reintroduce manifests");
+    assert.doesNotMatch(content, /deterministic resolution/i);
+  }
+});
+
+test("product owns the brief and every other skill only reads it", () => {
+  const product = read("skills/product/SKILL.md");
+  assert.match(product, /Only this skill writes `docs\/product\.md`/);
+  assert.match(product, /offer two or three real alternatives/);
+  assert.match(product, /give your recommendation and why/);
+  assert.match(product, /Challenge scope that has no clear line to the MVP hypothesis/);
+  assert.match(product, /only after explicit human approval/);
+  // Contradictions are raised in conversation, not routed through a protocol.
+  assert.match(product, /notice, name it, ask\./);
+
+  const template = read("skills/product/assets/product.md");
+  for (const section of ["Target user", "Core problem", "MVP hypothesis", "Non-goals", "Success criteria"]) {
+    assert.match(template, new RegExp(`^## ${section}$`, "m"));
   }
 
-  assert.match(normalizedReadme, /Claude.*?Codex.*?hook.*?guardrail/i);
-  assert.match(normalizedReadme, /Cursor.*?(?:portable skill|documentation-only)/i);
-  assert.match(normalizedAgents, /Claude.*?Codex.*?lifecycle hooks/i);
-  assert.match(normalizedAgents, /Cursor.*?(?:portable skill|documentation-only)/i);
+  for (const skill of SKILLS.filter((name) => name !== "product")) {
+    assert.doesNotMatch(
+      read(`skills/${skill}/SKILL.md`),
+      /(?:write|create|update|edit)s? `docs\/product\.md`/i,
+      `skills/${skill}/SKILL.md must not write the brief`
+    );
+  }
+});
+
+test("GitHub workflows gate writes behind explicit confirmation", () => {
+  const roadmap = read("skills/roadmap/SKILL.md");
+  assert.match(roadmap, /\*\*explicit confirmation\*\*/);
+  assert.match(roadmap, /Create nothing before it\./);
+  assert.match(roadmap, /viewerPermission/);
+  assert.match(roadmap, /gh issue create --parent <parent>/);
+  assert.match(roadmap, /type:epic/);
+  assert.match(roadmap, /type:story/);
+  assert.match(roadmap, /Never invent dates, assignees, estimates, or priorities/);
+
+  const refine = read("skills/refine-issue/SKILL.md");
+  assert.match(refine, /\*\*explicit confirmation\*\*/);
+  assert.match(refine, /## Acceptance Criteria/);
+  assert.match(refine, /plus-ultra:implement-issue/);
+});
+
+test("a minimum GitHub CLI version is declared and fails clearly", () => {
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(conventions, /\*\*GitHub CLI 2\.94\.0 or newer\*\*/);
+  assert.match(conventions, /check `gh --version`/);
+  assert.match(
+    conventions,
+    /Plus Ultra requires GitHub CLI 2\.94\.0 or newer; found <version>\. Upgrade gh and retry\./
+  );
+  assert.match(conventions, /Do not fall back to GraphQL to emulate a missing hierarchy capability\./);
+
+  // Workflows that write to GitHub must point at that requirement.
+  for (const skill of ["roadmap", "refine-issue"]) {
+    assert.match(read(`skills/${skill}/SKILL.md`), /plus-ultra:conventions/);
+  }
+});
+
+test("transient artifacts stay local and durable ones are named", () => {
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(conventions, /`\.context\/`/);
+  assert.match(conventions, /Ensure `\.gitignore` contains `\/\.context\/`/);
+  assert.match(conventions, /Conventional Commits/);
+  assert.match(conventions, /BREAKING CHANGE/);
+  assert.match(read(".gitignore"), /^\/\.context\/$/m);
+
+  assert.match(read("skills/implement-issue/SKILL.md"), /Keep plans in `\.context\/`, which is local and never committed/);
+});
+
+test("the human integration boundary survives unchanged", () => {
+  const boundary = read("skills/integration-boundary/SKILL.md");
+  assert.match(boundary, /End autonomous implementation at \*\*ready for integration\*\* and stop\./);
+  assert.match(boundary, /must not merge a PR or stack, enable auto-merge, push to the default\nbranch, create or publish a release, or create or publish a tag/);
+  assert.match(boundary, /There is no `plus-ultra:integrate` command\./);
+  assert.match(boundary, /Cursor ships the portable skill only/);
+});
+
+test("new-project defers the canonical template and keeps the baseline minimal", () => {
+  const skill = read("skills/new-project/SKILL.md");
+  assert.match(skill, /plus-ultra:product/);
+  assert.match(skill, /wait for explicit human approval of the brief/);
+  assert.match(skill, /A canonical Plus Ultra template repository will replace this step in a later iteration/);
+  assert.match(skill, /leave every decision the product does not yet need/);
+  assert.match(skill, /plus-ultra:roadmap/);
+  // The old stack matrix must not come back with it.
+  assert.doesNotMatch(skill, /pnpm workspaces|monorepo|hexagonal|Drizzle|shadcn/i);
+  assert.ok(!existsSync(join(repoRoot, "skills/new-project/references/scaffold-blueprint.md")));
+});
+
+test("the documented workflow matches the five capabilities", () => {
+  const readme = read("README.md");
+  for (const capability of CAPABILITIES) {
+    assert.match(readme, new RegExp(`plus-ultra:${capability}`), `README must document ${capability}`);
+  }
+  assert.match(readme, /Idea → new-project → product → roadmap → refine-issue → implement-issue/);
+  assert.match(readme, /you merge/i);
+
+  // Install and update instructions the release test also depends on.
+  assert.match(readme, /codex plugin marketplace add maurocicerchia\/plus-ultra --ref main/);
+  assert.match(readme, /claude plugin marketplace add maurocicerchia\/plus-ultra/);
+});
+
+test("portable skills stay agent-neutral", () => {
+  for (const skill of SKILLS) {
+    const content = read(`skills/${skill}/SKILL.md`);
+    for (const pattern of [/CLAUDE_PLUGIN_ROOT/, /PLUGIN_ROOT/, /\bsubagent\b/i, /hooks\//, /\.claude-plugin/]) {
+      assert.doesNotMatch(content, pattern, `skills/${skill}/SKILL.md leaks platform mechanics`);
+    }
+  }
 });

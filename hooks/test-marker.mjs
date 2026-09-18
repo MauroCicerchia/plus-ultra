@@ -34,28 +34,14 @@ const TYPECHECK_CMD = new RegExp(
     `)`
 );
 
-// The project-local verification wrapper exposes its check kind before `--`.
-// Recognize only the explicit test/typecheck forms, leaving arbitrary labels
-// outside the commit-gate contract.
-const WRAPPED_VERIFICATION_CMD = new RegExp(
-  `^\\s*(?:node\\s+)?(?:\\S*/)?plus-ultra-verify\\.mjs\\s+(test|typecheck)\\s+--(?:\\s|$)`
-);
-const wrappedKind = WRAPPED_VERIFICATION_CMD.exec(cmd)?.[1];
-const isTest = TEST_CMD.test(cmd) || wrappedKind === "test";
-const isTypecheck = TYPECHECK_CMD.test(cmd) || wrappedKind === "typecheck";
+const isTest = TEST_CMD.test(cmd);
+const isTypecheck = TYPECHECK_CMD.test(cmd);
 if (!isTest && !isTypecheck) process.exit(0);
 
 function responseText(response) {
   return [response?.stdout, response?.stderr, response?.output, typeof response === "string" ? response : ""]
     .filter(Boolean)
     .join("\n");
-}
-
-function wrappedVerificationPassed(kind, response) {
-  const summary = new RegExp(
-    `^${kind}: (?:passed|warning) exit=0; warnings detected=\\d+; errors detected=\\d+; source=[a-f0-9]{12}; receipt=\\S+`
-  );
-  return summary.test(responseText(response));
 }
 
 // Success detection. tool_response shape is not fully documented, so probe the
@@ -66,8 +52,6 @@ const exit = resp.exitCode ?? resp.exit_code ?? resp.returnCode ?? resp.code ?? 
 let passed;
 if (input?.tool_error === true || resp.interrupted === true) {
   passed = false;
-} else if (wrappedKind) {
-  passed = (typeof exit !== "number" || exit === 0) && wrappedVerificationPassed(wrappedKind, resp);
 } else if (typeof exit === "number") {
   passed = exit === 0;
 } else {

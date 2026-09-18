@@ -5,7 +5,7 @@
     "name": "Mauro Cicerchia",
     "email": "maurocicerchia98@gmail.com"
   },
-  "description": "Spec-driven solo development harness for Node/TS, built on top of Superpowers.",
+  "description": "Issue-first solo development harness, built on top of Superpowers.",
   "plugins": [
     {
       "name": "superpowers",
@@ -18,7 +18,7 @@
     {
       "name": "plus-ultra",
       "source": "./",
-      "description": "Repo conventions, guardrail hooks, spec-aware session resume, review subagents, and GitHub MCP layered on Superpowers."
+      "description": "Product discovery, roadmap, Issue refinement, Issue-to-PR implementation, review, and integration guardrails layered on Superpowers."
     }
   ]
 }
