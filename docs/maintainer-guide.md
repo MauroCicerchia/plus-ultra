@@ -13,6 +13,11 @@ Eight skills ship: five user-facing capabilities (`new-project`, `product`, `roa
 `integration-boundary`). Each capability has one Claude command in `commands/` and one Codex
 interface at `skills/<name>/agents/openai.yaml`; keep those in sync with the skill set.
 
+`MauroCicerchia/plus-ultra-template` is the canonical starting point for a compatible TypeScript
+web product and owns the stack outright. `skills/new-project/references/canonical-template.md`
+holds the fit judgement, the local instantiation commands, and the customization checklist; it must
+never restate the template's dependencies, versions, or file layout.
+
 GitHub access uses `gh`; no MCP is bundled. The supported floor is GitHub CLI 2.94.0, which
 introduced native Issue hierarchy — `plus-ultra:conventions` states the requirement and the failure
 message. A portable skill must not refer to Claude-only roots, hooks, commands, or Markdown
