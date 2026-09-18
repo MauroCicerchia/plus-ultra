@@ -84,9 +84,10 @@ Use plus-ultra:new-project to start a project for [describe the idea].
 ```
 
 Discovery runs first. Nothing is written until you approve `docs/product.md`. If the product has a
-real user interface, a short design conversation follows and produces an approved root `DESIGN.md`:
-durable visual direction that later refinement and implementation build against. Products without a
-UI skip it entirely. Refinement can later propose a change to that direction, but only as an
+real user interface, a short design conversation follows and produces an approved root `DESIGN.md`
+in the [Google Labs `DESIGN.md` format](https://github.com/google-labs-code/design.md): durable
+visual direction that later refinement and implementation build against, readable by any agent that
+already speaks the convention. Products without a UI skip it entirely. Refinement can later propose a change to that direction, but only as an
 explicit decision you approve — never as a side effect of building a feature. Then the repository is initialized, and `plus-ultra:roadmap` breaks the
 direction into Epics and Stories.
 

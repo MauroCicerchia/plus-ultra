@@ -41,6 +41,27 @@ function frontmatter(markdown) {
   return { name: name?.[1].trim(), description: description?.[1].trim() };
 }
 
+// The canonical `DESIGN.md` sections, in the order the Google Labs convention fixes them.
+// Plus Ultra follows that format rather than maintaining a schema of its own.
+const DESIGN_SECTIONS = [
+  "Overview",
+  "Colors",
+  "Typography",
+  "Layout",
+  "Elevation & Depth",
+  "Shapes",
+  "Components",
+  "Do's and Don'ts",
+];
+// The custom headings Plus Ultra used before adopting the convention. Nothing may depend on them.
+const RETIRED_DESIGN_SECTIONS = [
+  "Visual direction",
+  "Spacing and shape",
+  "Component principles",
+  "Interaction principles",
+  "Responsive behaviour",
+];
+
 // The five user-facing capabilities, in workflow order.
 const CAPABILITIES = ["new-project", "product", "roadmap", "refine-issue", "implement-issue"];
 // Shared policy and helper skills the capabilities lean on.
@@ -339,17 +360,7 @@ test("the design brief is adaptive, approved, and carries no lifecycle", () => {
   // Durable and product-level, not a screen or component specification.
   assert.ok(flat.includes("not a component catalogue and it does not describe individual screens"));
   assert.ok(flat.includes("Keep the first version concise"));
-  for (const section of [
-    "Visual direction",
-    "Color",
-    "Typography",
-    "Spacing and shape",
-    "Component principles",
-    "Interaction principles",
-    "Responsive behaviour",
-    "Accessibility",
-  ]) {
-    assert.match(read("skills/new-project/assets/DESIGN.md"), new RegExp(`^## ${section}$`, "m"));
+  for (const section of DESIGN_SECTIONS) {
     assert.ok(flat.includes(`| ${section} |`), `the reference must say what ${section} settles`);
   }
 
@@ -372,6 +383,83 @@ test("the design brief is adaptive, approved, and carries no lifecycle", () => {
   assert.ok(!existsSync(join(repoRoot, "skills/design")));
 });
 
+test("the shipped DESIGN.md follows the canonical Google Labs structure", () => {
+  const asset = read("skills/new-project/assets/DESIGN.md");
+
+  // Every heading the asset ships is canonical, and they appear in the order the format fixes.
+  const headings = [...asset.matchAll(/^## (.+)$/gm)].map((match) => match[1].trim());
+  assert.deepEqual(headings, DESIGN_SECTIONS, "the asset must ship the canonical sections in order");
+
+  // The convention allows one optional title heading above them and nothing deeper.
+  assert.equal([...asset.matchAll(/^# (?!#).+$/gm)].length, 1, "at most one h1 titles the document");
+  assert.doesNotMatch(asset, /^#{3,} /m, "the canonical sections are h2, with no imposed subheadings");
+
+  // Plus Ultra's own section schema is gone from everything that produces or describes the brief.
+  const reference = read("skills/new-project/references/design-brief.md");
+  for (const retired of RETIRED_DESIGN_SECTIONS) {
+    for (const [label, content] of [["asset", asset], ["reference", reference]]) {
+      assert.doesNotMatch(content, new RegExp(`^## ${retired}$`, "m"), `${label} still heads "${retired}"`);
+      assert.ok(!content.includes(`| ${retired} |`), `${label} still tabulates "${retired}"`);
+    }
+  }
+
+  // The format is named and linked once, and never transcribed into this repository.
+  assert.ok(reference.includes("https://github.com/google-labs-code/design.md"));
+  assert.ok(
+    reference.replace(/\s+/g, " ").includes("never copy it into this repository"),
+    "the reference must defer to the specification rather than duplicate it"
+  );
+});
+
+test("structured frontmatter is emitted only for tokens the product actually settled", () => {
+  const flat = read("skills/new-project/references/design-brief.md").replace(/\s+/g, " ");
+
+  assert.ok(flat.includes("Emit it **only for values the conversation actually settled**"));
+  assert.ok(flat.includes("No settled values means no frontmatter at all"));
+  assert.ok(
+    flat.includes("inventing some to fill the block manufactures decisions nobody approved"),
+    "frontmatter must never be filled speculatively"
+  );
+  // Structured values and prose carry different things, so neither restates the other.
+  assert.ok(flat.includes("Do not repeat a colour or a step in prose that the frontmatter already states"));
+  assert.ok(flat.includes("do not paraphrase the body back into YAML"));
+  for (const group of ["colors", "typography", "spacing", "rounded", "components"]) {
+    assert.ok(flat.includes(`\`${group}\``), `the reference must name the ${group} token group`);
+  }
+
+  // The asset is a skeleton: no frontmatter block and no invented token values in it.
+  const asset = read("skills/new-project/assets/DESIGN.md");
+  assert.doesNotMatch(asset, /^---$/m, "the asset must not ship a speculative frontmatter block");
+  assert.doesNotMatch(asset, /#[0-9a-f]{3,8}\b|\b\d+(?:px|rem|em)\b/i, "the asset must not invent token values");
+});
+
+test("adopting the format added no design subsystem to Plus Ultra", () => {
+  for (const path of [
+    "skills/design",
+    "skills/design-md",
+    "scripts/sync-design.mjs",
+    "scripts/design-tokens.mjs",
+    "commands/sync-design.md",
+  ]) {
+    assert.ok(!existsSync(join(repoRoot, path)), `${path} must not exist`);
+  }
+  assert.ok(!listDir("scripts").some((entry) => /design/i.test(entry.name)));
+  assert.ok(!listDir("commands").some((entry) => /design/i.test(entry.name)));
+
+  // The reference says so outright, so the next agent does not build one either.
+  const flat = read("skills/new-project/references/design-brief.md").replace(/\s+/g, " ");
+  assert.ok(
+    flat.includes("do not build a parser, a theme generator, or a sync command to consume it"),
+    "the brief must forbid the machinery the format tempts you to build"
+  );
+  assert.ok(flat.includes("A coding agent reads the approved document and applies it directly"));
+
+  // The template stays unaware of the document's schema: the agent edits its neutral tokens.
+  const template = read("skills/new-project/references/canonical-template.md").replace(/\s+/g, " ");
+  assert.ok(template.includes("so it implements the approved `DESIGN.md`"));
+  assert.doesNotMatch(template, /frontmatter|parse|token generator/i, "the template must not learn the schema");
+});
+
 test("only UI work loads DESIGN.md", () => {
   const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
   assert.ok(refine.includes("If there is no significant UI, say so, move on, and read no design context at all"));
@@ -387,6 +475,14 @@ test("only UI work loads DESIGN.md", () => {
     conventions,
     /^\| Project design brief, for a product with a UI \| `DESIGN\.md` at the root \| yes \|$/m,
     "the artifact table must place DESIGN.md at the root and commit it"
+  );
+  assert.ok(
+    conventions.replace(/\s+/g, " ").includes(
+      "The design brief follows the [Google Labs `DESIGN.md` " +
+        "convention](https://github.com/google-labs-code/design.md): Plus Ultra owns when it is created and " +
+        "how it changes, that external format owns its structure"
+    ),
+    "conventions must name the format and who owns what"
   );
 });
 
