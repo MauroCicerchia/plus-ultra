@@ -8,48 +8,63 @@ to the shared `skills/` directory. `commands/` and `agents/` are Claude-specific
 the Claude and Codex hook manifests plus zero-dependency Node ESM scripts; shared stdin and
 decision helpers live in `hooks/_lib.mjs`.
 
-GitHub access uses `gh`; no MCP is bundled. A portable skill must not refer to Claude-only roots,
-hooks, commands, or Markdown subagents. To add an agent platform, add its manifest and reuse the
-shared skills rather than duplicating them.
+Eight skills ship: five user-facing capabilities (`new-project`, `product`, `roadmap`,
+`refine-issue`, `implement-issue`) and three they share (`code-review`, `conventions`,
+`integration-boundary`). Each capability has one Claude command in `commands/` and one Codex
+interface at `skills/<name>/agents/openai.yaml`; keep those in sync with the skill set.
+
+GitHub access uses `gh`; no MCP is bundled. The supported floor is GitHub CLI 2.94.0, which
+introduced native Issue hierarchy — `plus-ultra:conventions` states the requirement and the failure
+message. A portable skill must not refer to Claude-only roots, hooks, commands, or Markdown
+subagents. To add an agent platform, add its manifest and reuse the shared skills rather than
+duplicating them.
 
 ## Validation and local development
 
-Run `node --test tests/*.test.mjs`, `node scripts/check-context-budget.mjs`, and
-`node scripts/validate-packaging.mjs`. Before committing, validate both the marketplace and Claude
-plugin with `claude plugin validate .` and `claude plugin validate .claude-plugin/plugin.json`.
+Run, from the repository root:
+
+```
+node --test tests/*.test.mjs
+node scripts/check-context-budget.mjs
+node scripts/validate-packaging.mjs
+claude plugin validate .
+claude plugin validate .claude-plugin/plugin.json
+```
+
+`check-context-budget.mjs` is the mechanical complexity budget: it caps the number of skills and the
+byte size of each always-loaded `SKILL.md` and of `AGENTS.md`. Detailed material belongs in an
+on-demand `references/` file, which the budget deliberately ignores.
+
 Test hooks with representative JSON payloads; allow paths are silent, deny paths emit a decision
 JSON and exit zero, and commit blockers use their documented marker state.
 
-For local Codex dogfooding, use `node scripts/codex-local.mjs refresh`; it creates a temporary
-marketplace under `.context/`. Restore the released plugin with `node scripts/codex-local.mjs restore`.
-For a clean manual install, add the local marketplace and then `plus-ultra@plus-ultra` using a
-temporary `CODEX_HOME` under `.context/`.
+For local Codex dogfooding, add this working tree as a marketplace under a temporary `CODEX_HOME`
+inside `.context/`, then install `plus-ultra@plus-ultra` from it. Use a scratch `CODEX_HOME` so the
+released plugin in your real Codex profile is untouched, and delete it when finished.
 
-## Local context reducers
+## Hooks
 
-`scripts/context-reducers.mjs` is a Node ESM helper with no dependencies for reviewing this Plus
-Ultra checkout. `pr-review-context --repo <owner/repo> --pr <positive-integer>` performs its own
-read-only `gh` calls and emits compact JSON for the PR snapshot, remote specs, contract resolution,
-and tagged review state. Use `comment-evidence` only to expand one identified tagged comment.
+| Hook | Event | Behaviour |
+| --- | --- | --- |
+| `integration-gate.mjs` | PreToolUse (Bash) | Denies merges, auto-merge, releases, tags, and protected-branch pushes |
+| `dangerous-command.mjs` | PreToolUse (Bash) | Denies recursive force-deletes and shared-branch force-pushes |
+| `secret-scan.mjs` | PreToolUse (Bash) | Denies commits whose staged diff carries credentials |
+| `commit-msg-lint.mjs` | PreToolUse (Bash) | Denies non-Conventional commit headers |
+| `commit-gate.mjs` | PreToolUse (Bash) | Denies commits without a fresh passing test, and typecheck in TS projects |
+| `test-marker.mjs` | PostToolUse (Bash) | Records passing test and typecheck runs against a working-tree fingerprint |
+| `auto-format.mjs` | PostToolUse (Write/Edit) | Formats edited source files |
 
-The helper is intentionally repository-local: do not copy it into consumer projects and do not
-derive a plugin-cache path. It returns structured errors for malformed, ambiguous, paginated, or
-stale inputs; before any review mutation, re-run it with `--expect-head <headRefOid>` and restart
-the review if the head changed. This helper does not cache semantic conclusions, suppress
-verification output, or replace the existing write guards.
+The integration gate parses shell syntax — quoting, heredocs, command substitution, `env`, `sudo`,
+`xargs`, `sh -c`, `eval` — because that parsing is what makes the guarantee hard to bypass. Do not
+replace it with pattern matching over the raw command string.
 
-`plus-ultra:context-handoffs` is portable policy for passing compact references between phases. It
-does not persist state or replace this reducer: #22 owns future orchestration, #23 owns risk
-classification, #63 owns progressive disclosure, and #64 owns compact PR metadata. Keep its core
-small and put detailed phase operations in its on-demand reference.
+Its GraphQL classification is deliberately conservative rather than exact: a document that declares
+a mutation and invokes a protected field is denied whatever `operationName` would have selected. It
+therefore denies a little more than a full GraphQL parser would, and never less. A human can still
+run the command.
 
-## Project-local verification wrapper
-
-Unlike the context reducer, `skills/verification/assets/plus-ultra-verify.mjs` is a consumer
-template. Copy it into each project's `scripts/plus-ultra-verify.mjs` through the
-`plus-ultra:verification` skill or the new-project scaffold, then version it with that project.
-Do not make a consumer project invoke a plugin-cache path. The skill's operations reference covers
-updates, receipts, and bounded Git/GitHub inspection.
+The commit gate is not applied when every path that differs from `HEAD` is prose or an image, since
+those cannot invalidate a recorded verification run. Any unreadable Git state keeps the gate on.
 
 ## Installation and update reference
 
@@ -59,6 +74,13 @@ and run `codex plugin add plus-ultra@plus-ultra` again. Claude users update with
 `claude plugin marketplace update plus-ultra` then `claude plugin update plus-ultra@plus-ultra`.
 Cursor users refresh or reinstall from its marketplace because no verified Cursor CLI update command
 exists.
+
+## Releases
+
+Release Please owns `version.txt`, `.release-please-manifest.json`, `CHANGELOG.md`, and the version
+field of the three plugin manifests. Never hand-edit those; commit a Conventional Commit and let the
+release workflow open the release pull request. To force a specific version, add a
+`Release-As: <version>` footer to the commit.
 
 ## Integration policy
 

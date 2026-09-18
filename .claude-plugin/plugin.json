@@ -1,7 +1,7 @@
 {
   "name": "plus-ultra",
   "displayName": "Plus Ultra",
-  "description": "Spec-driven solo dev harness: repo conventions, guardrail hooks, spec-aware session resume, and review subagents on top of Superpowers.",
+  "description": "Issue-first harness for solo product development: product discovery, roadmap, Issue refinement, and Issue-to-PR implementation with human integration guardrails.",
   "version": "0.4.0",
   "author": {
     "name": "Mauro Cicerchia",
@@ -11,12 +11,12 @@
   "repository": "https://github.com/maurocicerchia/plus-ultra",
   "license": "MIT",
   "keywords": [
-    "spec-driven",
-    "tdd",
+    "issue-driven",
+    "product",
+    "roadmap",
     "harness",
     "workflow",
-    "nodejs",
-    "typescript"
+    "github"
   ],
   "dependencies": [
     "superpowers"
