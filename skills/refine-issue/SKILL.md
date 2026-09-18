@@ -22,10 +22,13 @@ for the required `gh` version and check write permission before any GitHub write
    behaviour, not implementation steps. These become the contract that implementation and review
    both work from.
 3. **Design checkpoint.** Decide whether the Story involves significant visual or interaction
-   decisions. If it does, resolve the direction here rather than during implementation: reason about
-   the UX, produce one concrete proposal — a Pencil file, mockup, screenshot, or described reference
-   — and get explicit human approval. Record the approved reference in the Issue or as a link. If
-   there is no significant UI, say so and move on.
+   decisions. If there is no significant UI, say so, move on, and read no design context at all.
+   If there is, read root `DESIGN.md` when it exists — it is the approved product-level visual
+   direction — and resolve the feature's direction here rather than during implementation: reason
+   about the UX, produce one concrete proposal consistent with that direction — a Pencil file,
+   mockup, screenshot, or described reference — and get explicit human approval. Record the approved
+   reference in the Issue or as a link. Escalate to the human only where the Story genuinely needs
+   new product-level direction; say that plainly instead of editing `DESIGN.md` here.
 4. **Whether a spec is warranted.** Note in the Issue when complexity or risk justifies a separate
    technical contract. Do not create one here; `plus-ultra:implement-issue` decides and writes it.
 

@@ -228,7 +228,7 @@ test("only Stories take the Issue-to-PR path", () => {
   assert.match(implement, /an Epic is a container,\nnot a unit of work/);
   assert.match(implement, /Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition/);
   // Existing repositories without the taxonomy must not be blocked by it.
-  assert.match(implement, /untyped Issue in an\nexisting repository, proceeds normally/);
+  assert.match(implement, /untyped Issue in an\s+existing repository, proceeds normally/);
 
   const refine = read("skills/refine-issue/SKILL.md");
   // Refinement may sharpen an Epic, but may never declare one ready to build.
@@ -276,6 +276,93 @@ test("the design checkpoint is human-approved and carries no artifact platform",
   for (const content of [refine, implement]) {
     assert.doesNotMatch(content, /manifest/i, "the design checkpoint must not reintroduce manifests");
     assert.doesNotMatch(content, /deterministic resolution/i);
+  }
+});
+
+test("design discovery runs only for products with a real interface", () => {
+  const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.match(read("skills/new-project/SKILL.md"), /^## 2\. Design discovery/m);
+  assert.ok(skill.includes("whether the product has a meaningful user interface"));
+  assert.ok(
+    skill.includes("A library, CLI, service, or data pipeline does not: skip this step, load nothing for it"),
+    "non-UI products must skip design discovery and pay no context cost"
+  );
+  assert.ok(skill.includes("human-approved `DESIGN.md` at the repository root"));
+  assert.ok(skill.includes("references/design-brief.md"), "the detail must stay in an on-demand reference");
+  assert.ok(
+    skill.includes("Feature-specific UI stays where it already is, in the Issue design checkpoint"),
+    "the per-feature checkpoint must survive"
+  );
+  assert.ok(skill.includes("the approved `DESIGN.md` at the root, when step 2 produced one"));
+});
+
+test("the design brief is adaptive, approved, and carries no lifecycle", () => {
+  const reference = read("skills/new-project/references/design-brief.md");
+  const flat = reference.replace(/\s+/g, " ");
+
+  // Adaptive and recommendation-driven, never a fixed questionnaire.
+  assert.match(reference, /\*\*one material visual decision at a time\*\*/);
+  assert.match(reference, /offer two or three real alternatives/);
+  assert.match(reference, /give your recommendation and why/);
+  assert.ok(flat.includes("This is a short conversation, not a fixed questionnaire"));
+  assert.ok(flat.includes("Infer those, state each inference visibly as an assumption"));
+
+  // Proposed in full, written only on approval.
+  assert.match(reference, /\*\*complete proposed document\*\*/);
+  assert.ok(flat.includes("only after explicit human approval"));
+  assert.ok(flat.includes("A declined or unanswered proposal leaves the repository unchanged"));
+
+  // Durable and product-level, not a screen or component specification.
+  assert.ok(flat.includes("not a component catalogue and it does not describe individual screens"));
+  assert.ok(flat.includes("Keep the first version concise"));
+  for (const section of [
+    "Visual direction",
+    "Color",
+    "Typography",
+    "Spacing and shape",
+    "Component principles",
+    "Interaction principles",
+    "Responsive behaviour",
+    "Accessibility",
+  ]) {
+    assert.match(read("skills/new-project/assets/DESIGN.md"), new RegExp(`^## ${section}$`, "m"));
+    assert.ok(flat.includes(`| ${section} |`), `the reference must say what ${section} settles`);
+  }
+
+  // It changes through a design decision, and grows no subsystem around itself.
+  assert.ok(flat.includes("never as a side effect of implementing a feature"));
+  assert.ok(
+    flat.includes("Do not grow a version history, a changelog, a status field, or a generated token file around it")
+  );
+  for (const pattern of [/manifest/i, /resolver/i, /snapshot/i, /lifecycle/i, /token compiler/i]) {
+    assert.doesNotMatch(reference, pattern, "the design brief must not revive the design-artifact subsystem");
+  }
+  assert.ok(!existsSync(join(repoRoot, "skills/design")));
+});
+
+test("only UI work loads DESIGN.md, and no consumer rewrites it", () => {
+  const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(refine.includes("If there is no significant UI, say so, move on, and read no design context at all"));
+  assert.ok(refine.includes("read root `DESIGN.md` when it exists"));
+  assert.ok(refine.includes("produce one concrete proposal consistent with that direction"));
+  assert.ok(
+    refine.includes("Escalate to the human only where the Story genuinely needs new product-level direction"),
+    "refinement escalates only genuinely new direction"
+  );
+  assert.ok(refine.includes("instead of editing `DESIGN.md` here"));
+
+  const implement = read("skills/implement-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(implement.includes("Non-UI work reads nothing here"));
+  assert.ok(implement.includes("read root `DESIGN.md` if it exists: approved product-level visual context"));
+  assert.ok(implement.includes("never change its product-level direction here"));
+
+  // Only new-project's design discovery may author the file.
+  for (const skill of SKILLS.filter((name) => name !== "new-project")) {
+    assert.doesNotMatch(
+      read(`skills/${skill}/SKILL.md`),
+      /(?:write|create|update|edit)s? `DESIGN\.md`/i,
+      `skills/${skill}/SKILL.md must not author DESIGN.md`
+    );
   }
 });
 

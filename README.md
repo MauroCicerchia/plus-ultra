@@ -16,7 +16,7 @@ Idea → new-project → product → roadmap → refine-issue → implement-issu
 
 | Capability | What it does |
 | --- | --- |
-| `plus-ultra:new-project` | Runs discovery, records the approved brief, and initializes a repository |
+| `plus-ultra:new-project` | Runs discovery, records the approved brief and design brief, and initializes a repository |
 | `plus-ultra:product` | Owns `docs/product.md` — the approved statement of what is being built |
 | `plus-ultra:roadmap` | Turns product direction into GitHub Epics and Stories |
 | `plus-ultra:refine-issue` | Makes one Issue ready to implement: ambiguity, acceptance criteria, UI direction |
@@ -34,7 +34,8 @@ Plus Ultra maximizes autonomy between checkpoints rather than maximizing checkpo
 stay yours:
 
 1. **Product direction** — when a decision changes what is being built.
-2. **Significant UI/UX direction** — before an agent invents an interface.
+2. **Significant UI/UX direction** — before an agent invents an interface. For a product with a
+   real interface, that starts with one approved root `DESIGN.md`.
 3. **Material unresolved ambiguity** — product, UX, security, data, contract, or anything else
    externally observable that the agent cannot settle from context.
 4. **Final review and merge** — always manual.
@@ -82,8 +83,11 @@ message below it.
 Use plus-ultra:new-project to start a project for [describe the idea].
 ```
 
-Discovery runs first. Nothing is written until you approve `docs/product.md`. Then the repository is
-initialized, and `plus-ultra:roadmap` breaks the direction into Epics and Stories.
+Discovery runs first. Nothing is written until you approve `docs/product.md`. If the product has a
+real user interface, a short design conversation follows and produces an approved root `DESIGN.md`:
+durable visual direction that later refinement and implementation build against. Products without a
+UI skip it entirely. Then the repository is initialized, and `plus-ultra:roadmap` breaks the
+direction into Epics and Stories.
 
 ### An existing repository
 
