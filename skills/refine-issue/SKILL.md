@@ -27,8 +27,11 @@ for the required `gh` version and check write permission before any GitHub write
    direction — and resolve the feature's direction here rather than during implementation: reason
    about the UX, produce one concrete proposal consistent with that direction — a Pencil file,
    mockup, screenshot, or described reference — and get explicit human approval. Record the approved
-   reference in the Issue or as a link. Escalate to the human only where the Story genuinely needs
-   new product-level direction; say that plainly instead of editing `DESIGN.md` here.
+   reference in the Issue or as a link. Feature-level design never touches `DESIGN.md`.
+   Where the Story genuinely needs **new product-level direction**, say so, propose that direction
+   with the smallest corresponding `DESIGN.md` change, and get explicit human approval for both.
+   Only then edit `DESIGN.md` — minimally, keeping every unaffected part verbatim — and still record
+   the feature's approved reference in the Issue.
 4. **Whether a spec is warranted.** Note in the Issue when complexity or risk justifies a separate
    technical contract. Do not create one here; `plus-ultra:implement-issue` decides and writes it.
 

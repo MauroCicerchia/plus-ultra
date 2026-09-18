@@ -265,7 +265,7 @@ test("the design checkpoint is human-approved and carries no artifact platform",
 
   const implement = read("skills/implement-issue/SKILL.md");
   assert.match(implement, /Never invent significant interface direction while coding\./);
-  assert.match(implement, /get explicit human approval before implementing it/);
+  assert.match(implement, /get explicit human\s+approval before implementing it/);
   // Where the approved reference lives moved to the on-demand reference.
   assert.match(read("skills/implement-issue/references/depth.md"), /wherever it is cheapest/);
   assert.match(
@@ -305,7 +305,14 @@ test("the design brief is adaptive, approved, and carries no lifecycle", () => {
   assert.match(reference, /offer two or three real alternatives/);
   assert.match(reference, /give your recommendation and why/);
   assert.ok(flat.includes("This is a short conversation, not a fixed questionnaire"));
-  assert.ok(flat.includes("Infer those, state each inference visibly as an assumption"));
+
+  // Inferred context is carried as a working assumption; only material ones are surfaced.
+  assert.ok(flat.includes("Carry those inferences as working assumptions and do not ask about them again"));
+  assert.ok(
+    flat.includes("Surface an assumption only when it is materially uncertain or consequential"),
+    "discovery must not restate every inference"
+  );
+  assert.ok(flat.includes("do not recite the ones that are obvious from the brief"));
 
   // Proposed in full, written only on approval.
   assert.match(reference, /\*\*complete proposed document\*\*/);
@@ -332,6 +339,14 @@ test("the design brief is adaptive, approved, and carries no lifecycle", () => {
   // It changes through a design decision, and grows no subsystem around itself.
   assert.ok(flat.includes("never as a side effect of implementing a feature"));
   assert.ok(
+    flat.includes(
+      "When refinement finds that a Story needs direction this document does not cover, that is the path: " +
+        "propose the direction and the smallest corresponding edit together, get approval for both, then " +
+        "change only what the decision touched"
+    ),
+    "the brief must name its own evolution path"
+  );
+  assert.ok(
     flat.includes("Do not grow a version history, a changelog, a status field, or a generated token file around it")
   );
   for (const pattern of [/manifest/i, /resolver/i, /snapshot/i, /lifecycle/i, /token compiler/i]) {
@@ -340,27 +355,61 @@ test("the design brief is adaptive, approved, and carries no lifecycle", () => {
   assert.ok(!existsSync(join(repoRoot, "skills/design")));
 });
 
-test("only UI work loads DESIGN.md, and no consumer rewrites it", () => {
+test("only UI work loads DESIGN.md", () => {
   const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
   assert.ok(refine.includes("If there is no significant UI, say so, move on, and read no design context at all"));
   assert.ok(refine.includes("read root `DESIGN.md` when it exists"));
   assert.ok(refine.includes("produce one concrete proposal consistent with that direction"));
-  assert.ok(
-    refine.includes("Escalate to the human only where the Story genuinely needs new product-level direction"),
-    "refinement escalates only genuinely new direction"
-  );
-  assert.ok(refine.includes("instead of editing `DESIGN.md` here"));
 
   const implement = read("skills/implement-issue/SKILL.md").replace(/\s+/g, " ");
   assert.ok(implement.includes("Non-UI work reads nothing here"));
   assert.ok(implement.includes("read root `DESIGN.md` if it exists: approved product-level visual context"));
-  assert.ok(implement.includes("never change its product-level direction here"));
 
-  // Only new-project's design discovery may author the file.
-  for (const skill of SKILLS.filter((name) => name !== "new-project")) {
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(
+    conventions,
+    /^\| Project design brief, for a product with a UI \| `DESIGN\.md` at the root \| yes \|$/m,
+    "the artifact table must place DESIGN.md at the root and commit it"
+  );
+});
+
+test("DESIGN.md evolves only through an approved product-level design decision", () => {
+  const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
+
+  // Ordinary feature-level design never touches it.
+  assert.ok(refine.includes("Feature-level design never touches `DESIGN.md`"));
+
+  // Genuinely new product-level direction may, but only after explicit approval of both the
+  // direction and the minimal edit — and the feature's own reference still lives on the Issue.
+  assert.ok(
+    refine.includes(
+      "Where the Story genuinely needs **new product-level direction**, say so, propose that direction with " +
+        "the smallest corresponding `DESIGN.md` change, and get explicit human approval for both"
+    ),
+    "refinement must propose direction and edit together, and get approval for both"
+  );
+  assert.ok(
+    refine.includes(
+      "Only then edit `DESIGN.md` — minimally, keeping every unaffected part verbatim — and still record the " +
+        "feature's approved reference in the Issue"
+    ),
+    "the edit is minimal, post-approval, and does not replace the Issue-level record"
+  );
+
+  // Implementation stays read-only with respect to the file.
+  const implement = read("skills/implement-issue/SKILL.md");
+  assert.match(implement, /never change its\s+product-level direction here/);
+  assert.doesNotMatch(
+    implement,
+    /(?:write|create|update|edit|change)s? `DESIGN\.md`/i,
+    "implement-issue must never author DESIGN.md"
+  );
+
+  // No other skill authors it, and no lifecycle or workflow was added to let one.
+  for (const skill of SKILLS.filter((name) => !["new-project", "refine-issue"].includes(name))) {
     assert.doesNotMatch(
       read(`skills/${skill}/SKILL.md`),
-      /(?:write|create|update|edit)s? `DESIGN\.md`/i,
+      /(?:write|create|update|edit|change)s? `DESIGN\.md`/i,
       `skills/${skill}/SKILL.md must not author DESIGN.md`
     );
   }

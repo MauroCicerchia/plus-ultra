@@ -12,7 +12,9 @@ stay in the Issue design checkpoint.
 
 Start from what is already settled. The approved `docs/product.md` usually implies the audience,
 the tone, how dense the interface has to be, the platform, and the constraints the product operates
-under. Infer those, state each inference visibly as an assumption, and do not ask about them again.
+under. Carry those inferences as working assumptions and do not ask about them again. Surface an
+assumption only when it is materially uncertain or consequential enough that being wrong would
+change the document; do not recite the ones that are obvious from the brief.
 
 Then ask **one material visual decision at a time**, adapting the next question to the answer.
 Material means the answer changes what gets built. For every consequential decision:
@@ -51,5 +53,7 @@ human approval. A declined or unanswered proposal leaves the repository unchange
 
 `DESIGN.md` is then durable approved context: later work reads it and builds consistently with it.
 Its product-level direction changes only through an explicit design or product decision a human
-approves, never as a side effect of implementing a feature. Do not grow a version history, a
-changelog, a status field, or a generated token file around it.
+approves, never as a side effect of implementing a feature. When refinement finds that a Story needs
+direction this document does not cover, that is the path: propose the direction and the smallest
+corresponding edit together, get approval for both, then change only what the decision touched.
+Do not grow a version history, a changelog, a status field, or a generated token file around it.

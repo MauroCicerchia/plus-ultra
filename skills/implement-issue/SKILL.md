@@ -36,7 +36,7 @@ decision contradicts `docs/product.md`, say so and ask; do not edit the brief he
 | --- | --- | --- |
 | **Small** | Localized and understood; no material decision | implement → focused tests → PR |
 | **Normal** | Significant behaviour, or several files or modules | short plan → implement → tests → review when warranted → fix → PR |
-| **High-risk** | Auth, authorization, payments, destructive data, sensitive migration, concurrency, critical infrastructure | technical contract → plan → stronger verification → **mandatory** review → PR |
+| **High-risk** | Auth, payments, destructive data, migrations, concurrency, critical infrastructure | technical contract → plan → stronger verification → **mandatory** review → PR |
 
 Unresolved uncertainty raises depth; it never lowers it. [`references/depth.md`](./references/depth.md)
 holds each depth's controls, where a design reference lives, and when a spec earns its cost.
@@ -47,9 +47,9 @@ Non-UI work reads nothing here. When the change touches a user interface, read r
 it exists: approved product-level visual context. Build consistently with it, and never change its
 product-level direction here.
 
-Never invent significant interface direction while coding. If the work introduces or significantly
-changes a user interface and refinement did not settle it, stop, reason about the UX, propose one
-concrete direction, and get explicit human approval before implementing it.
+Never invent significant interface direction while coding. If refinement did not settle the
+interface, stop, reason about the UX, propose one concrete direction, and get explicit human
+approval before implementing it.
 
 ## 5. Plan and implement
 
@@ -86,4 +86,3 @@ or publish a release or tag. End at **ready for review** and stop.
 
 Close with one line of harness feedback only when this Issue exposed real friction in Plus Ultra
 itself. Never file it.
-

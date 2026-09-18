@@ -26,6 +26,7 @@ Do not fall back to GraphQL to emulate a missing hierarchy capability.
 | Artifact | Location | Committed |
 | --- | --- | --- |
 | Product brief | `docs/product.md` | yes |
+| Project design brief, for a product with a UI | `DESIGN.md` at the root | yes |
 | Work items | GitHub Issues | n/a |
 | Optional technical spec | `specs/NNN-slug.md` | yes |
 | Optional design reference | Issue comment, `designs/`, or a link | as convenient |
