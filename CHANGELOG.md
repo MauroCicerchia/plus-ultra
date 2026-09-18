@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.0.0...v1.1.0) (2026-09-18)
+
+
+### Features
+
+* **design:** add a durable project design brief to the UI workflow ([#79](https://github.com/MauroCicerchia/plus-ultra/issues/79)) ([3e72915](https://github.com/MauroCicerchia/plus-ultra/commit/3e729152e22d4a19aca27776746c8195249a0321))
+* **new-project:** make the canonical template the default for compatible products ([#81](https://github.com/MauroCicerchia/plus-ultra/issues/81)) ([dda8a94](https://github.com/MauroCicerchia/plus-ultra/commit/dda8a94a8778aaaee7a9e1831c450a4923edc2db))
+
 ## [1.0.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.4.0...v1.0.0) (2026-09-18)
 
 
