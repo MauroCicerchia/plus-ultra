@@ -31,8 +31,12 @@ for the required `gh` version and check write permission before any GitHub write
 
 ## Proposal
 
-Classify the Issue as a Story or an Epic from its scope. Propose a title, and labels, milestone, or
-parent only where the available context supports them. Replace the body with this structure:
+Classify the Issue as a Story or an Epic from its scope. An Epic may be refined — its context, goal,
+and boundaries are worth sharpening — but it is never ready to implement: finish by proposing the
+Stories it decomposes into and hand those to `plus-ultra:roadmap`. Only a Story, or an untyped Issue
+in an existing repository, may be marked ready for `plus-ultra:implement-issue`.
+
+Propose a title, and labels, milestone, or parent only where the available context supports them. Replace the body with this structure:
 
 ```markdown
 ## Context
@@ -59,5 +63,5 @@ Do not edit the Issue, add labels, set a milestone, or create a parent-child lin
 gives **explicit confirmation** of the displayed proposal. On confirmation, make exactly those
 edits and report the Issue URL. GitHub's edit history preserves the original intake.
 
-Finish by saying whether the Issue is ready to implement, and hand it to
-`plus-ultra:implement-issue`.
+Finish by saying whether the Issue is ready to implement. Hand a ready Story to
+`plus-ultra:implement-issue`; hand a refined Epic to decomposition instead.

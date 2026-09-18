@@ -221,6 +221,43 @@ test("engineering principles are a conditional reference, not a ninth skill", ()
   assert.ok(!existsSync(join(repoRoot, "skills/tech-stack")));
 });
 
+test("only Stories take the Issue-to-PR path", () => {
+  const implement = read("skills/implement-issue/SKILL.md");
+  assert.match(implement, /The implementation unit is a Story\./);
+  assert.match(implement, /If the Issue carries `type:epic`, stop/);
+  assert.match(implement, /an Epic is a container,\nnot a unit of work/);
+  assert.match(implement, /Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition/);
+  // Existing repositories without the taxonomy must not be blocked by it.
+  assert.match(implement, /untyped Issue in an\nexisting repository, proceeds normally/);
+
+  const refine = read("skills/refine-issue/SKILL.md");
+  // Refinement may sharpen an Epic, but may never declare one ready to build.
+  assert.match(refine, /An Epic may be refined/);
+  assert.match(refine, /it is never ready to implement/);
+  assert.match(refine, /Only a Story, or an untyped Issue\nin an existing repository, may be marked ready/);
+  assert.match(refine, /hand a refined Epic to decomposition instead/);
+});
+
+test("new-project stops before publishing the initial default branch", () => {
+  const skill = read("skills/new-project/SKILL.md");
+  assert.match(skill, /Make the\nfirst commit locally\./);
+  assert.match(skill, /\*\*Stop there\.\*\*/);
+  assert.match(skill, /`plus-ultra:integration-boundary` reserves default-branch pushes for a human/);
+  // The gate does not classify `gh repo create --push`, so the prose must.
+  assert.match(skill, /including `gh repo create --push`/);
+  assert.match(skill, /Do not look for a bootstrap exception; there is none\./);
+  assert.match(skill, /the exact\ncommands the human runs to create the remote/);
+
+  // No skill may claim publishing a repository is ordinary preparation.
+  for (const name of SKILLS) {
+    assert.doesNotMatch(
+      read(`skills/${name}/SKILL.md`),
+      /pushing it is ordinary preparation|bootstrap exception is|initial push is allowed/i,
+      `skills/${name}/SKILL.md must not carve out a bootstrap exception`
+    );
+  }
+});
+
 test("the design checkpoint is human-approved and carries no artifact platform", () => {
   const refine = read("skills/refine-issue/SKILL.md");
   assert.match(refine, /\*\*Design checkpoint\.\*\*/);
@@ -228,7 +265,13 @@ test("the design checkpoint is human-approved and carries no artifact platform",
 
   const implement = read("skills/implement-issue/SKILL.md");
   assert.match(implement, /Never invent significant interface direction while coding\./);
-  assert.match(implement, /wherever it is cheapest/);
+  assert.match(implement, /get explicit human approval before implementing it/);
+  // Where the approved reference lives moved to the on-demand reference.
+  assert.match(read("skills/implement-issue/references/depth.md"), /wherever it is cheapest/);
+  assert.match(
+    read("skills/implement-issue/references/depth.md"),
+    /Do not build a versioning scheme, a manifest, or\na lifecycle around it\./
+  );
 
   for (const content of [refine, implement]) {
     assert.doesNotMatch(content, /manifest/i, "the design checkpoint must not reintroduce manifests");

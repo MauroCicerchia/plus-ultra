@@ -44,11 +44,16 @@ Fetch current setup commands from the tools' own documentation rather than recal
 A canonical Plus Ultra template repository will replace this step in a later iteration; until then,
 build the baseline with your own judgment and keep it minimal.
 
-## 4. Verify and hand back
+## 4. Verify, then stop before the remote
 
 Install, then run the project's own test and typecheck scripts and confirm they exit zero. Make the
-first commit. Report the repository location, the stack chosen, what was deliberately left out, and
-point the user at `plus-ultra:roadmap` for the first Epics and Stories.
+first commit locally.
 
-Creating the GitHub repository and pushing it is ordinary preparation work, but
-`plus-ultra:integration-boundary` still applies to everything beyond it.
+**Stop there.** Publishing a new repository means pushing its initial default branch, and
+`plus-ultra:integration-boundary` reserves default-branch pushes for a human. That applies however
+the push is spelled, including `gh repo create --push` and any flag that publishes while creating.
+Do not look for a bootstrap exception; there is none.
+
+Report the local repository path, the stack chosen, what was deliberately left out, and the exact
+commands the human runs to create the remote and push the first branch. Once the remote exists,
+point them at `plus-ultra:roadmap` for the first Epics and Stories.

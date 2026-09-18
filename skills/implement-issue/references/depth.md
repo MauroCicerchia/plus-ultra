@@ -44,6 +44,13 @@ migrations, concurrency, or critical infrastructure.
 
 - Independent review is **mandatory** and cannot be waived by confidence.
 
+## Where a design reference lives
+
+When the design checkpoint approves a direction, keep the reference wherever it is cheapest: a
+comment on the Issue, an image or screenshot attached to it, a link, or `designs/<issue>-<slug>.pen`
+committed with the change. Pick one and say which. Do not build a versioning scheme, a manifest, or
+a lifecycle around it.
+
 ## When a separate spec earns its cost
 
 A refined Issue is the default contract. Write `specs/NNN-slug.md` only when a durable technical
