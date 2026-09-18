@@ -31,8 +31,11 @@ test("release version carriers remain synchronized and preserve the 0.1.0 baseli
 
 test("Release Please manages the root plugin as a simple v-prefixed component", () => {
   const config = readJson("release-please-config.json");
-  assert.equal(config["bump-minor-pre-major"], true);
-  assert.equal(config["bump-patch-for-minor-pre-major"], false);
+  // Both pre-major flags are deliberately absent: they only affect versions below
+  // 1.0.0, and with bump-minor-pre-major at its default of false a breaking change
+  // bumps the major. Setting either one again would cap breaking changes at a minor.
+  assert.ok(!("bump-minor-pre-major" in config), "bump-minor-pre-major must stay unset");
+  assert.ok(!("bump-patch-for-minor-pre-major" in config), "bump-patch-for-minor-pre-major must stay unset");
   const plugin = config.packages["."];
   assert.deepEqual(
     {
