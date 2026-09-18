@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.3.0...v0.4.0) (2026-09-17)
+
+
+### Features
+
+* **benchmark:** measure workflow token and context cost ([#69](https://github.com/MauroCicerchia/plus-ultra/issues/69)) ([9619851](https://github.com/MauroCicerchia/plus-ultra/commit/9619851eb0a747e160c043b727d2097263259f80))
+* **context:** add token-aware handoffs ([#74](https://github.com/MauroCicerchia/plus-ultra/issues/74)) ([dd45c03](https://github.com/MauroCicerchia/plus-ultra/commit/dd45c03be48b789402cf3fc46f124c3b25a59944))
+* **context:** minimize always-on agent context ([#70](https://github.com/MauroCicerchia/plus-ultra/issues/70)) ([0d2784d](https://github.com/MauroCicerchia/plus-ultra/commit/0d2784deaf7ad743bbf303ab8e205f5352f73f8b))
+* **design-artifacts:** add Pencil artifact workflow ([#68](https://github.com/MauroCicerchia/plus-ultra/issues/68)) ([3957cb4](https://github.com/MauroCicerchia/plus-ultra/commit/3957cb48fbd71d5def0ff55a9209683f2abb3692))
+* **pr-review:** add compact context reducers ([#71](https://github.com/MauroCicerchia/plus-ultra/issues/71)) ([514df1a](https://github.com/MauroCicerchia/plus-ultra/commit/514df1a9cdbed9e32684de48f2d9fb05494a9f5d))
+* **pr-review:** add snapshot-aware incremental re-reviews ([#73](https://github.com/MauroCicerchia/plus-ultra/issues/73)) ([32d1561](https://github.com/MauroCicerchia/plus-ultra/commit/32d15616b42bd8cb34c494fe07c5f4a6e92c412e)), closes [#66](https://github.com/MauroCicerchia/plus-ultra/issues/66)
+* **product:** add durable product discovery ([#59](https://github.com/MauroCicerchia/plus-ultra/issues/59)) ([fb41811](https://github.com/MauroCicerchia/plus-ultra/commit/fb4181103a2f2994deceafed38accb010ba84238))
+* **verification:** add compact verification wrapper ([#72](https://github.com/MauroCicerchia/plus-ultra/issues/72)) ([552dc0f](https://github.com/MauroCicerchia/plus-ultra/commit/552dc0f86f9f0aad61769013c4b2fa84407b364d)), closes [#65](https://github.com/MauroCicerchia/plus-ultra/issues/65)
+
 ## [0.3.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.2.1...v0.3.0) (2026-09-07)
 
 
