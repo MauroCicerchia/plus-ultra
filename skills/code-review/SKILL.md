@@ -28,6 +28,10 @@ plus a committed `specs/NNN-slug.md` when the change has one. Do not require a s
   rather than restating the implementation? Would they fail if the change were reverted?
 - **Scope** — changes outside the Issue's declared scope, and declared scope left unimplemented.
 - **Consistency** — does the change follow the patterns already in this repository?
+- **Design** — only when the change materially involves business rules, architecture, persistence,
+  external integrations, or side-effect isolation, read the engineering principles in
+  `plus-ultra:conventions` and raise a violation only where you can name its consequence. Skip this
+  entirely for small, local changes.
 
 Only report what you can substantiate from the diff or the code. Do not invent requirements the
 Issue does not state, and do not raise style preferences the repository does not enforce.

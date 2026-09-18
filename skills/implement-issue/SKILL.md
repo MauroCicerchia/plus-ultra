@@ -52,6 +52,10 @@ Work on a feature branch. Keep plans in `.context/`, which is local and never co
 high-risk work gets a written plan first. Use test-driven development where the project supports it.
 Follow the repository's own conventions over any default.
 
+When the change materially involves business rules, architecture, persistence, external
+integrations, or side-effect isolation, read the engineering principles in `plus-ultra:conventions`
+first. Skip them for ordinary small and local work.
+
 ## 6. Verify
 
 Run the repository's own test, typecheck, lint, and build scripts; do not add a verification

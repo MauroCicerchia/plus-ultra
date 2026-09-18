@@ -39,6 +39,13 @@ Specs are optional. Number them with a zero-padded three-digit prefix, never reu
 take the next number from the highest existing one. There is no draft/approved/superseded
 lifecycle: a committed spec is the current contract, and the Issue owns work state.
 
+## Engineering principles
+
+[`references/engineering-principles.md`](./references/engineering-principles.md) holds the design
+principles for judging structure. Load it only when the changed surface materially involves business
+rules, architecture, persistence, external integrations, or side-effect isolation. Ordinary small
+and local changes do not need it, and it never mandates a folder layout.
+
 ## Commit messages
 
 Every commit follows [Conventional Commits](https://www.conventionalcommits.org), because release

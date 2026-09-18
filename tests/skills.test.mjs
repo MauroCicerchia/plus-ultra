@@ -180,6 +180,47 @@ test("code review is Issue-first, read-only, and does not require a spec", () =>
   assert.match(agent, /^tools: Read, Grep, Glob, Bash$/m);
 });
 
+test("engineering principles are a conditional reference, not a ninth skill", () => {
+  const reference = read("skills/conventions/references/engineering-principles.md");
+
+  // Principles, not a layout to reproduce.
+  assert.match(reference, /simplest architecture that keeps the important logic testable and changeable/i);
+  assert.match(reference, /Keep non-trivial business rules out of transport, UI, and persistence glue/i);
+  assert.match(reference, /Isolate side effects when isolation materially helps/i);
+  assert.match(reference, /Prefer explicit, pure business logic where it fits/i);
+  assert.match(reference, /Repository conventions override these defaults/i);
+  assert.match(reference, /Never add layers, ports, or adapters to trivial work to satisfy a pattern/i);
+  assert.match(reference, /They tell you what to weigh;\nthey do not tell you which directories to create/);
+
+  // It must not smuggle back a mandated layout or a default stack.
+  assert.doesNotMatch(reference, /^\s*(?:src\/|apps\/|packages\/)/m, "must not mandate a folder layout");
+  assert.doesNotMatch(reference, /Hono|Drizzle|Neon|React|shadcn|pnpm|vitest|Biome/i, "must not name a stack");
+
+  // Both consumers load it, and only for work that warrants it. Line wrapping
+  // differs per file, so compare on normalized whitespace.
+  const trigger =
+    "materially involves business rules, architecture, persistence, external integrations, " +
+    "or side-effect isolation";
+  for (const skill of ["conventions", "implement-issue", "code-review"]) {
+    const content = read(`skills/${skill}/SKILL.md`).replace(/\s+/g, " ");
+    assert.match(
+      content,
+      /engineering principles|engineering-principles/i,
+      `skills/${skill}/SKILL.md must reference the principles`
+    );
+    assert.ok(content.includes(trigger), `skills/${skill}/SKILL.md must state the load condition`);
+    assert.match(
+      content,
+      /(?:ordinary )?small and local|small, local/i,
+      `skills/${skill}/SKILL.md must exclude ordinary small work`
+    );
+  }
+
+  // Still eight skills; the reference must not become one.
+  assert.ok(!existsSync(join(repoRoot, "skills/engineering-principles")));
+  assert.ok(!existsSync(join(repoRoot, "skills/tech-stack")));
+});
+
 test("the design checkpoint is human-approved and carries no artifact platform", () => {
   const refine = read("skills/refine-issue/SKILL.md");
   assert.match(refine, /\*\*Design checkpoint\.\*\*/);
