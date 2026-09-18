@@ -1,5 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -15,6 +17,20 @@ function listDir(path) {
   } catch {
     return [];
   }
+}
+
+// Runs one of the plugin's own PreToolUse hooks over a Bash command and returns
+// its decision, so documented instructions can be checked against the guardrails
+// that will actually see them.
+function hookDecision(script, command) {
+  const result = spawnSync(process.execPath, [join(repoRoot, "hooks", script)], {
+    cwd: repoRoot,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const stdout = result.stdout.trim();
+  return stdout ? JSON.parse(stdout) : {};
 }
 
 function frontmatter(markdown) {
@@ -240,13 +256,14 @@ test("only Stories take the Issue-to-PR path", () => {
 
 test("new-project stops before publishing the initial default branch", () => {
   const skill = read("skills/new-project/SKILL.md");
-  assert.match(skill, /Make the\nfirst commit locally\./);
+  const flat = skill.replace(/\s+/g, " ");
+  assert.ok(flat.includes("Make the first commit locally."));
   assert.match(skill, /\*\*Stop there\.\*\*/);
   assert.match(skill, /`plus-ultra:integration-boundary` reserves default-branch pushes for a human/);
   // The gate does not classify `gh repo create --push`, so the prose must.
   assert.match(skill, /including `gh repo create --push`/);
   assert.match(skill, /Do not look for a bootstrap exception; there is none\./);
-  assert.match(skill, /the exact\ncommands the human runs to create the remote/);
+  assert.ok(flat.includes("the exact commands the human runs to create the remote"));
 
   // No skill may claim publishing a repository is ordinary preparation.
   for (const name of SKILLS) {
@@ -284,7 +301,7 @@ test("design discovery runs only for products with a real interface", () => {
   assert.match(read("skills/new-project/SKILL.md"), /^## 2\. Design discovery/m);
   assert.ok(skill.includes("whether the product has a meaningful user interface"));
   assert.ok(
-    skill.includes("A library, CLI, service, or data pipeline does not: skip this step, load nothing for it"),
+    skill.includes("A library, CLI, service, or data pipeline does not: skip this step and load nothing for it"),
     "non-UI products must skip design discovery and pay no context cost"
   );
   assert.ok(skill.includes("human-approved `DESIGN.md` at the repository root"));
@@ -490,16 +507,293 @@ test("the human integration boundary survives unchanged", () => {
   assert.match(boundary, /Cursor ships the portable skill only/);
 });
 
-test("new-project defers the canonical template and keeps the baseline minimal", () => {
+test("new-project runs discovery first and hands off to roadmap", () => {
   const skill = read("skills/new-project/SKILL.md");
   assert.match(skill, /plus-ultra:product/);
   assert.match(skill, /wait for explicit human approval of the brief/);
-  assert.match(skill, /A canonical Plus Ultra template repository will replace this step in a later iteration/);
-  assert.match(skill, /leave every decision the product does not yet need/);
   assert.match(skill, /plus-ultra:roadmap/);
-  // The old stack matrix must not come back with it.
+  // The stack lives in the template repository, never in the always-loaded skill.
   assert.doesNotMatch(skill, /pnpm workspaces|monorepo|hexagonal|Drizzle|shadcn/i);
   assert.ok(!existsSync(join(repoRoot, "skills/new-project/references/scaffold-blueprint.md")));
+});
+
+test("the canonical template is the default for a compatible product, not an opt-in", () => {
+  const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(skill.includes("## 3. Judge the canonical template".replace(/\s+/g, " ")));
+  assert.ok(
+    skill.includes("judge whether the canonical Plus Ultra template substantially fits the product"),
+    "fit is judged from the approved brief"
+  );
+  assert.ok(skill.includes("references/canonical-template.md"), "the detail stays in an on-demand reference");
+  assert.ok(
+    skill.includes("the template is **the default, not an opt-in**: never ask whether to use it"),
+    "a compatible product must not be asked to opt in"
+  );
+  assert.ok(
+    skill.includes("never make the human re-select a default it owns"),
+    "defaults the template owns must not be re-litigated"
+  );
+
+  const reference = read("skills/new-project/references/canonical-template.md").replace(/\s+/g, " ");
+  assert.ok(reference.includes("MauroCicerchia/plus-ultra-template"), "the reference names the canonical repository");
+  assert.ok(
+    reference.includes("Do not ask \"do you want to use the template?\""),
+    "the opt-in ceremony is prohibited in the reference too"
+  );
+  assert.ok(reference.includes("Compatibility is the only question to resolve"));
+});
+
+test("explicit human technology choices override the template", () => {
+  const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(skill.includes("Explicit human technology choices always win"));
+  assert.ok(skill.includes("Ask only about a material choice that remains open"));
+
+  const reference = read("skills/new-project/references/canonical-template.md").replace(/\s+/g, " ");
+  assert.ok(
+    reference.includes(
+      "An explicit human technology requirement overrides the template — for the whole choice when it is " +
+        "incompatible, for that one piece when it is isolated"
+    ),
+    "an override may be total or scoped to the piece it names"
+  );
+});
+
+test("fit has three verdicts and an isolated mismatch is adapted, not rebuilt", () => {
+  const reference = read("skills/new-project/references/canonical-template.md");
+  const flat = reference.replace(/\s+/g, " ");
+
+  // Good fit, partial fit, fundamental mismatch — with what each one does.
+  assert.ok(flat.includes("| Fits |"), "the reference must name the good-fit verdict");
+  assert.ok(flat.includes("| Mostly fits |"), "the reference must name the partial-fit verdict");
+  assert.ok(flat.includes("| Does not fit |"), "the reference must name the mismatch verdict");
+  assert.ok(flat.includes("Instantiate and customize |"));
+  assert.ok(flat.includes("Instantiate and adapt only the mismatch |"));
+  assert.ok(flat.includes("Skip the template and bootstrap directly |"));
+
+  // Partial fit: the examples from the story, and adaptation that keeps the project green.
+  assert.ok(flat.includes("needs no persistence yet"));
+  assert.ok(flat.includes("wants a different database or provider"));
+  assert.ok(flat.includes("replaces one infrastructure piece while keeping the web stack"));
+  assert.ok(
+    flat.includes(
+      "Remove or replace only the pieces that genuinely do not fit, and delete what they leave orphaned"
+    ),
+    "adaptation must be scoped to the mismatch"
+  );
+  assert.ok(flat.includes("report each material deviation and why the product required it"));
+
+  // Fundamental mismatch: the story's examples, and the direct bootstrap as the fallback.
+  assert.ok(flat.includes("A CLI or service in another language"));
+  assert.ok(flat.includes("a native mobile application"));
+  assert.ok(flat.includes("a reusable library or package"));
+  assert.ok(
+    flat.includes("If adaptation is turning into a rewrite, the verdict was \"does not fit\": bootstrap directly"),
+    "adaptation must not silently become a rewrite"
+  );
+
+  const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(
+    skill.includes("**Fundamental mismatch.** Say why the template was skipped, then initialize directly"),
+    "skipping the template must be explained"
+  );
+  assert.ok(skill.includes("leave every decision the product does not yet need"));
+});
+
+test("instantiation materializes into the existing product root with fresh history", () => {
+  const reference = read("skills/new-project/references/canonical-template.md");
+  const flat = reference.replace(/\s+/g, " ");
+
+  // The root already holds the approved context, so a clone into it cannot work.
+  assert.ok(
+    flat.includes("The root is not empty by the time you get here: `docs/product.md` is in it, and `DESIGN.md` too"),
+    "the reference must state that the product root already exists"
+  );
+  assert.ok(
+    flat.includes("Cloning over that root fails, and cloning elsewhere strands the approved context"),
+    "both naive clone strategies must be named and rejected"
+  );
+  assert.ok(
+    flat.includes("Stage the template under the transient `.context/` directory"),
+    "the template must be staged transiently, not cloned into place"
+  );
+  assert.ok(
+    flat.includes("Extraction leaves `docs/product.md` and `DESIGN.md` alone"),
+    "the durable approved context must survive instantiation"
+  );
+
+  // The exact procedure: stage, materialize tracked files, start a deterministic history.
+  assert.match(reference, /gh api repos\/MauroCicerchia\/plus-ultra-template\/tarball > \.context\/template\.tar\.gz/);
+  assert.match(reference, /tar -xzf \.context\/template\.tar\.gz --strip-components=1/);
+  assert.match(reference, /^rm \.context\/template\.tar\.gz$/m);
+  assert.match(reference, /^git init -b main$/m);
+  assert.ok(
+    flat.includes("The tarball holds the template's tracked files and none of its commits"),
+    "instantiation must produce fresh Git history"
+  );
+
+  // Creating the remote from the template would publish a default branch.
+  assert.ok(
+    flat.includes("Do not use `gh repo create --template`; it publishes a remote repository"),
+    "the template path must not smuggle in remote creation"
+  );
+  assert.ok(flat.includes("plus-ultra:integration-boundary"));
+  assert.ok(
+    flat.includes("Do not clone and then delete a `.git` directory either: that needs a recursive force-delete"),
+    "the reference must reject the clone-then-delete shape outright"
+  );
+
+  // Customization is the agent reading and editing files, not a rendering engine.
+  assert.ok(flat.includes("There is no rendering engine and no configuration file to fill in"));
+  assert.ok(flat.includes("package and workspace names, so they name this product"));
+  assert.ok(flat.includes("the neutral starter screen and copy"));
+  assert.ok(
+    flat.includes("so it implements the approved `DESIGN.md`"),
+    "the approved design brief must reach the theme foundation"
+  );
+  assert.ok(
+    flat.includes("Skip the theme step when step 2 produced no `DESIGN.md`"),
+    "a product without a design brief must not have direction invented for it"
+  );
+  assert.ok(
+    flat.includes("Do not add a second template, a variant, a registry, a version pin, or a flag that selects"),
+    "the reference must refuse a template subsystem"
+  );
+});
+
+// The documented instantiation commands, with the network download swapped for a
+// local fixture so the mechanics can be executed offline.
+function instantiationScript(fixture) {
+  const reference = read("skills/new-project/references/canonical-template.md");
+  const block = reference.match(/```sh\n([\s\S]*?)```/);
+  assert.ok(block, "the reference must show the instantiation commands");
+
+  const lines = block[1].split("\n").filter((line) => line.trim());
+  const downloads = lines.filter((line) => line.startsWith("gh api "));
+  assert.equal(downloads.length, 1, "exactly one line fetches the template");
+
+  return lines
+    .map((line) => (line === downloads[0] ? `cp ${fixture} .context/template.tar.gz` : line))
+    .join("\n");
+}
+
+function sh(script, cwd) {
+  const result = spawnSync("sh", ["-c", script], { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, `${script}\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+test("instantiating over an approved product root preserves its durable context", () => {
+  const scratch = mkdtempSync(join(tmpdir(), "plus-ultra-instantiate-"));
+  try {
+    // A stand-in for the template tarball: GitHub wraps the tree in one directory,
+    // which is what `--strip-components=1` removes.
+    const staging = join(scratch, "staging", "plus-ultra-template-abc1234");
+    mkdirSync(join(staging, "apps", "web", "src"), { recursive: true });
+    writeFileSync(join(staging, "README.md"), "# Plus Ultra Template\n");
+    writeFileSync(join(staging, "package.json"), '{ "name": "plus-ultra-template" }\n');
+    writeFileSync(join(staging, ".gitignore"), "node_modules/\n/.context/\n");
+    writeFileSync(join(staging, "apps", "web", "src", "app.tsx"), "export const App = () => null;\n");
+    const fixture = join(scratch, "template.tar.gz");
+    sh(`tar -czf ${fixture} plus-ultra-template-abc1234`, join(scratch, "staging"));
+
+    // The product root as step 1 and step 2 leave it: approved, durable, non-empty.
+    const root = join(scratch, "product");
+    mkdirSync(join(root, "docs"), { recursive: true });
+    writeFileSync(join(root, "docs", "product.md"), "# Product brief\n");
+    writeFileSync(join(root, "DESIGN.md"), "# Design brief\n");
+
+    sh(instantiationScript(fixture), root);
+
+    // The approved context survives instantiation byte for byte.
+    assert.equal(readFileSync(join(root, "docs", "product.md"), "utf8"), "# Product brief\n");
+    assert.equal(readFileSync(join(root, "DESIGN.md"), "utf8"), "# Design brief\n");
+
+    // The template's tracked files, including dotfiles and nested paths, land at the root.
+    for (const path of ["README.md", "package.json", ".gitignore", "apps/web/src/app.tsx"]) {
+      assert.ok(existsSync(join(root, path)), `${path} must be materialized into the product root`);
+    }
+
+    // The staging artifact is gone, and nothing needed a recursive force-delete.
+    assert.ok(!existsSync(join(root, ".context", "template.tar.gz")));
+
+    // A fresh history on a deterministic branch, carrying no template commits.
+    assert.equal(sh("git -C . symbolic-ref --short HEAD", root), "main");
+    assert.equal(sh("git -C . rev-list --count --all", root), "0", "no template commits may survive");
+    assert.equal(sh("git -C . remote", root), "", "the template must not remain a remote");
+
+    sh("git add -A && git -c user.email=t@example.com -c user.name=Test commit -q -m 'chore: initial'", root);
+    assert.equal(sh("git -C . rev-list --count HEAD", root), "1", "the project starts at one local commit");
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test("Plus Ultra does not duplicate the stack the template owns", () => {
+  const reference = read("skills/new-project/references/canonical-template.md");
+  assert.match(
+    reference,
+    /\*\*The template repository is the source of truth for the stack\.\*\*/,
+    "the reference must delegate the stack to the template"
+  );
+  assert.match(
+    reference,
+    /Never restate its dependencies,\nversions, package manager, tool choices, or file layout/
+  );
+
+  // A conceptual description is allowed; a dependency or version matrix is not.
+  for (const path of ["skills/new-project/SKILL.md", "skills/new-project/references/canonical-template.md"]) {
+    const content = read(path);
+    assert.doesNotMatch(content, /\d+\.\d+\.\d+/, `${path} must not pin a version`);
+    assert.doesNotMatch(content, /"dependencies"|package\.json|pnpm-lock|corepack/i, `${path} must not restate the manifest`);
+  }
+});
+
+test("verification matches the baseline that was actually created", () => {
+  const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(
+    skill.includes("Install dependencies, then run every verification script the project exposes"),
+    "install always runs, and so does everything the project defines"
+  );
+  assert.ok(
+    skill.includes("On the canonical template that is `typecheck`, `test`, `lint`, and `build`"),
+    "the template path must run all four"
+  );
+  assert.ok(
+    skill.includes("a direct bootstrap runs whichever of those its own baseline actually defines"),
+    "a bootstrap must not be assumed to expose all four scripts"
+  );
+  assert.ok(skill.includes("Fix what fails first. Make the first commit locally."));
+  assert.ok(
+    skill.includes("whether the template was used, adapted, or skipped and why"),
+    "the report must state which path was taken"
+  );
+});
+
+test("the recommended instantiation commands survive Plus Ultra's own guardrails", () => {
+  const reference = read("skills/new-project/references/canonical-template.md");
+  const block = reference.match(/```sh\n([\s\S]*?)```/);
+  assert.ok(block, "the reference must show the instantiation commands");
+
+  const commands = block[1].split("\n").map((line) => line.trim()).filter(Boolean);
+  assert.ok(commands.length > 0);
+
+  for (const command of commands) {
+    const decision = hookDecision("dangerous-command.mjs", command);
+    assert.notEqual(
+      decision?.hookSpecificOutput?.permissionDecision,
+      "deny",
+      `plus-ultra blocks its own instruction: ${command}`
+    );
+  }
+
+  // The shape the hook does deny, proving the check above is not vacuous.
+  assert.equal(
+    hookDecision("dangerous-command.mjs", "rm -rf ./project/.git")?.hookSpecificOutput?.permissionDecision,
+    "deny"
+  );
+
+  // The shape the hook denies must not come back by another spelling.
+  assert.doesNotMatch(reference, /rm\s+-\w*[rf]/, "the procedure must never need a recursive force-delete");
 });
 
 test("the documented workflow matches the five capabilities", () => {
