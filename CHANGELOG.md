@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.1.0...v1.2.0) (2026-09-18)
+
+
+### Features
+
+* **design:** follow the Google Labs DESIGN.md convention ([#82](https://github.com/MauroCicerchia/plus-ultra/issues/82)) ([e73dce2](https://github.com/MauroCicerchia/plus-ultra/commit/e73dce2dafa0ace081a3ead346afd44b113b68e0))
+
 ## [1.1.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.0.0...v1.1.0) (2026-09-18)
 
 
