@@ -33,6 +33,10 @@ Do not fall back to GraphQL to emulate a missing hierarchy capability.
 | Plans, notes, scratch work | `.context/` | **no** |
 | Durable project documentation | `docs/` | yes |
 
+The design brief follows the [Google Labs `DESIGN.md`
+convention](https://github.com/google-labs-code/design.md): Plus Ultra owns when it is created and
+how it changes, that external format owns its structure.
+
 Ensure `.gitignore` contains `/.context/` before writing anything there. A plan is transient: it
 belongs in `.context/`, not in the repository's documentation.
 

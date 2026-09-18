@@ -18,6 +18,15 @@ web product and owns the stack outright. `skills/new-project/references/canonica
 holds the fit judgement, the local instantiation commands, and the customization checklist; it must
 never restate the template's dependencies, versions, or file layout.
 
+The root `DESIGN.md` has three owners and no overlap between them. Plus Ultra owns creation and
+evolution: `skills/new-project/references/design-brief.md` is the only place that material lives.
+The [Google Labs `DESIGN.md` convention](https://github.com/google-labs-code/design.md) owns the
+document's structure, so that reference links the specification instead of copying it. The product
+owns the decisions inside. The canonical template knows nothing about any of it: it exposes a
+neutral semantic theme foundation, and the coding agent edits those tokens after reading the
+approved brief. Plus Ultra ships no parser, theme generator, or sync command for the document, and
+needs none.
+
 GitHub access uses `gh`; no MCP is bundled. The supported floor is GitHub CLI 2.94.0, which
 introduced native Issue hierarchy — `plus-ultra:conventions` states the requirement and the failure
 message. A portable skill must not refer to Claude-only roots, hooks, commands, or Markdown

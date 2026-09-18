@@ -1,17 +1,17 @@
 # Design brief
 
-## Visual direction
+## Overview
 
-## Color
+## Colors
 
 ## Typography
 
-## Spacing and shape
+## Layout
 
-## Component principles
+## Elevation & Depth
 
-## Interaction principles
+## Shapes
 
-## Responsive behaviour
+## Components
 
-## Accessibility
+## Do's and Don'ts
