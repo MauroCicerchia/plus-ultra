@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra guardrails: human-integration, dangerous-command + secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck), test/typecheck tracking, PR description reminders, Biome auto-format, approved-contract session resume.",
+  "description": "plus-ultra guardrails: human-integration boundary, dangerous-command and secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck freshness), test/typecheck tracking, and Biome auto-format.",
   "hooks": {
     "PreToolUse": [
       {
@@ -41,11 +41,6 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/test-marker.mjs",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pr-description-reminder.mjs",
-            "timeout": 10
           }
         ]
       },
@@ -56,17 +51,6 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/auto-format.mjs",
             "timeout": 30
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs",
-            "timeout": 10
           }
         ]
       }

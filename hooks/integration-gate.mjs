@@ -380,6 +380,28 @@ function unwrapCommand(tokens) {
   }
 }
 
+// Protected GraphQL mutation fields. This check is deliberately conservative: a
+// document that declares a mutation and invokes one of these fields is blocked
+// whatever `operationName` would have selected, so an unparsed or multi-operation
+// document fails closed rather than open. It denies more than a full GraphQL
+// parser would; a human can still run the command.
+const PROTECTED_GRAPHQL_MUTATIONS = [
+  [/\b(?:mergePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|enqueuePullRequest|dequeuePullRequest)\s*\(/,
+    "pull-request merge or merge-queue mutation"],
+  [/\b(?:createRelease|updateRelease|deleteRelease)\s*\(/, "release mutation"],
+];
+
+function graphqlIntegration(query, body) {
+  if (!/\bmutation\b/.test(query)) return null;
+  for (const [pattern, operation] of PROTECTED_GRAPHQL_MUTATIONS) {
+    if (pattern.test(query)) return operation;
+  }
+  if (/\b(?:createRef|updateRef|deleteRef)\s*\(/.test(query) && /refs\/tags\//i.test(body)) {
+    return "tag publication mutation";
+  }
+  return null;
+}
+
 function ghApiIntegration(endpoint, options) {
   const fields = options.filter(([flag]) => ["-f", "-F", "--raw-field", "--field"].includes(flag)).map(([, value]) => String(value));
   const hasFields = fields.length > 0 || options.some(([flag]) => flag === "--input");
@@ -389,18 +411,7 @@ function ghApiIntegration(endpoint, options) {
   const mutating = method ? !["GET", "HEAD", "OPTIONS"].includes(method) : hasFields;
   const route = endpoint.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").toLowerCase();
   if (endpoint.toLowerCase() === "graphql") {
-    const query = fields.filter((field) => field.startsWith("query=")).at(-1)?.slice(6) ?? "";
-    const operationName = fields.filter((field) => field.startsWith("operationName=")).at(-1)?.slice("operationName=".length) ?? "";
-    const operation = selectedGraphqlMutation(query, operationName);
-    if (!operation) return null;
-    if (/\b(?:mergePullRequest|enablePullRequestAutoMerge|disablePullRequestAutoMerge|enqueuePullRequest|dequeuePullRequest)\s*\(/.test(operation)) {
-      return "pull-request merge or merge-queue mutation";
-    }
-    if (/\b(?:createRelease|updateRelease|deleteRelease)\s*\(/.test(operation)) return "release mutation";
-    if (/\b(?:createRef|updateRef|deleteRef)\s*\(/.test(operation) && /refs\/tags\//i.test(body)) {
-      return "tag publication mutation";
-    }
-    return null;
+    return graphqlIntegration(fields.filter((field) => field.startsWith("query=")).at(-1)?.slice(6) ?? "", body);
   }
   if (!mutating) return null;
   if (/(?:^|\/)pulls\/[^/]+\/(?:merge|auto-merge)(?:\/|$)/.test(route)) {
@@ -413,130 +424,6 @@ function ghApiIntegration(endpoint, options) {
     return "tag publication mutation";
   }
   return null;
-}
-
-function maskGraphqlDocument(source) {
-  let masked = "";
-  for (let index = 0; index < source.length; index += 1) {
-    if (source.startsWith('"""', index)) {
-      const end = source.indexOf('"""', index + 3);
-      if (end === -1) throw new Error("unclosed GraphQL block string");
-      masked += source.slice(index, end + 3).replace(/[^\n]/g, " ");
-      index = end + 2;
-    } else if (source[index] === '"') {
-      const start = index;
-      for (index += 1; index < source.length; index += 1) {
-        if (source[index] === "\\") {
-          index += 1;
-        } else if (source[index] === '"') {
-          break;
-        }
-      }
-      if (index >= source.length) throw new Error("unclosed GraphQL string");
-      masked += source.slice(start, index + 1).replace(/[^\n]/g, " ");
-    } else if (source[index] === "#") {
-      const end = source.indexOf("\n", index);
-      const stop = end === -1 ? source.length : end;
-      masked += source.slice(index, stop).replace(/[^\n]/g, " ");
-      index = stop - 1;
-    } else {
-      masked += source[index];
-    }
-  }
-  return masked;
-}
-
-function graphqlName(source, index) {
-  const match = source.slice(index).match(/^[_A-Za-z][_0-9A-Za-z]*/);
-  return match ? { value: match[0], end: index + match[0].length } : null;
-}
-
-function skipGraphqlWhitespace(source, index) {
-  while (index < source.length && /\s/.test(source[index])) index += 1;
-  return index;
-}
-
-function graphqlSelectionStart(source, index) {
-  let parentheses = 0;
-  let brackets = 0;
-  for (let cursor = index; cursor < source.length; cursor += 1) {
-    const char = source[cursor];
-    if (char === "(") parentheses += 1;
-    else if (char === ")") parentheses -= 1;
-    else if (char === "[") brackets += 1;
-    else if (char === "]") brackets -= 1;
-    else if (char === "{" && parentheses === 0 && brackets === 0) return cursor;
-  }
-  throw new Error("GraphQL operation without a selection set");
-}
-
-function graphqlSelection(source, start) {
-  let depth = 1;
-  for (let index = start + 1; index < source.length; index += 1) {
-    if (source[index] === "{") depth += 1;
-    else if (source[index] === "}" && --depth === 0) {
-      return { content: source.slice(start + 1, index), end: index + 1 };
-    }
-  }
-  throw new Error("unclosed GraphQL selection set");
-}
-
-function parseGraphqlDocument(source) {
-  const code = maskGraphqlDocument(source);
-  const operations = [];
-  const fragments = new Map();
-  for (let index = 0; index < code.length;) {
-    index = skipGraphqlWhitespace(code, index);
-    if (index >= code.length) break;
-    if (code[index] === "{") {
-      const selection = graphqlSelection(code, index);
-      operations.push({ type: "query", name: "", content: selection.content });
-      index = selection.end;
-      continue;
-    }
-    const definition = graphqlName(code, index);
-    if (!definition) {
-      index += 1;
-      continue;
-    }
-    index = definition.end;
-    const afterKeyword = skipGraphqlWhitespace(code, index);
-    const name = graphqlName(code, afterKeyword);
-    const selectionStart = graphqlSelectionStart(code, afterKeyword);
-    const selection = graphqlSelection(code, selectionStart);
-    if (["query", "mutation", "subscription"].includes(definition.value)) {
-      operations.push({
-        type: definition.value,
-        name: name && name.end <= selectionStart ? name.value : "",
-        content: selection.content,
-      });
-    } else if (definition.value === "fragment" && name) {
-      fragments.set(name.value, selection.content);
-    }
-    index = selection.end;
-  }
-  return { operations, fragments };
-}
-
-function selectedGraphqlMutation(query, operationName) {
-  const { operations, fragments } = parseGraphqlDocument(query);
-  const selected = operationName
-    ? operations.find((operation) => operation.name === operationName)
-    : operations.length === 1 ? operations[0] : null;
-  if (!selected || selected.type !== "mutation") return null;
-
-  const content = [selected.content];
-  const visited = new Set();
-  for (let index = 0; index < content.length; index += 1) {
-    for (const match of content[index].matchAll(/\.\.\.\s*([_A-Za-z][_0-9A-Za-z]*)/g)) {
-      const fragment = fragments.get(match[1]);
-      if (fragment && !visited.has(match[1])) {
-        visited.add(match[1]);
-        content.push(fragment);
-      }
-    }
-  }
-  return content.join(" ");
 }
 
 function ghIntegration(tokens, index) {

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // PostToolUse (Write|Edit): auto-fix + format the edited file with Biome.
-// Biome is one tool for lint-fix + format (replaces eslint + prettier), matching
-// the plus-ultra:tech-stack default. Never blocks the edit — silently no-ops if
-// Biome is absent or the file isn't a JS/TS source.
+// Biome is one tool for lint-fix + format (it replaces eslint + prettier). Never
+// blocks the edit — silently no-ops if Biome is absent or the file isn't a JS/TS
+// source, so a project that formats some other way is unaffected.
 import { spawnSync } from "node:child_process";
 import { readInput, debug } from "./_lib.mjs";
 

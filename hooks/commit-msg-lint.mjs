@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse (Bash): validate a `git commit -m` header against Conventional
-// Commits (see the plus-ultra:conventional-commits skill). Blocks a malformed
+// Commits (see the plus-ultra:conventions skill). Blocks a malformed
 // header before the commit is created.
 //
 // Only inspects inline `-m` / `--message` commits — if the message comes from an
@@ -48,5 +48,5 @@ deny(
   `Blocked by plus-ultra commit-msg-lint: commit header "${header}" is not a Conventional Commit.\n` +
     `Expected: type(scope): subject — where type is one of ${TYPES.split("|").join(", ")}.\n` +
     `Examples: "feat(web): add command palette", "fix(api): reject expired tokens".\n` +
-    `See the plus-ultra:conventional-commits skill.`
+    `See the plus-ultra:conventions skill.`
 );
