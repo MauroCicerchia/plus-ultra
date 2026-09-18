@@ -2,7 +2,7 @@
   "name": "plus-ultra",
   "displayName": "Plus Ultra",
   "description": "Issue-first solo development harness (portable skills; integration boundary is documentation-only on Cursor).",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "author": {
     "name": "Mauro Cicerchia",
     "email": "maurocicerchia98@gmail.com"

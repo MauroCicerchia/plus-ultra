@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.4.0...v1.0.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* reboot Plus Ultra around five capabilities and implement-issue ([#75](https://github.com/MauroCicerchia/plus-ultra/issues/75))
+
+### Features
+
+* reboot Plus Ultra around five capabilities and implement-issue ([#75](https://github.com/MauroCicerchia/plus-ultra/issues/75)) ([c0506ce](https://github.com/MauroCicerchia/plus-ultra/commit/c0506ce1cb2b81c1457bd780cb3c6dba9bc85700))
+
+
+### Bug Fixes
+
+* **release:** let breaking changes reach 1.0.0 ([#77](https://github.com/MauroCicerchia/plus-ultra/issues/77)) ([35019fc](https://github.com/MauroCicerchia/plus-ultra/commit/35019fcd0d0b3c729f951c2792ffa73494575d92))
+
 ## [0.4.0](https://github.com/MauroCicerchia/plus-ultra/compare/v0.3.0...v0.4.0) (2026-09-17)
 
 
