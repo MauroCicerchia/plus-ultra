@@ -65,7 +65,7 @@ const RETIRED_DESIGN_SECTIONS = [
 // The five user-facing capabilities, in workflow order.
 const CAPABILITIES = ["new-project", "product", "roadmap", "refine-issue", "implement-issue"];
 // Shared policy and helper skills the capabilities lean on.
-const SUPPORTING = ["code-review", "conventions", "integration-boundary"];
+const SUPPORTING = ["conventions", "integration-boundary", "pencil-design"];
 const SKILLS = [...CAPABILITIES, ...SUPPORTING];
 
 test("the plugin ships exactly the reboot skill set", () => {
@@ -74,6 +74,13 @@ test("the plugin ships exactly the reboot skill set", () => {
     .map((entry) => entry.name)
     .sort();
   assert.deepEqual(present, [...SKILLS].sort());
+
+  const maintainer = read("docs/maintainer-guide.md").replace(/\s+/g, " ");
+  assert.ok(
+    maintainer.includes("three they share (`conventions`, `integration-boundary`, `pencil-design`)"),
+    "the maintainer guide must name the current supporting skills"
+  );
+  assert.ok(maintainer.includes("skills/implement-issue/references/code-review.md"));
 });
 
 test("every skill declares frontmatter whose name matches its directory", () => {
@@ -160,7 +167,7 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
   assert.match(skill, /## 4\. Design checkpoint/);
   assert.match(skill, /## 6\. Verify/);
   assert.match(skill, /## 7\. Independent review/);
-  assert.match(skill, /plus-ultra:code-review/);
+  assert.match(skill, /references\/code-review\.md/);
   assert.match(skill, /plus-ultra:integration-boundary/);
   assert.match(skill, /ready for review\*\* and stop/);
 
@@ -171,9 +178,10 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
 
 test("independent review is mandatory only for high-risk work", () => {
   const skill = read("skills/implement-issue/SKILL.md");
+  const flat = skill.replace(/\s+/g, " ");
   assert.match(skill, /\*\*Mandatory\*\* for high-risk work/);
-  assert.match(skill, /For normal work use it \*\*when warranted\*\*/);
-  assert.match(skill, /Small work skips it by default/);
+  assert.ok(flat.includes("For normal work use it **when warranted**"));
+  assert.ok(flat.includes("Small work skips it by default"));
 
   const depth = read("skills/implement-issue/references/depth.md");
   assert.match(depth, /Independent review \*\*when warranted\*\*/);
@@ -201,20 +209,41 @@ test("a technical spec is optional and has no lifecycle", () => {
   }
 });
 
-test("code review is Issue-first, read-only, and does not require a spec", () => {
-  const skill = read("skills/code-review/SKILL.md");
-  assert.match(skill, /The contract is the Issue's acceptance criteria/);
-  assert.match(skill, /Do not require a spec\./);
-  assert.match(skill, /\*\*Do not modify files\.\*\*/);
-  assert.match(skill, /gh issue view <number>/);
-  assert.match(skill, /Only report what you can substantiate/);
+test("code review is one on-demand implement-issue reference", () => {
+  assert.ok(!existsSync(join(repoRoot, "skills/code-review")), "code review must not consume a skill slot");
+
+  const implement = read("skills/implement-issue/SKILL.md");
+  const review = read("skills/implement-issue/references/code-review.md");
+  const reviewFlat = review.replace(/\s+/g, " ");
+  assert.match(implement, /references\/code-review\.md/);
+  assert.ok(reviewFlat.includes("The contract is the Issue's acceptance criteria"));
+  assert.ok(reviewFlat.includes("Do not require a spec."));
+  assert.match(review, /\*\*Do not modify files\.\*\*/);
+  assert.match(review, /gh issue view <number>/);
+  assert.match(review, /Only report what you can substantiate/);
+
+  // Reviews bind to immutable evidence, and blocker fixes invalidate the old verdict.
+  assert.match(review, /exact head SHA/i);
+  assert.match(review, /git rev-parse HEAD/);
+  assert.match(review, /head moves/i);
+  assert.match(review, /blocker fixes/i);
+  assert.match(review, /final review pass/i);
+
+  // A SHA pins only committed state. Dirty implementation changes must never be omitted.
+  assert.match(review, /git status --short/);
+  assert.match(reviewFlat, /implementation state.*verified.*committed.*working tree.*clean/i);
+  assert.match(reviewFlat, /tracked changes differ from `HEAD`.*do not review/i);
+  assert.match(reviewFlat, /return control to the implementer.*verify and commit/i);
+  assert.match(reviewFlat, /After blocker fixes.*repeat.*clean-worktree gate.*final review/i);
+  assert.match(reviewFlat, /working tree becomes dirty during review.*discard the verdict/i);
 
   const agent = read("agents/code-reviewer.md");
-  assert.match(agent, /plus-ultra:code-review/);
+  assert.match(agent, /skills\/implement-issue\/references\/code-review\.md/);
   assert.match(agent, /A spec is optional; never treat its absence as a reason to stop\./);
   assert.match(agent, /must not modify files/);
   // The reviewer subagent must not be handed write tools.
   assert.match(agent, /^tools: Read, Grep, Glob, Bash$/m);
+  assert.doesNotMatch(agent, /^## (?:Gather|Check|Report)$/m, "the reviewer agent must not duplicate the contract");
 });
 
 test("engineering principles are a conditional reference, not a ninth skill", () => {
@@ -238,18 +267,22 @@ test("engineering principles are a conditional reference, not a ninth skill", ()
   const trigger =
     "materially involves business rules, architecture, persistence, external integrations, " +
     "or side-effect isolation";
-  for (const skill of ["conventions", "implement-issue", "code-review"]) {
-    const content = read(`skills/${skill}/SKILL.md`).replace(/\s+/g, " ");
+  for (const path of [
+    "skills/conventions/SKILL.md",
+    "skills/implement-issue/SKILL.md",
+    "skills/implement-issue/references/code-review.md",
+  ]) {
+    const content = read(path).replace(/\s+/g, " ");
     assert.match(
       content,
       /engineering principles|engineering-principles/i,
-      `skills/${skill}/SKILL.md must reference the principles`
+      `${path} must reference the principles`
     );
-    assert.ok(content.includes(trigger), `skills/${skill}/SKILL.md must state the load condition`);
+    assert.ok(content.includes(trigger), `${path} must state the load condition`);
     assert.match(
       content,
       /(?:ordinary )?small and local|small, local/i,
-      `skills/${skill}/SKILL.md must exclude ordinary small work`
+      `${path} must exclude ordinary small work`
     );
   }
 
@@ -307,14 +340,113 @@ test("the design checkpoint is human-approved and carries no artifact platform",
   // Where the approved reference lives moved to the on-demand reference.
   assert.match(read("skills/implement-issue/references/depth.md"), /wherever it is cheapest/);
   assert.match(
-    read("skills/implement-issue/references/depth.md"),
-    /Do not build a versioning scheme, a manifest, or\na lifecycle around it\./
+    read("skills/implement-issue/references/depth.md").replace(/\s+/g, " "),
+    /Do not build a versioning scheme, manifest, or lifecycle around it\./
   );
 
   for (const content of [refine, implement]) {
     assert.doesNotMatch(content, /manifest/i, "the design checkpoint must not reintroduce manifests");
     assert.doesNotMatch(content, /deterministic resolution/i);
   }
+});
+
+test("Pencil is an internal companion with a safe native-tool preflight", () => {
+  const pencil = read("skills/pencil-design/SKILL.md");
+  assert.match(pencil, /creating, editing, validating, or consuming/i);
+  assert.match(pencil, /application is named `Pen`/);
+  assert.match(pencil, /active document.*before.*Pencil MCP/is);
+  assert.match(pencil, /new design.*blank document.*in Pen/is);
+  assert.match(pencil, /read_skill/);
+  assert.match(pencil, /get_app_state/);
+  for (const nativeDoc of ["skill", "schema", "execute", "UI guide"]) {
+    assert.match(pencil, new RegExp(nativeDoc, "i"));
+  }
+  assert.match(pencil, /Never (?:read|inspect).*\.pen.*ordinary filesystem/is);
+  assert.match(pencil, /open.*repository.*\.pen.*in Pen/is);
+
+  // It remains a helper rather than a sixth user-facing capability.
+  assert.ok(!existsSync(join(repoRoot, "commands/pencil-design.md")));
+  assert.ok(!existsSync(join(repoRoot, "skills/pencil-design/agents/openai.yaml")));
+});
+
+test("Pencil construction preserves the product and feature design boundary", () => {
+  const pencil = read("skills/pencil-design/SKILL.md");
+  const flat = pencil.replace(/\s+/g, " ");
+  assert.ok(flat.includes("`DESIGN.md` is the approved product-level visual direction"));
+  assert.ok(flat.includes("a `.pen` becomes the approved feature-level reference after human approval"));
+  assert.ok(flat.includes("`designs/<issue>-<slug>.pen`"));
+  assert.match(pencil, /map.*`DESIGN\.md`.*tokens.*Pencil variables/is);
+  assert.match(pencil, /named top-level frames/i);
+  assert.match(pencil, /human-readable names/i);
+  assert.match(pencil, /`placeholder: true` only while actively constructing/i);
+  assert.match(pencil, /flex|dynamic layout/i);
+  assert.match(pencil, /focused `execute` calls/i);
+  assert.match(pencil, /fix completed nodes directly/i);
+});
+
+test("Pencil compatibility notes encode the proven reliable sequences", () => {
+  const pencil = read("skills/pencil-design/SKILL.md");
+  const flat = pencil.replace(/\s+/g, " ");
+  assert.match(pencil, /After a meaningful mutation/);
+  assert.match(pencil, /inspect structure.*with `Get`/is);
+  assert.match(pencil, /separate `execute` call.*screenshot/is);
+  assert.match(pencil, /blank or stale screenshot/i);
+  assert.match(pencil, /After `Copy`/);
+  assert.match(pencil, /rediscover.*new IDs/is);
+  assert.match(pencil, /descendant-name overrides/i);
+  assert.ok(flat.includes("Save repository designs using the basename without `.pen`"));
+  assert.match(pencil, /repository-relative path.*without the extension/i);
+  assert.match(pencil, /appends `\.pen`/);
+  assert.ok(flat.includes("Reopen the saved repository path explicitly"));
+});
+
+test("Pencil approval requires structural, visual, and durable evidence", () => {
+  const pencil = read("skills/pencil-design/SKILL.md");
+  const flat = pencil.replace(/\s+/g, " ");
+  for (const evidence of [
+    "no remaining `placeholder: true`",
+    "no reported `ctx.problems`",
+    "expected top-level frames",
+    "sensible bounds",
+    "screenshot every relevant screen",
+    "responsive behavior",
+    "validation and success states",
+  ]) {
+    assert.ok(flat.includes(evidence), `Pencil validation must require ${evidence}`);
+  }
+  assert.match(pencil, /Neither.*replaces the other/is);
+  assert.match(pencil, /durably reachable through Git/i);
+  assert.match(pencil, /implementation worktree/i);
+  assert.match(pencil, /unintegrated.*blocked/i);
+  assert.ok(flat.includes("Record its path and Git reference in the Issue"));
+  assert.match(pencil, /no .*parser|Do not add .*parser/i);
+  assert.match(pencil, /wrapper API|wrapper/i);
+  assert.match(pencil, /manifest/i);
+  assert.match(pencil, /versioning/i);
+});
+
+test("refinement prefers Pencil and implementation consumes approved .pen designs", () => {
+  const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(refine.includes("read root `DESIGN.md`"));
+  assert.ok(refine.includes("`plus-ultra:pencil-design`"));
+  assert.match(refine, /Pencil.*preferred/i);
+  assert.match(refine, /mockup, screenshot, or described reference.*fallback/i);
+  assert.ok(refine.includes("`designs/<issue>-<slug>.pen`"));
+  assert.match(refine, /explicit human approval/i);
+  assert.match(refine, /durably reachable through Git/i);
+
+  const implement = read("skills/implement-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.match(implement, /Design.*\.pen/i);
+  assert.ok(implement.includes("`plus-ultra:pencil-design`"));
+  assert.match(implement, /approved feature-level/i);
+  assert.match(implement, /do not redesign/i);
+  assert.match(implement, /ordinary filesystem tools/i);
+  assert.match(implement, /`DESIGN\.md`.*product-level/i);
+
+  const depth = read("skills/implement-issue/references/depth.md").replace(/\s+/g, " ");
+  assert.ok(depth.includes("Pencil uses `designs/<issue>-<slug>.pen`"));
+  assert.ok(depth.includes("present in the later implementation worktree"));
+  assert.ok(!depth.includes("`designs/<issue>-<slug>.pen` committed with the change"));
 });
 
 test("design discovery runs only for products with a real interface", () => {
