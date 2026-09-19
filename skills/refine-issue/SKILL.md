@@ -8,10 +8,9 @@ description: Use when a GitHub Issue needs to become ready to implement — reso
 This is the main collaboration point before implementation. When refinement is done well, building
 the Issue should need few or no further human decisions.
 
-Accept one positive Issue number. Read the Issue, its labels, parent, and the repository areas it
-touches. Read `docs/product.md` when it exists and check the Story fits the approved direction; if
-it contradicts the brief, say so and ask before refining around it. Follow `plus-ultra:conventions`
-for the required `gh` version and check write permission before any GitHub write.
+Accept one positive Issue number. Read the Issue, labels, parent, touched areas, and `docs/product.md`
+when present. If it conflicts with the brief, say so and ask. Follow `plus-ultra:conventions` for
+the required `gh` version and check write permission before any GitHub write.
 
 ## What refinement decides
 
@@ -24,14 +23,20 @@ for the required `gh` version and check write permission before any GitHub write
 3. **Design checkpoint.** Decide whether the Story involves significant visual or interaction
    decisions. If there is no significant UI, say so, move on, and read no design context at all.
    If there is, read root `DESIGN.md` when it exists — it is the approved product-level visual
-   direction — and resolve the feature's direction here rather than during implementation: reason
-   about the UX, produce one concrete proposal consistent with that direction — a Pencil file,
-   mockup, screenshot, or described reference — and get explicit human approval. Record the approved
-   reference in the Issue or as a link. Feature-level design never touches `DESIGN.md`.
+   direction — and produce one concrete proposal consistent with that direction. When Pencil
+   tooling is available and useful,
+   a Pencil file is the preferred reference: use `plus-ultra:pencil-design` and save it at
+   `designs/<issue>-<slug>.pen`. A mockup, screenshot, or described reference remains the fallback
+   when Pencil is unavailable or clearly not useful. Get explicit human approval of the concrete
+   feature design and record its reference in the Issue. Feature-level design never touches
+   `DESIGN.md`.
    Where the Story genuinely needs **new product-level direction**, say so, propose that direction
    with the smallest corresponding `DESIGN.md` change, and get explicit human approval for both.
    Only then edit `DESIGN.md` — minimally, keeping every unaffected part verbatim — and still record
    the feature's approved reference in the Issue.
+   A repository-native approved design must be durably reachable through Git before a later
+   implementation session depends on it. Refinement may finish while implementation remains blocked
+   on that integration or another Issue; record the dependency.
 4. **Whether a spec is warranted.** Note in the Issue when complexity or risk justifies a separate
    technical contract. Do not create one here; `plus-ultra:implement-issue` decides and writes it.
 

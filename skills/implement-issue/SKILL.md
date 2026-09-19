@@ -5,9 +5,8 @@ description: Use when taking a GitHub Issue end to end — clarify what is mater
 
 # Implement an Issue
 
-Take one GitHub Issue to a pull request ready for human review, then stop. The Issue is the
-behavioural contract: its Context, Goal, and Acceptance Criteria define done. A separate spec is
-optional.
+Take one GitHub Issue to a review-ready pull request, then stop. Its Context, Goal, and Acceptance
+Criteria define done; a separate spec is optional.
 
 ## 1. Check the Issue is a Story, then load what it needs
 
@@ -15,8 +14,8 @@ The implementation unit is a Story. If the Issue carries `type:epic`, stop: an E
 not a unit of work. Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap` for decomposition.
 A `type:story` Issue, or an untyped Issue in an existing repository, proceeds normally.
 
-Read the Issue with `gh issue view <number>`, its parent if any, `docs/product.md` when present, and
-the repository areas the change touches. Do not sweep the whole repository or restate the Issue.
+Read it with `gh issue view <number>`, its parent, `docs/product.md` when present, and only the
+repository areas it touches.
 
 ## 2. Resolve ambiguity deliberately
 
@@ -24,11 +23,10 @@ the repository areas the change touches. Do not sweep the whole repository or re
 privacy, data shape or migration, a public or cross-service contract, or anything else externally
 observable.
 
-**Assume and proceed** only for low-impact, reversible implementation details — internal naming,
-file layout, private helper structure, test organisation. State each assumption in the PR.
+**Assume and proceed** only for low-impact, reversible implementation details. State them in the PR.
 
-Ask once, batched, with a recommendation per question. Never ask what the Issue answers. If a
-decision contradicts `docs/product.md`, say so and ask; do not edit the brief here.
+Ask once, batched, with recommendations. Never ask what the Issue answers. If a decision conflicts
+with `docs/product.md`, say so and ask; do not edit the brief here.
 
 ## 3. Choose depth
 
@@ -47,15 +45,18 @@ Non-UI work reads nothing here. When the change touches a user interface, read r
 it exists: approved product-level visual context. Build consistently with it, and never change its
 product-level direction here.
 
-Never invent significant interface direction while coding. If refinement did not settle the
-interface, stop, reason about the UX, propose one concrete direction, and get explicit human
-approval before implementing it.
+Never invent significant interface direction while coding. If refinement did not settle it,
+propose one concrete direction and get explicit human approval before implementing it.
+
+If Design references `.pen`, it is the approved feature-level reference. Read `DESIGN.md` for
+product-level context and use `plus-ultra:pencil-design` to inspect it. Do not redesign approved UI
+without new material ambiguity, use ordinary filesystem tools on its contents, or recreate an
+unavailable durable reference.
 
 ## 5. Plan and implement
 
-Work on a feature branch. Keep plans in `.context/`, which is local and never committed. Use
-test-driven development where the project supports it, and follow the repository's own conventions
-over any default.
+Work on a feature branch. Keep plans in `.context/`, which is local and never committed. Use TDD
+where supported and follow repository conventions.
 
 When the change materially involves business rules, architecture, persistence, external
 integrations, or side-effect isolation, read the engineering principles in `plus-ultra:conventions`.
@@ -63,23 +64,24 @@ Skip them for ordinary small and local work.
 
 ## 6. Verify
 
-Run the repository's own test, typecheck, lint, and build scripts; do not add a verification
-wrapper. Every acceptance criterion needs evidence — a test, or a stated manual check and its
-result. A failing or unrun check means unverified: say so rather than claim otherwise.
+Run the repository's test, typecheck, lint, and build scripts; do not add a verification
+wrapper. Give every acceptance criterion test or manual-check evidence. Say when a check failed or
+was not run.
 
 ## 7. Independent review
 
-Dispatch an independent reviewer following `plus-ultra:code-review` against the Issue, optional
-spec, and diff. **Mandatory** for high-risk work. For normal work use it **when warranted** —
-non-obvious logic, wide blast radius, or low confidence. Small work skips it by default. Without a
-separate agent, review as a deliberate read-only pass over the diff.
+Dispatch an independent reviewer following [`references/code-review.md`](./references/code-review.md)
+against the Issue, optional spec, and exact head. **Mandatory** for high-risk work. For normal work
+use it **when warranted** — non-obvious logic, wide blast radius, or low confidence. Small work
+skips it by default. Without another agent, make the same deliberate read-only pass.
 
-Fix substantiated blockers. Report, but do not silently act on, findings you judge incorrect.
+Fix substantiated blockers, then require a final review pass over the resulting exact head. Report,
+but do not silently act on, findings you judge incorrect.
 
 ## 8. Pull request, then stop
 
-Create or update the PR from [`assets/pr-body.md`](./assets/pr-body.md) and link the Issue. Report
-the branch, PR URL, what was verified, open assumptions, and what to review first.
+Create or update the PR from [`assets/pr-body.md`](./assets/pr-body.md), link the Issue, and report
+the branch, URL, verification, assumptions, and what to review first.
 
 `plus-ultra:integration-boundary` applies: never merge, enable auto-merge, push the default branch,
 or publish a release or tag. End at **ready for review** and stop.
