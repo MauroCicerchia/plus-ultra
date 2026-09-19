@@ -8,10 +8,17 @@ spec.
 
 ## Pin the evidence
 
-Resolve the repository's real default branch and record the exact head SHA with
+Before pinning, require the implementation state to be verified and committed and the relevant
+working tree to be clean. Run `git status --short`; it must produce no output. If tracked changes
+differ from `HEAD`, do not review. Return control to the implementer to verify and commit them first.
+Relevant untracked files also belong in the committed state before review.
+
+Then resolve the repository's real default branch and record the exact head SHA with
 `git rev-parse HEAD`. Review only the diff ending at that SHA: use `git diff <base>...<head-sha>`,
 where `<base>` is the merge base or remote default branch. Include the exact head SHA in the
-verdict. If the head moves during review, discard the verdict and review the new head.
+verdict. Before reporting, check both the SHA and `git status --short` again. If the head moves or
+the working tree becomes dirty during review, discard the verdict and restart only after the state
+is clean and committed.
 
 ## Gather
 
@@ -46,5 +53,5 @@ report unenforced style preferences.
 - Exact head SHA and a verdict: ready for human review, or not ready with blockers named.
 
 If acceptance criteria are too vague to judge, report that refinement finding instead of inventing
-a contract. After blocker fixes, require a final review pass over the resulting exact head SHA;
-the earlier verdict does not cover the changed head.
+a contract. After blocker fixes, repeat verification, commit, and the clean-worktree gate before
+the final review pass over the resulting exact head SHA. The earlier verdict does not cover it.

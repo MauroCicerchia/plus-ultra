@@ -229,6 +229,14 @@ test("code review is one on-demand implement-issue reference", () => {
   assert.match(review, /blocker fixes/i);
   assert.match(review, /final review pass/i);
 
+  // A SHA pins only committed state. Dirty implementation changes must never be omitted.
+  assert.match(review, /git status --short/);
+  assert.match(reviewFlat, /implementation state.*verified.*committed.*working tree.*clean/i);
+  assert.match(reviewFlat, /tracked changes differ from `HEAD`.*do not review/i);
+  assert.match(reviewFlat, /return control to the implementer.*verify and commit/i);
+  assert.match(reviewFlat, /After blocker fixes.*repeat.*clean-worktree gate.*final review/i);
+  assert.match(reviewFlat, /working tree becomes dirty during review.*discard the verdict/i);
+
   const agent = read("agents/code-reviewer.md");
   assert.match(agent, /skills\/implement-issue\/references\/code-review\.md/);
   assert.match(agent, /A spec is optional; never treat its absence as a reason to stop\./);
