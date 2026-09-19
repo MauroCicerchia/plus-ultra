@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.2.0...v1.3.0) (2026-09-19)
+
+
+### Features
+
+* **design:** add Pencil companion workflow ([#85](https://github.com/MauroCicerchia/plus-ultra/issues/85)) ([ddfc924](https://github.com/MauroCicerchia/plus-ultra/commit/ddfc92462b5045c19f0ca8d5f910a70a387b6224)), closes [#84](https://github.com/MauroCicerchia/plus-ultra/issues/84)
+
 ## [1.2.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.1.0...v1.2.0) (2026-09-18)
 
 
