@@ -5,19 +5,21 @@ description: Use when creating, editing, validating, or consuming a Pencil featu
 
 # Pencil feature design
 
-Use Pencil for feature-level references, not as a design platform inside Plus Ultra. `DESIGN.md` is
-the approved product-level visual direction; a `.pen` becomes the approved feature-level reference
-after human approval. Store it at `designs/<issue>-<slug>.pen`.
+`DESIGN.md` is the approved product-level visual direction; a `.pen` becomes the approved
+feature-level reference after human approval. Pencil is a reference tool, not a design platform in
+Plus Ultra.
 
 ## Preflight
 
 1. Discover the available Pencil MCP capability. The macOS application is named `Pen`.
-2. Ensure Pen has an active document before any Pencil MCP call. `read_skill` and `get_app_state`
-   are unavailable until one is open. For a new design, create a blank document in Pen first. For
-   an existing repository `.pen`, open that exact file in Pen before operating on it.
-3. Once a document is active, use Pencil's native `read_skill` material to load its current skill,
-   schema, execute documentation, and the relevant UI guide. Follow those native instructions;
-   this companion records only Plus Ultra's workflow knowledge.
+2. Ensure Pen has an active document before any Pencil MCP call; `read_skill` and `get_app_state`
+   are unavailable until one is open. Own this yourself: launch Pen when it is closed; create a
+   blank document in Pen for a new design; open that exact file in Pen for an existing repository
+   `.pen`. Drive the environment's own local UI or OS automation when no MCP call can do it.
+3. Ask the human only when you cannot do that safely — no such automation, blocked permissions, or
+   an undeterminable target. Never interrupt merely because Pen is closed or has no document open.
+4. Once a document is active, use Pencil's native `read_skill` material to load its current skill,
+   schema, execute documentation, and the relevant UI guide, and follow them.
 
 Never read, inspect, parse, or mutate `.pen` contents with ordinary filesystem tools. Generic file
 checks may establish that the path exists and is tracked, but Pencil owns the document contents.
@@ -25,17 +27,15 @@ checks may establish that the path exists and is tracked, but Pencil owns the do
 ## Construct
 
 - Map relevant settled `DESIGN.md` tokens into Pencil variables before composing feature screens.
-- Use named top-level frames for important screens and states, and give meaningful nodes
+- Use named top-level frames for important screens and states; give meaningful nodes
   human-readable names.
 - Use `placeholder: true` only while actively constructing a root frame; remove it when that frame
   is complete.
 - Prefer flex or dynamic layout where appropriate.
 - Build incrementally with focused `execute` calls. Fix completed nodes directly instead of
-  recreating them unnecessarily.
+  recreating them.
 
 ## Current compatibility notes
-
-These are removable workarounds for current Pencil behaviour, not Plus Ultra abstractions.
 
 **Render-settle.** After a meaningful mutation, inspect structure and bounds with `Get`. Then make
 a separate `execute` call containing the screenshot request. An immediate blank or stale screenshot
@@ -61,9 +61,13 @@ Before human approval, perform both audits:
 
 Neither audit replaces the other.
 
-An approved repository-native design must be durably reachable through Git and present in the later
-implementation worktree before that session depends on it. Record its path and Git reference in the
-Issue. If it remains on an unintegrated branch or PR, implementation is blocked; state that
+Then hand off in this order: present the refined Issue proposal and the validated design together,
+so one explicit human approval covers both; save the approved artifact at
+`designs/<issue>-<slug>.pen`; persist it through the repository's normal Git workflow; and record
+its path and Git reference in the Issue. Only once it is durably reachable through Git and present
+in the later implementation worktree is implementation unblocked on the design artifact. While it
+remains unintegrated, refinement is complete but implementation is blocked: the Issue may carry
+`Approved design pending durable Git reference.` until the real path replaces it. State that
 dependency rather than copying, integrating, or recreating the design.
 
 Do not add a Pencil parser, wrapper API, manifest, resolver, lifecycle manager, token-sync layer,

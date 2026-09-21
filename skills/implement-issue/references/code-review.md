@@ -9,9 +9,11 @@ spec.
 ## Pin the evidence
 
 Before pinning, require the implementation state to be verified and committed and the relevant
-working tree to be clean. Run `git status --short`; it must produce no output. If tracked changes
-differ from `HEAD`, do not review. Return control to the implementer to verify and commit them first.
-Relevant untracked files also belong in the committed state before review.
+working tree to be clean. That verification is the repository's complete run — `test`, `typecheck`,
+`lint`, and `build`, as available — on the head about to be pinned, not a focused intermediate
+check. Run `git status --short`; it must produce no output. If tracked changes differ from `HEAD`,
+do not review. Return control to the implementer to verify and commit them first. Relevant untracked
+files also belong in the committed state before review.
 
 Then resolve the repository's real default branch and record the exact head SHA with
 `git rev-parse HEAD`. Review only the diff ending at that SHA: use `git diff <base>...<head-sha>`,
@@ -53,5 +55,6 @@ report unenforced style preferences.
 - Exact head SHA and a verdict: ready for human review, or not ready with blockers named.
 
 If acceptance criteria are too vague to judge, report that refinement finding instead of inventing
-a contract. After blocker fixes, repeat verification, commit, and the clean-worktree gate before
-the final review pass over the resulting exact head SHA. The earlier verdict does not cover it.
+a contract. After blocker fixes, repeat that complete verification, commit, and the clean-worktree
+gate before the final review pass over the resulting exact head SHA. The earlier verdict does not
+cover it.

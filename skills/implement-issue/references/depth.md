@@ -9,7 +9,7 @@ classification: nothing here is persisted, re-derived at ship time, or handed be
 Localized, understood, and free of material product, UX, security, or data decisions.
 
 - Focused tests covering the changed behaviour.
-- The repository's normal checks still have to pass.
+- The repository's complete verification still has to pass on the final head.
 - No written plan, no spec, no independent review by default.
 
 Escalate to normal the moment the change grows past the area you first scoped, or a question you
@@ -20,7 +20,8 @@ cannot answer from the Issue appears.
 Significant behaviour, or a change spanning several files or modules.
 
 - A short written plan before implementing.
-- Tests for each acceptance criterion, plus the repository's full relevant suite.
+- Tests for each acceptance criterion, plus the repository's complete verification on the final
+  head, and broader checks at a meaningful integration checkpoint when risk warrants them.
 - Independent review **when warranted**: non-obvious logic, wide blast radius, a subsystem you have
   not touched before, or low confidence in your own diff. Say which of these applied, or that none
   did and you skipped review.
@@ -43,6 +44,17 @@ migrations, concurrency, or critical infrastructure.
 | Critical infrastructure | Configuration, permissions, degradation, recovery, rollback |
 
 - Independent review is **mandatory** and cannot be waived by confidence.
+
+## Verification cadence
+
+Intermediate commits carry focused tests for the changed behaviour plus a typecheck or package check
+scoped to the changed area. Widen that deliberately — at a risky integration checkpoint, or because
+a high-risk trigger above demands more — not by habit, and never in place of the final run.
+
+The repository's complete verification (`test`, `typecheck`, `lint`, and `build`, as available) is
+mandatory on the final committed head before the change is ready for review, and again on the head
+that follows blocker fixes. Independent review pins that exact head; a re-verified head is a new
+head and needs its own review pass.
 
 ## Where a design reference lives
 
