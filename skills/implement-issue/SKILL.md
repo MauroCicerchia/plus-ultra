@@ -89,4 +89,4 @@ branch, URL, verification, assumptions, and what to review first.
 `plus-ultra:integration-boundary` applies: never merge, enable auto-merge, push the default branch,
 or publish a release or tag. End at **ready for review** and stop.
 
-Close with one line of harness feedback only when this Issue exposed real friction. Never file it.
+Add one harness-feedback line only when this Issue exposed real Plus Ultra friction. Never file it.

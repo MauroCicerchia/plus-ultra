@@ -184,6 +184,12 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
   assert.match(skill, /plus-ultra:integration-boundary/);
   assert.match(skill, /ready for review\*\* and stop/);
 
+  // Harness feedback is conditional on observed friction, and scoped to Plus Ultra itself rather
+  // than to the repository being worked on. Assert both halves independently of the wording.
+  const harness = skill.replace(/\s+/g, " ").match(/[^.]*harness[- ]?feedback[^.]*\./i)?.[0] ?? "";
+  assert.match(harness, /only when this Issue exposed real/i, "harness feedback stays conditional");
+  assert.match(harness, /Plus Ultra/, "harness feedback stays scoped to Plus Ultra itself");
+
   // No verification wrapper, no persisted workflow state, no mandatory handoff.
   assert.ok(skill.replace(/\s+/g, " ").includes("do not add a verification wrapper"));
   assert.doesNotMatch(skill, /handoff/i);
