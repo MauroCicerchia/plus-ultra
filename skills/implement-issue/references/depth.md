@@ -6,7 +6,8 @@ classification: nothing here is persisted, re-derived at ship time, or handed be
 
 ## Small
 
-Localized, understood, and free of material product, UX, security, or data decisions.
+Localized, understood, and free of material product, UX, security, or data decisions. The path is
+implement → focused tests → PR.
 
 - Focused tests covering the changed behaviour.
 - The repository's complete verification still has to pass on the final head.
@@ -17,7 +18,8 @@ cannot answer from the Issue appears.
 
 ## Normal
 
-Significant behaviour, or a change spanning several files or modules.
+Significant behaviour, or a change spanning several files or modules. The path is short plan →
+implement → tests → review when warranted → fix → PR.
 
 - A short written plan before implementing.
 - Tests for each acceptance criterion, plus the repository's complete verification on the final
@@ -29,7 +31,8 @@ Significant behaviour, or a change spanning several files or modules.
 ## High-risk
 
 Triggered by authentication, authorization, payments, destructive data operations, sensitive
-migrations, concurrency, or critical infrastructure.
+migrations, concurrency, or critical infrastructure. The path is technical contract → plan →
+stronger verification → mandatory review → PR.
 
 - A written technical contract before implementing — see the spec section below.
 - The normal controls, plus the ones the trigger demands:

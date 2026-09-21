@@ -23,14 +23,14 @@ An explicitly approved refined Story satisfies generic product, design, and brai
 gates. Never reopen what the Issue, `docs/product.md`, `DESIGN.md`, or an approved design settled;
 complementary methodologies supply mechanics, not approval gates.
 
-**Ask the human** on a new material ambiguity: product behaviour, user-visible UX, security or
-privacy, data shape or migration, a public or cross-service contract, or anything else externally
-observable.
+**Ask the human** on new material ambiguity or contradiction: product behaviour, user-visible UX,
+security or privacy, data shape or migration, a public or cross-service contract, or anything
+else externally observable.
 
 **Assume and proceed** only for low-impact, reversible implementation details. State them in the PR.
 
 Ask once, batched, with recommendations. If a decision conflicts with `docs/product.md`, say so and
-ask; do not edit the brief.
+ask; never edit the brief.
 
 ## 3. Choose depth
 
@@ -62,7 +62,7 @@ where supported and follow repository conventions.
 
 When the change materially involves business rules, architecture, persistence, external
 integrations, or side-effect isolation, read the engineering principles in `plus-ultra:conventions`.
-Skip them for ordinary small and local work.
+Skip them for small and local work.
 
 ## 6. Verify
 
@@ -89,5 +89,4 @@ branch, URL, verification, assumptions, and what to review first.
 `plus-ultra:integration-boundary` applies: never merge, enable auto-merge, push the default branch,
 or publish a release or tag. End at **ready for review** and stop.
 
-Close with one line of harness feedback only when this Issue exposed real Plus Ultra friction.
-Never file it.
+Close with one line of harness feedback only when this Issue exposed real friction. Never file it.

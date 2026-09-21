@@ -154,7 +154,12 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
 
   // Material decisions escalate; only reversible details are assumed.
   assert.match(skill, /\*\*Ask the human\*\*/);
-  assert.match(skill, /product behaviour, user-visible UX, security or\n?privacy, data shape or migration, a public or cross-service contract/);
+  assert.ok(
+    skill.replace(/\s+/g, " ").includes(
+      "product behaviour, user-visible UX, security or privacy, data shape or migration, a public " +
+        "or cross-service contract"
+    )
+  );
   assert.match(skill, /\*\*Assume and proceed\*\* only for low-impact, reversible implementation details/);
 
   // Depth is a heuristic inside this skill, not a user-facing protocol.
@@ -162,6 +167,14 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
     assert.match(skill, new RegExp(`\\*\\*${depth}\\*\\*`), `depth table must contain ${depth}`);
   }
   assert.match(skill, /Unresolved uncertainty raises depth; it never lowers it\./);
+
+  // The table routes; the reference the table points at holds each depth's controls and path.
+  const depth = read("skills/implement-issue/references/depth.md").replace(/\s+/g, " ");
+  assert.ok(depth.includes("The path is implement → focused tests → PR."));
+  assert.ok(depth.includes("The path is short plan → implement → tests → review when warranted → fix → PR."));
+  assert.ok(
+    depth.includes("The path is technical contract → plan → stronger verification → mandatory review → PR.")
+  );
 
   // The remaining steps of the loop.
   assert.match(skill, /## 4\. Design checkpoint/);
@@ -197,7 +210,7 @@ test("an approved refined Story is not sent back through generic approval gates"
   assert.match(flat, /complementary methodologies supply mechanics, not approval gates/);
 
   // The human boundary reopens only for something genuinely new.
-  assert.match(flat, /\*\*Ask the human\*\* on a new material ambiguity/);
+  assert.match(flat, /\*\*Ask the human\*\* on new material ambiguity or contradiction/);
   assert.match(implement, /Never invent significant interface direction while coding\./);
 });
 
@@ -251,12 +264,14 @@ test("an approved design becomes durable before implementation depends on it", (
   // build → validate → one approval → save → Git → Issue → unblocked.
   assert.ok(
     pencil.includes(
-      "Then hand off in this order: present the refined Issue proposal and the validated design " +
-        "together"
+      "Then hand off in order: present the refined Issue proposal and the validated design together"
     )
   );
   assert.match(pencil, /one explicit human approval covers both/);
-  assert.match(pencil, /save the approved artifact at `designs\/<issue>-<slug>\.pen`/);
+  assert.match(
+    pencil,
+    /ensure the approved artifact is saved at `designs\/<issue>-<slug>\.pen` as Save-reopen describes/
+  );
   assert.match(pencil, /persist it through the repository's normal Git workflow/);
   assert.match(pencil, /record its path and Git reference in the Issue/i);
   assert.match(pencil, /is implementation unblocked on the design artifact/);

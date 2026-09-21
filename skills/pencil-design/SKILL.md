@@ -6,8 +6,7 @@ description: Use when creating, editing, validating, or consuming a Pencil featu
 # Pencil feature design
 
 `DESIGN.md` is the approved product-level visual direction; a `.pen` becomes the approved
-feature-level reference after human approval. Pencil is a reference tool, not a design platform in
-Plus Ultra.
+feature-level reference after human approval. Pencil is a reference tool, not a design platform.
 
 ## Preflight
 
@@ -15,7 +14,7 @@ Plus Ultra.
 2. Ensure Pen has an active document before any Pencil MCP call; `read_skill` and `get_app_state`
    are unavailable until one is open. Own this yourself: launch Pen when it is closed; create a
    blank document in Pen for a new design; open that exact file in Pen for an existing repository
-   `.pen`. Drive the environment's own local UI or OS automation when no MCP call can do it.
+   `.pen`. Drive the environment's local UI or OS automation when no MCP call can do it.
 3. Ask the human only when you cannot do that safely — no such automation, blocked permissions, or
    an undeterminable target. Never interrupt merely because Pen is closed or has no document open.
 4. Once a document is active, use Pencil's native `read_skill` material to load its current skill,
@@ -61,14 +60,14 @@ Before human approval, perform both audits:
 
 Neither audit replaces the other.
 
-Then hand off in this order: present the refined Issue proposal and the validated design together,
-so one explicit human approval covers both; save the approved artifact at
-`designs/<issue>-<slug>.pen`; persist it through the repository's normal Git workflow; and record
+Then hand off in order: present the refined Issue proposal and the validated design together,
+so one explicit human approval covers both; ensure the approved artifact is saved at
+`designs/<issue>-<slug>.pen` as Save-reopen describes; persist it through the repository's normal Git workflow; and record
 its path and Git reference in the Issue. Only once it is durably reachable through Git and present
 in the later implementation worktree is implementation unblocked on the design artifact. While it
 remains unintegrated, refinement is complete but implementation is blocked: the Issue may carry
 `Approved design pending durable Git reference.` until the real path replaces it. State that
-dependency rather than copying, integrating, or recreating the design.
+dependency rather than copying, integrating, or recreating it.
 
 Do not add a Pencil parser, wrapper API, manifest, resolver, lifecycle manager, token-sync layer,
 preview pipeline, generated design system, or design versioning scheme. Use Pencil's native
