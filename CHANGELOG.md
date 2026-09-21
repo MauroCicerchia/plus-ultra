@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.3.0...v1.4.0) (2026-09-21)
+
+
+### Features
+
+* **workflow:** settle approval, verification cadence, and the Pencil handoff ([#88](https://github.com/MauroCicerchia/plus-ultra/issues/88)) ([ab6339b](https://github.com/MauroCicerchia/plus-ultra/commit/ab6339bdd03946b5b5b657dfd10125a826a044d2))
+
 ## [1.3.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.2.0...v1.3.0) (2026-09-19)
 
 
