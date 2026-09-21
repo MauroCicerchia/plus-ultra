@@ -154,7 +154,12 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
 
   // Material decisions escalate; only reversible details are assumed.
   assert.match(skill, /\*\*Ask the human\*\*/);
-  assert.match(skill, /product behaviour, user-visible UX, security or\n?privacy, data shape or migration, a public or cross-service contract/);
+  assert.ok(
+    skill.replace(/\s+/g, " ").includes(
+      "product behaviour, user-visible UX, security or privacy, data shape or migration, a public " +
+        "or cross-service contract"
+    )
+  );
   assert.match(skill, /\*\*Assume and proceed\*\* only for low-impact, reversible implementation details/);
 
   // Depth is a heuristic inside this skill, not a user-facing protocol.
@@ -162,6 +167,14 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
     assert.match(skill, new RegExp(`\\*\\*${depth}\\*\\*`), `depth table must contain ${depth}`);
   }
   assert.match(skill, /Unresolved uncertainty raises depth; it never lowers it\./);
+
+  // The table routes; the reference the table points at holds each depth's controls and path.
+  const depth = read("skills/implement-issue/references/depth.md").replace(/\s+/g, " ");
+  assert.ok(depth.includes("The path is implement → focused tests → PR."));
+  assert.ok(depth.includes("The path is short plan → implement → tests → review when warranted → fix → PR."));
+  assert.ok(
+    depth.includes("The path is technical contract → plan → stronger verification → mandatory review → PR.")
+  );
 
   // The remaining steps of the loop.
   assert.match(skill, /## 4\. Design checkpoint/);
@@ -171,9 +184,132 @@ test("implement-issue owns the whole Issue-to-PR path", () => {
   assert.match(skill, /plus-ultra:integration-boundary/);
   assert.match(skill, /ready for review\*\* and stop/);
 
+  // Harness feedback is conditional on observed friction, and scoped to Plus Ultra itself rather
+  // than to the repository being worked on. Assert both halves independently of the wording.
+  const harness = skill.replace(/\s+/g, " ").match(/[^.]*harness[- ]?feedback[^.]*\./i)?.[0] ?? "";
+  assert.match(harness, /only when this Issue exposed real/i, "harness feedback stays conditional");
+  assert.match(harness, /Plus Ultra/, "harness feedback stays scoped to Plus Ultra itself");
+
   // No verification wrapper, no persisted workflow state, no mandatory handoff.
-  assert.match(skill, /do not add a verification\nwrapper/);
+  assert.ok(skill.replace(/\s+/g, " ").includes("do not add a verification wrapper"));
   assert.doesNotMatch(skill, /handoff/i);
+});
+
+test("an approved refined Story is not sent back through generic approval gates", () => {
+  const implement = read("skills/implement-issue/SKILL.md");
+  const flat = implement.replace(/\s+/g, " ");
+
+  assert.ok(
+    flat.includes(
+      "An explicitly approved refined Story satisfies generic product, design, and brainstorming " +
+        "approval gates"
+    ),
+    "implement-issue must not reopen an approved refinement for a generic gate"
+  );
+  assert.ok(
+    flat.includes(
+      "Never reopen what the Issue, `docs/product.md`, `DESIGN.md`, or an approved design settled"
+    ),
+    "the settled sources must be named"
+  );
+  // Complementary methodologies still supply planning, TDD, and review mechanics.
+  assert.match(flat, /complementary methodologies supply mechanics, not approval gates/);
+
+  // The human boundary reopens only for something genuinely new.
+  assert.match(flat, /\*\*Ask the human\*\* on new material ambiguity or contradiction/);
+  assert.match(implement, /Never invent significant interface direction while coding\./);
+});
+
+test("intermediate verification is focused and the final head gets the whole suite", () => {
+  const implement = read("skills/implement-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(
+    implement.includes(
+      "Intermediate commits may run focused tests and a scoped typecheck or package check for the " +
+        "changed area"
+    ),
+    "intermediate work must not imply a full repository suite per commit"
+  );
+  assert.ok(
+    implement.includes(
+      "The repository's full test, typecheck, lint, and build scripts are mandatory on the final " +
+        "committed head before PR readiness"
+    ),
+    "the final committed head must still carry complete verification"
+  );
+
+  const depthRaw = read("skills/implement-issue/references/depth.md");
+  assert.match(depthRaw, /^## Verification cadence$/m);
+  const depth = depthRaw.replace(/\s+/g, " ");
+  assert.ok(
+    depth.includes(
+      "Intermediate commits carry focused tests for the changed behaviour plus a typecheck or " +
+        "package check scoped to the changed area"
+    )
+  );
+  assert.match(depth, /Widen that deliberately/);
+  assert.ok(
+    depth.includes(
+      "mandatory on the final committed head before the change is ready for review, and again on " +
+        "the head that follows blocker fixes"
+    )
+  );
+
+  // Exact-head review and the re-review after blocker fixes survive the cadence change.
+  assert.match(depth, /Independent review pins that exact head/);
+  assert.match(depth, /a re-verified head is a new head and needs its own review pass/);
+
+  const review = read("skills/implement-issue/references/code-review.md").replace(/\s+/g, " ");
+  assert.ok(review.includes("That verification is the repository's complete run"));
+  assert.ok(review.includes("on the head about to be pinned, not a focused intermediate check"));
+  assert.match(review, /After blocker fixes, repeat that complete verification/);
+});
+
+test("an approved design becomes durable before implementation depends on it", () => {
+  const pencil = read("skills/pencil-design/SKILL.md").replace(/\s+/g, " ");
+
+  // build → validate → one approval → save → Git → Issue → unblocked.
+  assert.ok(
+    pencil.includes(
+      "Then hand off in order: present the refined Issue proposal and the validated design together"
+    )
+  );
+  assert.match(pencil, /one explicit human approval covers both/);
+  assert.match(
+    pencil,
+    /ensure the approved artifact is saved at `designs\/<issue>-<slug>\.pen` as Save-reopen describes/
+  );
+  assert.match(pencil, /persist it through the repository's normal Git workflow/);
+  assert.match(pencil, /record its path and Git reference in the Issue/i);
+  assert.match(pencil, /is implementation unblocked on the design artifact/);
+
+  // A temporary marker is allowed until the real reference exists.
+  assert.match(pencil, /`Approved design pending durable Git reference\.`/);
+  assert.match(pencil, /until the real path replaces it/);
+
+  const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(
+    refine.includes(
+      "One explicit human approval may cover both the displayed Issue proposal and the concrete " +
+        "design when presented together"
+    ),
+    "one approval may cover the Story proposal and the embedded design"
+  );
+
+  // Readiness is prose, not a state machine: three phrases, no labels or statuses.
+  assert.match(refine, /\*\*refined and approved\*\* once material product and design decisions are settled/);
+  assert.match(
+    refine,
+    /\*\*ready for implementation\*\* once its dependencies and any approved design are also durably reachable through Git/
+  );
+  assert.match(refine, /\*\*refined but blocked\*\* otherwise, naming the blocker/);
+
+  for (const skill of SKILLS) {
+    assert.doesNotMatch(
+      read(`skills/${skill}/SKILL.md`),
+      /design registry|design manifest|design lifecycle|`?(?:status|label):\s*design/i,
+      `skills/${skill}/SKILL.md must not add design status machinery`
+    );
+  }
 });
 
 test("independent review is mandatory only for high-risk work", () => {
@@ -336,7 +472,7 @@ test("the design checkpoint is human-approved and carries no artifact platform",
 
   const implement = read("skills/implement-issue/SKILL.md");
   assert.match(implement, /Never invent significant interface direction while coding\./);
-  assert.match(implement, /get explicit human\s+approval before implementing it/);
+  assert.ok(implement.replace(/\s+/g, " ").includes("get explicit human approval before implementing it"));
   // Where the approved reference lives moved to the on-demand reference.
   assert.match(read("skills/implement-issue/references/depth.md"), /wherever it is cheapest/);
   assert.match(
@@ -350,19 +486,33 @@ test("the design checkpoint is human-approved and carries no artifact platform",
   }
 });
 
-test("Pencil is an internal companion with a safe native-tool preflight", () => {
+test("Pencil preflight is agent-owned and only escalates when it cannot act", () => {
   const pencil = read("skills/pencil-design/SKILL.md");
+  const flat = pencil.replace(/\s+/g, " ");
   assert.match(pencil, /creating, editing, validating, or consuming/i);
   assert.match(pencil, /application is named `Pen`/);
   assert.match(pencil, /active document.*before.*Pencil MCP/is);
-  assert.match(pencil, /new design.*blank document.*in Pen/is);
   assert.match(pencil, /read_skill/);
   assert.match(pencil, /get_app_state/);
   for (const nativeDoc of ["skill", "schema", "execute", "UI guide"]) {
     assert.match(pencil, new RegExp(nativeDoc, "i"));
   }
   assert.match(pencil, /Never (?:read|inspect).*\.pen.*ordinary filesystem/is);
-  assert.match(pencil, /open.*repository.*\.pen.*in Pen/is);
+
+  // The agent opens Pen and the document itself; a closed app is not a reason to stop.
+  assert.match(flat, /Own this yourself/);
+  assert.match(flat, /launch Pen when it is closed/);
+  assert.match(flat, /create a blank document in Pen for a new design/);
+  assert.match(flat, /open that exact file in Pen for an existing repository `\.pen`/);
+  assert.match(flat, /local UI or OS automation/);
+
+  // The human is asked only when the environment genuinely cannot do it safely.
+  assert.match(flat, /Ask the human only when you cannot do that safely/);
+  assert.match(flat, /no such automation, blocked permissions, or an undeterminable target/);
+  assert.match(flat, /Never interrupt merely because Pen is closed or has no document open/);
+
+  // Compatibility, not a wrapper: no persistent automation layer around Pen.
+  assert.doesNotMatch(pencil, /GUI orchestration|automation framework|automation layer/i);
 
   // It remains a helper rather than a sixth user-facing capability.
   assert.ok(!existsSync(join(repoRoot, "commands/pencil-design.md")));
@@ -417,8 +567,8 @@ test("Pencil approval requires structural, visual, and durable evidence", () => 
   assert.match(pencil, /Neither.*replaces the other/is);
   assert.match(pencil, /durably reachable through Git/i);
   assert.match(pencil, /implementation worktree/i);
-  assert.match(pencil, /unintegrated.*blocked/i);
-  assert.ok(flat.includes("Record its path and Git reference in the Issue"));
+  assert.match(flat, /unintegrated.*blocked/i);
+  assert.match(flat, /record its path and Git reference in the Issue/i);
   assert.match(pencil, /no .*parser|Do not add .*parser/i);
   assert.match(pencil, /wrapper API|wrapper/i);
   assert.match(pencil, /manifest/i);
