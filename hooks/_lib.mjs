@@ -196,13 +196,15 @@ export function isVerificationRelevantPath(path) {
   if (!Buffer.from(relativePath).equals(bytes) || !relativePath || relativePath.startsWith("/")) return null;
   if (/^(?:\.claude|\.codex)\/plus-ultra\/state\//.test(relativePath)) return false;
   if (/^(?:coverage|playwright-report|test-results)\//.test(relativePath)) return false;
+  // Approved design and product context has its own refinement checks. These
+  // files alone cannot invalidate application tests or typecheck.
+  if (/^(?:DESIGN\.md|docs\/product\.md|designs\/.+\.pen)$/.test(relativePath)) return false;
   // MDX and SVG can be compiled or imported as application code.
   if (/\.(?:mdx|svg)$/i.test(relativePath)) return true;
   if (/^(?:src|app|apps|packages|tests?|fixtures|public|generated|scripts|skills|hooks|commands|agents|specs|designs|\.github)\//.test(relativePath)) return true;
-  // Plus Ultra's checks read the guide and assert the retired benchmark path
-  // is absent. The product brief is durable workflow input.
-  if (/^docs\/(?:maintainer-guide|benchmarking|product)\.md$/.test(relativePath)) return true;
-  if (/^(?:README(?:\.[^/]*)?|AGENTS\.md|CHANGELOG\.md|DESIGN\.md)$/.test(relativePath)) return true;
+  // Plus Ultra's checks read the guide and assert the retired benchmark path is absent.
+  if (/^docs\/(?:maintainer-guide|benchmarking)\.md$/.test(relativePath)) return true;
+  if (/^(?:README(?:\.[^/]*)?|AGENTS\.md|CHANGELOG\.md)$/.test(relativePath)) return true;
   if (/^(?:LICENSE|NOTICE|CODEOWNERS)$/.test(relativePath)) return false;
   if (/^(?:docs\/(?:.*\/)?)?[^/]+\.(?:md|markdown|txt|rst|adoc|png|jpe?g|gif|webp|ico|pdf)$/i.test(relativePath)) return false;
   return true;

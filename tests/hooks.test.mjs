@@ -268,6 +268,65 @@ test("neutral artifacts do not stale verification while source changes are prese
   }
 });
 
+test("canonical refinement artifacts can be committed without application verification", () => {
+  for (const path of ["designs/90-feature.pen", "designs/nested/90-feature.pen", "DESIGN.md", "docs/product.md"]) {
+    const cwd = makeGitProject({ typescript: true });
+    try {
+      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
+      writeFileSync(join(cwd, path), "approved design context\n");
+      runCommand("git", ["add", path], cwd);
+
+      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", path);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("canonical refinement artifacts do not stale verified source", () => {
+  for (const path of ["designs/90-feature.pen", "designs/nested/90-feature.pen", "DESIGN.md", "docs/product.md"]) {
+    const cwd = makeGitProject({ typescript: true });
+    try {
+      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+      runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
+
+      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
+      writeFileSync(join(cwd, path), "approved design context\n");
+      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", `${path} unstaged`);
+      runCommand("git", ["add", path], cwd);
+      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", `${path} staged`);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("refinement artifacts cannot hide stale source, test, config, or runtime changes", () => {
+  for (const path of ["src/app.mjs", "tests/app.test.mjs", "tsconfig.json", "package.json", "page.mdx", "component.svg"]) {
+    const cwd = makeGitProject({ typescript: true });
+    try {
+      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+      runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
+      mkdirSync(join(cwd, "designs"));
+      writeFileSync(join(cwd, "designs", "90-feature.pen"), "approved design context\n");
+      runCommand("git", ["add", "designs/90-feature.pen"], cwd);
+
+      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
+      writeFileSync(join(cwd, path), "changed verification input\n");
+      const reason = denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd }));
+      assert.match(
+        reason,
+        /Verification stale: code changed since last successful test run\./,
+        path
+      );
+      assert.match(reason, /Verification stale: code changed since last successful typecheck\./, path);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("tracked prose, images, reports, and plugin state do not stale a verified source edit", () => {
   const cwd = makeGitProject();
   try {
