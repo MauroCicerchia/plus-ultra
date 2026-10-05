@@ -271,17 +271,19 @@ test("neutral artifacts do not stale verification while source changes are prese
 test("tracked prose, images, reports, and plugin state do not stale a verified source edit", () => {
   const cwd = makeGitProject();
   try {
-    writeFileSync(join(cwd, "NOTES.md"), "initial notes\n");
-    runCommand("git", ["add", "NOTES.md"], cwd);
+    mkdirSync(join(cwd, "docs"));
+    writeFileSync(join(cwd, "docs", "notes.md"), "initial notes\n");
+    runCommand("git", ["add", "docs/notes.md"], cwd);
     runCommand("git", ["commit", "-m", "Add notes"], cwd);
     writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
     runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
 
-    writeFileSync(join(cwd, "NOTES.md"), "revised notes\n");
+    writeFileSync(join(cwd, "docs", "notes.md"), "revised notes\n");
+    writeFileSync(join(cwd, "docs", "diagram.png"), "image content\n");
     writeFileSync(join(cwd, "diagram.png"), "image content\n");
     mkdirSync(join(cwd, "coverage"));
     writeFileSync(join(cwd, "coverage", "summary.json"), "{}\n");
-    runCommand("git", ["add", "NOTES.md", "diagram.png"], cwd);
+    runCommand("git", ["add", "docs/notes.md", "docs/diagram.png", "diagram.png"], cwd);
     assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
