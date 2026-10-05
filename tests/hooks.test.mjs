@@ -343,8 +343,8 @@ test("moving a clean submodule worktree makes verification stale", () => {
   }
 });
 
-test("test, config, manifest, and runtime prose changes stale verification", () => {
-  for (const path of ["tests/app.test.mjs", "tsconfig.json", "package.json", "skills/example/SKILL.md"]) {
+test("test, config, manifest, and runtime content changes stale verification", () => {
+  for (const path of ["tests/app.test.mjs", "tsconfig.json", "package.json", "skills/example/SKILL.md", "page.mdx", "component.svg"]) {
     const cwd = makeGitProject();
     try {
       writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
