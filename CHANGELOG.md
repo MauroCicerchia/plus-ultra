@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.0...v1.4.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **workflow:** focus verification and clarify workflow risk ([#91](https://github.com/MauroCicerchia/plus-ultra/issues/91)) ([94f48a3](https://github.com/MauroCicerchia/plus-ultra/commit/94f48a3f8311b334a64705686ae18eaab7a2fd03)), closes [#90](https://github.com/MauroCicerchia/plus-ultra/issues/90)
+
 ## [1.4.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.3.0...v1.4.0) (2026-09-21)
 
 
