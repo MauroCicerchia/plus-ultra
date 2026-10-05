@@ -161,7 +161,16 @@ function fileEntry(root, path) {
     if (stat.isSymbolicLink()) {
       return { type: "symlink", mode: stat.mode & 0o7777, value: readlinkSync(absolutePath, "buffer") };
     }
-    return { type: "other", mode: stat.mode & 0o7777, value: Buffer.alloc(0) };
+    if (stat.isDirectory()) {
+      // A tracked directory is a Git submodule. Its checked-out commit is part
+      // of the verification input even when the gitlink has not been staged.
+      const topLevel = git(absolutePath, ["rev-parse", "--show-toplevel"]);
+      const head = git(absolutePath, ["rev-parse", "HEAD"]);
+      const status = git(absolutePath, ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"]);
+      if (!topLevel || resolve(topLevel.toString("utf8").trim()) !== absolutePath || !head || !status || status.length > 0) return null;
+      return { type: "submodule", mode: stat.mode & 0o7777, value: head };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -187,11 +196,10 @@ export function isVerificationRelevantPath(path) {
   if (!Buffer.from(relativePath).equals(bytes) || !relativePath || relativePath.startsWith("/")) return null;
   if (/^(?:\.claude|\.codex)\/plus-ultra\/state\//.test(relativePath)) return false;
   if (/^(?:coverage|playwright-report|test-results)\//.test(relativePath)) return false;
-  if (/^(?:src|app|apps|packages|tests?|fixtures|public|generated|scripts|skills|hooks|commands|agents|specs|designs|\.github)\//.test(relativePath)) return true;
-  if (/^(?:README(?:\.[^/]*)?|AGENTS\.md|CHANGELOG\.md|DESIGN\.md|docs\/maintainer-guide\.md)$/.test(relativePath)) return true;
+  if (/^(?:src|app|apps|packages|tests?|fixtures|public|generated|scripts|skills|hooks|commands|agents|specs|designs|docs|\.github)\//.test(relativePath)) return true;
+  if (/^(?:README(?:\.[^/]*)?|AGENTS\.md|CHANGELOG\.md|DESIGN\.md)$/.test(relativePath)) return true;
   if (/^(?:LICENSE|NOTICE|CODEOWNERS)$/.test(relativePath)) return false;
-  if (/^(?:docs\/)?[^/]+\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i.test(relativePath)) return false;
-  if (/^docs\/(?:.*\/)?[^/]+\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i.test(relativePath)) return false;
+  if (/^[^/]+\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i.test(relativePath)) return false;
   return true;
 }
 

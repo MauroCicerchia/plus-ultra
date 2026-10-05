@@ -271,18 +271,17 @@ test("neutral artifacts do not stale verification while source changes are prese
 test("tracked prose, images, reports, and plugin state do not stale a verified source edit", () => {
   const cwd = makeGitProject();
   try {
-    mkdirSync(join(cwd, "docs"));
-    writeFileSync(join(cwd, "docs", "notes.md"), "initial notes\n");
-    runCommand("git", ["add", "docs/notes.md"], cwd);
+    writeFileSync(join(cwd, "NOTES.md"), "initial notes\n");
+    runCommand("git", ["add", "NOTES.md"], cwd);
     runCommand("git", ["commit", "-m", "Add notes"], cwd);
     writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
     runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
 
-    writeFileSync(join(cwd, "docs", "notes.md"), "revised notes\n");
+    writeFileSync(join(cwd, "NOTES.md"), "revised notes\n");
     writeFileSync(join(cwd, "diagram.png"), "image content\n");
     mkdirSync(join(cwd, "coverage"));
     writeFileSync(join(cwd, "coverage", "summary.json"), "{}\n");
-    runCommand("git", ["add", "docs/notes.md", "diagram.png"], cwd);
+    runCommand("git", ["add", "NOTES.md", "diagram.png"], cwd);
     assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -290,7 +289,7 @@ test("tracked prose, images, reports, and plugin state do not stale a verified s
 });
 
 test("prose consumed by verification remains relevant", () => {
-  for (const path of ["README.md", "docs/maintainer-guide.md", "CHANGELOG.md", "AGENTS.md"]) {
+  for (const path of ["README.md", "docs/maintainer-guide.md", "docs/benchmarking.md", "CHANGELOG.md", "AGENTS.md"]) {
     const cwd = makeGitProject();
     try {
       writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
@@ -305,6 +304,40 @@ test("prose consumed by verification remains relevant", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
+  }
+});
+
+test("moving a clean submodule worktree makes verification stale", () => {
+  const cwd = makeGitProject();
+  const remote = makeGitProject();
+  try {
+    const first = spawnSync("git", ["rev-parse", "HEAD"], { cwd: remote, encoding: "utf8" }).stdout.trim();
+    writeFileSync(join(remote, "src", "app.mjs"), "export const value = 2;\n");
+    runCommand("git", ["add", "src/app.mjs"], remote);
+    runCommand("git", ["commit", "-m", "Second commit"], remote);
+    const second = spawnSync("git", ["rev-parse", "HEAD"], { cwd: remote, encoding: "utf8" }).stdout.trim();
+
+    runCommand("git", ["-c", "protocol.file.allow=always", "submodule", "add", remote, "vendor/dep"], cwd);
+    runCommand("git", ["checkout", first], join(cwd, "vendor", "dep"));
+    runCommand("git", ["add", ".gitmodules", "vendor/dep"], cwd);
+    runCommand("git", ["commit", "-m", "Add submodule"], cwd);
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+
+    runCommand("git", ["checkout", second], join(cwd, "vendor", "dep"));
+    assert.match(
+      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+      /Verification stale: code changed since last successful test run\./
+    );
+
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    writeFileSync(join(cwd, "vendor", "dep", "src", "app.mjs"), "export const value = 3;\n");
+    assert.match(
+      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+      /Verification stale: code changed since last successful test run\./
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(remote, { recursive: true, force: true });
   }
 });
 
