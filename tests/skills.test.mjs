@@ -264,6 +264,43 @@ test("intermediate verification is focused and the final head gets the whole sui
   assert.match(review, /After blocker fixes, repeat that complete verification/);
 });
 
+test("refinement verifies owned artifacts without routine application verification", () => {
+  const refine = read("skills/refine-issue/SKILL.md");
+  const detail = read("skills/refine-issue/references/verification.md");
+  assert.match(refine, /no verification-relevant implementation input/i);
+  for (const check of ["tests", "typecheck", "lint", "build"]) {
+    assert.match(refine, new RegExp(check), `refinement must address ${check}`);
+  }
+  assert.match(detail, /Issue content/);
+  assert.match(detail, /read-back/);
+  assert.match(detail, /Pencil/);
+  assert.match(detail, /Git-reachable/);
+  assert.match(detail, /implementation artifact/);
+});
+
+test("engineering guidance names workflow ownership and review consequences", () => {
+  const principles = read("skills/conventions/references/engineering-principles.md");
+  const review = read("skills/implement-issue/references/code-review.md");
+  const flat = principles.replace(/\s+/g, " ");
+  assert.match(flat, /Transport translates\. Application orchestrates\. Domain decides\. Persistence stores\./);
+  for (const concern of ["retry", "partial failure", "idempotency", "commit", "multiple delivery", "transport-independent"]) {
+    assert.match(flat, new RegExp(concern, "i"));
+  }
+  assert.match(flat, /do not require controller classes/i);
+  assert.match(flat, /do not mandate repositories/i);
+  assert.match(review, /duplicated behavior|duplicated behaviour/i);
+  assert.match(review, /transport-owned failure semantics/i);
+});
+
+test("depth follows state-change failure semantics and auth boundary changes", () => {
+  const depth = read("skills/implement-issue/references/depth.md");
+  for (const concern of ["retr(?:y|ies)", "idempoten", "duplicate", "concurrency", "partial", "commit", "irreversible", "recovery"]) {
+    assert.match(depth, new RegExp(concern, "i"));
+  }
+  assert.match(depth, /authentication\/authorization boundary/);
+  assert.match(depth, /already-established auth boundary/);
+});
+
 test("an approved design becomes durable before implementation depends on it", () => {
   const pencil = read("skills/pencil-design/SKILL.md").replace(/\s+/g, " ");
 

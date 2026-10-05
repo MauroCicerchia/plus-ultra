@@ -2,8 +2,7 @@
 // PreToolUse (Bash): block `git commit` unless this session recorded a passing
 // test run — and, in a TypeScript project, a passing typecheck too. Order is
 // flexible: the checks may run any time in the session, not before writing code.
-// A working tree whose only changes are prose or images is not gated: those
-// files cannot have invalidated the recorded verification.
+// A working tree whose only changes are known neutral artifacts is not gated.
 import { spawnSync } from "node:child_process";
 import {
   readInput,
@@ -14,6 +13,8 @@ import {
   isTsProject,
   projectRoot,
   workingTreeFingerprint,
+  isVerificationRelevantPath,
+  nullDelimited,
 } from "./_lib.mjs";
 
 const input = await readInput();
@@ -29,16 +30,10 @@ if (/--dry-run\b/.test(c)) allow();
 
 const root = projectRoot(input);
 
-// Paths that cannot invalidate a verification run: prose, images, and metadata
-// files that no test, typecheck, lint, or build reads. Everything else is source.
-const NON_SOURCE =
-  /(?:^|\/)(?:LICENSE|NOTICE|CODEOWNERS|\.gitignore|\.gitattributes)$|\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i;
-const PLUGIN_STATE = /^(?:\.claude|\.codex)\/plus-ultra\/state\//;
-
 function gitPaths(args) {
-  const result = spawnSync("git", args, { cwd: root, encoding: "utf8", timeout: 5_000 });
-  if (result.error || result.status !== 0 || typeof result.stdout !== "string") return null;
-  return result.stdout.split("\0").filter(Boolean);
+  const result = spawnSync("git", args, { cwd: root, timeout: 5_000 });
+  if (result.error || result.status !== 0 || !Buffer.isBuffer(result.stdout)) return null;
+  return nullDelimited(result.stdout);
 }
 
 // Everything that differs from HEAD right now: staged, unstaged, and untracked.
@@ -51,13 +46,13 @@ function changedPaths() {
     gitPaths(["ls-files", "--others", "--exclude-standard", "-z"]),
   ];
   if (groups.some((group) => group === null)) return null;
-  return groups.flat().filter((path) => !PLUGIN_STATE.test(path));
+  return groups.flat();
 }
 
-// A change set of only prose and images cannot have invalidated this session's
-// test or typecheck run, so it is not gated. An unreadable state stays gated.
+// A change set of only known neutral artifacts cannot have invalidated this
+// session's checks, so it is not gated. An unreadable state stays gated.
 const changed = changedPaths();
-if (changed !== null && changed.every((path) => NON_SOURCE.test(path))) allow();
+if (changed !== null && changed.every((path) => isVerificationRelevantPath(path) === false)) allow();
 
 const marker = readMarker(input?.session_id, input);
 const fingerprint = workingTreeFingerprint(root);

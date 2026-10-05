@@ -30,8 +30,12 @@ implement → tests → review when warranted → fix → PR.
 
 ## High-risk
 
-Triggered by authentication, authorization, payments, destructive data operations, sensitive
-migrations, concurrency, or critical infrastructure. The path is technical contract → plan →
+Triggered by an authentication/authorization boundary change, payments, destructive data operations,
+sensitive migrations, concurrency, or critical infrastructure. A state-changing workflow also warrants
+high-risk treatment when retries, idempotency, duplicate effects, races, partial success or failure,
+transaction or commit boundaries, irreversible external effects, or recovery and rollback can cause
+material harm. Ordinary behavior behind an already-established auth boundary follows its actual
+behavior and failure semantics. The path is technical contract → plan →
 stronger verification → mandatory review → PR.
 
 - A written technical contract before implementing — see the spec section below.

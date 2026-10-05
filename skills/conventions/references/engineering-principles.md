@@ -18,6 +18,14 @@ than a field check, it should be readable somewhere that is not a route handler,
 query builder, or an SDK wrapper — so it can be understood and tested without standing up the
 machinery around it.
 
+**Keep workflow ownership with the application when consequences justify it.** Transport translates.
+Application orchestrates. Domain decides. Persistence stores. If a route, handler, component, or
+consumer coordinates multiple domain or persistence operations, owns ordering, retry, partial
+failure, transaction or commit, or idempotency semantics, or will serve the same behaviour through
+multiple delivery mechanisms, prefer a transport-independent application operation with explicit
+inputs and dependencies. The same applies when meaningful behaviour cannot be tested without the
+transport or UI adapter. Keep simple translation in the adapter.
+
 **Isolate side effects when isolation materially helps.** Time, identity, storage, network, and
 queues are worth pushing to an edge when doing so makes the interesting behaviour testable or
 replaceable. When it does not, injecting them is ceremony.
@@ -33,6 +41,10 @@ with the code around a change is worth more than conformance to anything written
 introduced without a problem to solve is a cost with no benefit. If you cannot name what the
 abstraction buys, do not add it.
 
+Do not require controller classes or service classes; do not mandate repositories, ports, adapters,
+or architecture folders; and do not add dependency-injection infrastructure for this principle.
+Do not restructure unrelated code.
+
 ## Using this during implementation
 
 Let these shape the design of a change that already warrants it. They are not a checklist to
@@ -42,5 +54,5 @@ complete and never a reason to restructure code the change did not otherwise tou
 
 Raise a principle only when the changed code violates it **and** the violation has a consequence you
 can name — a rule that cannot be tested without a database, a behaviour that will have to be
-duplicated at the next call site, an effect that makes the code unrunnable in a test. A finding with
-no consequence behind it is a style preference; leave it out.
+duplicated at the next call site, transport-owned failure semantics, or an effect that makes the code
+unrunnable in a test. A finding with no consequence behind it is a style preference; leave it out.
