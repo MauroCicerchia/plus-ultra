@@ -41,7 +41,9 @@ is clean and committed.
 - **Design:** only when the change materially involves business rules, architecture, persistence,
   external integrations, or side-effect isolation, read the engineering principles in
   `plus-ultra:conventions` and report a violation only with a concrete consequence. Skip this for
-  ordinary small and local work.
+  ordinary small and local work. A responsibility-boundary finding must name duplicated behavior,
+  an untestable workflow, transport-owned failure semantics, or another concrete consequence;
+  architecture preference alone is not a finding.
 
 Only report what you can substantiate from the pinned diff or code. Do not invent requirements or
 report unenforced style preferences.

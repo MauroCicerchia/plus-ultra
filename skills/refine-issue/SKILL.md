@@ -5,9 +5,6 @@ description: Use when a GitHub Issue needs to become ready to implement — reso
 
 # Refine an Issue
 
-This is the main collaboration point before implementation: done well, building the Issue needs few
-or no further human decisions.
-
 Accept one positive Issue number. Read the Issue, labels, parent, touched areas, and `docs/product.md`
 when present. If it conflicts with the brief, say so and ask. Follow `plus-ultra:conventions` for
 the required `gh` version and check write permission before any GitHub write.
@@ -43,7 +40,7 @@ and boundaries are worth sharpening — but it is never ready to implement: fini
 Stories it decomposes into and hand those to `plus-ultra:roadmap`. Only a Story, or an untyped Issue
 in an existing repository, may be marked ready for `plus-ultra:implement-issue`.
 
-Propose a title, and labels, milestone, or parent only where context supports them. Replace the body with this structure:
+Propose a supported title, labels, milestone, or parent. Use this body:
 
 ```markdown
 ## Context
@@ -65,6 +62,11 @@ Propose a title, and labels, milestone, or parent only where context supports th
 ```
 
 Keep anything still uncertain as an explicit open question rather than inventing a requirement.
+
+## Verification
+
+When no verification-relevant implementation input changed, skip application tests, typecheck,
+lint, and build. Validate owned artifacts and handoffs per [verification.md](./references/verification.md).
 
 Do not edit the Issue, add labels, set a milestone, or create a parent-child link until the user
 gives **explicit confirmation** of the displayed proposal. On confirmation, make exactly those

@@ -38,7 +38,7 @@ ask; never edit the brief.
 | --- | --- |
 | **Small** | Localized and understood; no material decision |
 | **Normal** | Significant behaviour, or several files or modules |
-| **High-risk** | Auth, payments, destructive data, migrations, concurrency, critical infrastructure |
+| **High-risk** | Auth boundary, destructive data, material failure semantics, critical infrastructure |
 
 Unresolved uncertainty raises depth; it never lowers it. [`depth.md`](./references/depth.md) holds
 each depth's controls and path, where a design reference lives, and when a spec is worth it.

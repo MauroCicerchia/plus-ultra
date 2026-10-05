@@ -120,14 +120,16 @@ function git(root, args) {
   return result.stdout;
 }
 
-function nullDelimited(buffer) {
+export function nullDelimited(buffer) {
   const values = [];
   let start = 0;
   for (let index = 0; index < buffer.length; index += 1) {
     if (buffer[index] !== 0) continue;
-    if (index > start) values.push(buffer.subarray(start, index));
+    if (index === start) return null;
+    values.push(buffer.subarray(start, index));
     start = index + 1;
   }
+  if (start !== buffer.length) return null;
   return values;
 }
 
@@ -177,9 +179,48 @@ function addWorktreePaths(hash, root, label, paths) {
   return true;
 }
 
-function isPluginStatePath(path) {
-  const relativePath = path.toString("utf8");
-  return /^(?:\.claude|\.codex)\/plus-ultra\/state\//.test(relativePath);
+// Null means the path cannot be classified safely. Treat unknown paths as
+// relevant: only known prose, images, and generated reports can be skipped.
+export function isVerificationRelevantPath(path) {
+  const bytes = Buffer.isBuffer(path) ? path : Buffer.from(path);
+  const relativePath = bytes.toString("utf8");
+  if (!Buffer.from(relativePath).equals(bytes) || !relativePath || relativePath.startsWith("/")) return null;
+  if (/^(?:\.claude|\.codex)\/plus-ultra\/state\//.test(relativePath)) return false;
+  if (/^(?:coverage|playwright-report|test-results)\//.test(relativePath)) return false;
+  if (/^(?:src|app|apps|packages|tests?|fixtures|public|generated|scripts|skills|hooks|commands|agents|specs|designs|\.github)\//.test(relativePath)) return true;
+  if (/^(?:README(?:\.[^/]*)?|AGENTS\.md|CHANGELOG\.md|DESIGN\.md|docs\/maintainer-guide\.md)$/.test(relativePath)) return true;
+  if (/^(?:LICENSE|NOTICE|CODEOWNERS)$/.test(relativePath)) return false;
+  if (/^(?:docs\/)?[^/]+\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i.test(relativePath)) return false;
+  if (/^docs\/(?:.*\/)?[^/]+\.(?:md|markdown|mdx|txt|rst|adoc|png|jpe?g|gif|svg|webp|ico|pdf)$/i.test(relativePath)) return false;
+  return true;
+}
+
+function relevantPaths(paths) {
+  if (paths === null) return null;
+  const selected = [];
+  for (const path of paths) {
+    const relevant = isVerificationRelevantPath(path);
+    if (relevant === null) return null;
+    if (relevant) selected.push(path);
+  }
+  return selected;
+}
+
+function relevantIndexEntries(index) {
+  const entries = nullDelimited(index);
+  if (entries === null) return null;
+  const selected = [];
+  for (const entry of entries) {
+    const separator = entry.indexOf(9); // Git uses a tab between metadata and path.
+    if (separator < 0) return null;
+    const metadata = entry.subarray(0, separator).toString("ascii");
+    if (!Buffer.from(metadata, "ascii").equals(entry.subarray(0, separator))) return null;
+    if (!/^(?:100644|100755|120000|160000) [0-9a-f]{40}(?:[0-9a-f]{24})? 0$/.test(metadata)) return null;
+    const relevant = isVerificationRelevantPath(entry.subarray(separator + 1));
+    if (relevant === null) return null;
+    if (relevant) selected.push(entry);
+  }
+  return selected;
 }
 
 // Hash the index and visible worktree state without mutating Git state. A null
@@ -198,12 +239,16 @@ export function workingTreeFingerprint(root) {
     const untracked = git(repositoryRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
     if (!index || !tracked || !untracked) return null;
 
+    const indexEntries = relevantIndexEntries(index);
+    const trackedPaths = relevantPaths(nullDelimited(tracked));
+    const untrackedPaths = relevantPaths(nullDelimited(untracked));
+    if (indexEntries === null || trackedPaths === null || untrackedPaths === null) return null;
+
     const hash = createHash("sha256");
-    addHashPart(hash, "plus-ultra-working-tree-fingerprint", "v1");
-    addHashPart(hash, "index", index);
-    if (!addWorktreePaths(hash, repositoryRoot, "tracked", nullDelimited(tracked))) return null;
-    const userUntracked = nullDelimited(untracked).filter((path) => !isPluginStatePath(path));
-    if (!addWorktreePaths(hash, repositoryRoot, "untracked", userUntracked)) return null;
+    addHashPart(hash, "plus-ultra-working-tree-fingerprint", "v2");
+    for (const entry of indexEntries) addHashPart(hash, "index:entry", entry);
+    if (!addWorktreePaths(hash, repositoryRoot, "tracked", trackedPaths)) return null;
+    if (!addWorktreePaths(hash, repositoryRoot, "untracked", untrackedPaths)) return null;
     return hash.digest("hex");
   } catch {
     return null;

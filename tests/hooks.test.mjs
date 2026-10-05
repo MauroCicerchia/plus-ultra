@@ -254,13 +254,104 @@ test("commit gate rejects a test verification after an untracked change", () => 
   }
 });
 
+test("neutral artifacts do not stale verification while source changes are present", () => {
+  const cwd = makeGitProject();
+  try {
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+
+    writeFileSync(join(cwd, "report.pdf"), "report content\n");
+    runCommand("git", ["add", "report.pdf"], cwd);
+    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("tracked prose, images, reports, and plugin state do not stale a verified source edit", () => {
+  const cwd = makeGitProject();
+  try {
+    mkdirSync(join(cwd, "docs"));
+    writeFileSync(join(cwd, "docs", "notes.md"), "initial notes\n");
+    runCommand("git", ["add", "docs/notes.md"], cwd);
+    runCommand("git", ["commit", "-m", "Add notes"], cwd);
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+
+    writeFileSync(join(cwd, "docs", "notes.md"), "revised notes\n");
+    writeFileSync(join(cwd, "diagram.png"), "image content\n");
+    mkdirSync(join(cwd, "coverage"));
+    writeFileSync(join(cwd, "coverage", "summary.json"), "{}\n");
+    runCommand("git", ["add", "docs/notes.md", "diagram.png"], cwd);
+    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("prose consumed by verification remains relevant", () => {
+  for (const path of ["README.md", "docs/maintainer-guide.md", "CHANGELOG.md", "AGENTS.md"]) {
+    const cwd = makeGitProject();
+    try {
+      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
+      writeFileSync(join(cwd, path), "changed\n");
+      assert.match(
+        denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+        /Verification stale: code changed since last successful test run\./,
+        path
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("test, config, manifest, and runtime prose changes stale verification", () => {
+  for (const path of ["tests/app.test.mjs", "tsconfig.json", "package.json", "skills/example/SKILL.md"]) {
+    const cwd = makeGitProject();
+    try {
+      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
+      writeFileSync(join(cwd, path), "changed\n");
+
+      assert.match(
+        denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+        /Verification stale: code changed since last successful test run\./,
+        path
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("commit gate fails closed when Git index cannot be read", () => {
+  const cwd = makeGitProject();
+  try {
+    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
+    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
+    writeFileSync(join(cwd, ".git", "index"), "corrupt index\n");
+
+    assert.match(
+      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
+      /Verification stale: code changed since last successful test run\./
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("commit gate skips a change set of only prose and images", () => {
   const cwd = makeGitProject();
   try {
     // No verification recorded at all: the gate would normally block.
-    writeFileSync(join(cwd, "README.md"), "# Docs\n");
+    writeFileSync(join(cwd, "NOTES.md"), "# Docs\n");
     writeFileSync(join(cwd, "docs.txt"), "notes\n");
-    runCommand("git", ["add", "README.md"], cwd);
+    writeFileSync(join(cwd, "diagram.png"), "image\n");
+    runCommand("git", ["add", "NOTES.md", "diagram.png"], cwd);
 
     assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
   } finally {
