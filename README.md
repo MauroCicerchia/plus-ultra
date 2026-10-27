@@ -124,7 +124,8 @@ as lifecycle hooks; Cursor receives the portable policy as documentation.
 
 - **Integration boundary** — blocks autonomous merges, auto-merge, default-branch pushes, releases,
   and tags, including through `gh api`, GraphQL, and shell wrappers.
-- **Dangerous commands** — blocks recursive force-deletes and force-pushes to shared branches.
+- **Dangerous commands** — blocks recursive force-deletes. Force-pushing a feature branch is
+  allowed; the integration boundary blocks any push to a protected branch.
 - **Secret scan** — blocks commits with credentials in the staged diff.
 - **Commit gate** — blocks a commit unless this session has a passing test run, and a passing
   typecheck in TypeScript projects, against the current working tree. Prose-only changes are not
