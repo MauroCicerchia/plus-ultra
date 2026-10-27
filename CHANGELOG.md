@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.1...v1.4.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **hooks:** allow feature-branch force-pushes ([#93](https://github.com/MauroCicerchia/plus-ultra/issues/93)) ([1c72f02](https://github.com/MauroCicerchia/plus-ultra/commit/1c72f025e8c3315b4e417cbffc3bdcd1792353f2))
+
 ## [1.4.1](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.0...v1.4.1) (2026-10-05)
 
 
