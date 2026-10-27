@@ -63,7 +63,7 @@ released plugin in your real Codex profile is untouched, and delete it when fini
 | Hook | Event | Behaviour |
 | --- | --- | --- |
 | `integration-gate.mjs` | PreToolUse (Bash) | Denies merges, auto-merge, releases, tags, and protected-branch pushes |
-| `dangerous-command.mjs` | PreToolUse (Bash) | Denies recursive force-deletes and shared-branch force-pushes |
+| `dangerous-command.mjs` | PreToolUse (Bash) | Denies recursive force-deletes |
 | `secret-scan.mjs` | PreToolUse (Bash) | Denies commits whose staged diff carries credentials |
 | `commit-msg-lint.mjs` | PreToolUse (Bash) | Denies non-Conventional commit headers |
 | `commit-gate.mjs` | PreToolUse (Bash) | Denies commits without a fresh passing test, and typecheck in TS projects |

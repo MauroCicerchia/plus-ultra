@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse (Bash): block irreversible/destructive commands.
+// PreToolUse (Bash): block recursive force-deletes.
+// Protected-branch pushes, forced or not, are integration-gate.mjs's job.
 import { readInput, debug, deny, allow } from "./_lib.mjs";
 
 const input = await readInput();
@@ -21,15 +22,6 @@ for (const m of c.matchAll(rmRecursive)) {
   if ((hasR && hasF) || /--no-preserve-root/.test(seg)) {
     deny(
       `Blocked destructive command by plus-ultra: "${cmd}". Recursive force-delete is not allowed. Remove specific paths deliberately instead.`
-    );
-  }
-}
-
-// Force-push to a protected branch (main/master).
-if (/\bgit\s+push\b/.test(c) && /(--force\b|--force-with-lease\b|(^|\s)-\w*f\b)/.test(c)) {
-  if (/\b(main|master)\b/.test(c) || /\borigin\b/.test(c)) {
-    deny(
-      `Blocked force-push by plus-ultra: "${cmd}". Force-pushing to a shared/protected branch is not allowed.`
     );
   }
 }

@@ -544,6 +544,27 @@ test("hook manifests register the integration gate before dangerous command", ()
   }
 });
 
+test("feature-branch force-pushes pass; protected force-pushes stay with the integration gate", () => {
+  const decision = (script, command) => {
+    const output = runHook(script, { tool_name: "Bash", tool_input: { command } });
+    return output ? JSON.parse(output).hookSpecificOutput.permissionDecision : "allow";
+  };
+  for (const command of [
+    "git push --force-with-lease origin feature/review",
+    "git push --force origin HEAD:feature/review",
+    "git push -f origin feature/review",
+  ]) {
+    assert.equal(decision("dangerous-command.mjs", command), "allow", command);
+    assert.equal(decision("integration-gate.mjs", command), "allow", command);
+  }
+  for (const command of [
+    "git push --force-with-lease origin main",
+    "git push -f origin HEAD:master",
+  ]) {
+    assert.equal(decision("integration-gate.mjs", command), "deny", command);
+  }
+});
+
 test("integration gate blocks the gh stack merge incident for Claude payloads", () => {
   const output = runHook("integration-gate.mjs", {
     session_id: "session-1",
