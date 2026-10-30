@@ -1,6 +1,6 @@
 ---
 name: conventions
-description: Use when writing a commit message, deciding where a workflow artifact belongs, numbering an optional spec, or checking which GitHub CLI features a workflow may rely on.
+description: Use when committing, writing a commit message, deciding where a workflow artifact belongs, numbering an optional spec, or checking which GitHub CLI features a workflow may rely on.
 ---
 
 # Repository conventions
@@ -50,6 +50,14 @@ lifecycle: a committed spec is the current contract, and the Issue owns work sta
 principles for judging structure. Load it only when the changed surface materially involves business
 rules, architecture, persistence, external integrations, or side-effect isolation. Ordinary small
 and local changes do not need it, and it never mandates a folder layout.
+
+## Before committing
+
+Verify before every commit: run the project's checks that cover what changed (tests, typecheck,
+lint, or build, as the project exposes them) and commit only when they pass. Intermediate commits
+may scope checks to the changed area; a change to prose or images alone needs none. Never commit
+over a failing check without saying so. CI is the backstop for what escapes local verification,
+not a substitute for it.
 
 ## Commit messages
 

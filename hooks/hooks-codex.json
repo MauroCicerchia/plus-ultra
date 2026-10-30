@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra Codex guardrails: human-integration boundary, dangerous-command and secret-scan blocking, conventional-commit lint, commit-gate, test/typecheck tracking, and Biome auto-format.",
+  "description": "plus-ultra Codex guardrails: human-integration boundary, dangerous-command and secret-scan blocking, conventional-commit lint, and Biome auto-format.",
   "hooks": {
     "PreToolUse": [
       {
@@ -28,28 +28,11 @@
             "command": "node ${PLUGIN_ROOT}/hooks/commit-msg-lint.mjs",
             "timeout": 10,
             "statusMessage": "Checking commit message"
-          },
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/hooks/commit-gate.mjs",
-            "timeout": 10,
-            "statusMessage": "Checking test and typecheck gate"
           }
         ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/hooks/test-marker.mjs",
-            "timeout": 10,
-            "statusMessage": "Recording verification status"
-          }
-        ]
-      },
       {
         "matcher": "apply_patch|Edit|Write",
         "hooks": [

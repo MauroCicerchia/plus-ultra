@@ -1,5 +1,5 @@
 {
-  "description": "plus-ultra guardrails: human-integration boundary, dangerous-command and secret-scan blocking, conventional-commit lint, commit-gate (tests + typecheck freshness), test/typecheck tracking, and Biome auto-format.",
+  "description": "plus-ultra guardrails: human-integration boundary, dangerous-command and secret-scan blocking, conventional-commit lint, and Biome auto-format.",
   "hooks": {
     "PreToolUse": [
       {
@@ -24,26 +24,11 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/commit-msg-lint.mjs",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/commit-gate.mjs",
-            "timeout": 10
           }
         ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/test-marker.mjs",
-            "timeout": 10
-          }
-        ]
-      },
       {
         "matcher": "Write|Edit",
         "hooks": [
