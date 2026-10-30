@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.2...v1.4.3) (2026-10-30)
+
+
+### Bug Fixes
+
+* **hooks:** replace commit gate with a verify-before-commit instruction ([#95](https://github.com/MauroCicerchia/plus-ultra/issues/95)) ([79d8dc3](https://github.com/MauroCicerchia/plus-ultra/commit/79d8dc3f217138b5e693762213881768c5140fd3))
+
 ## [1.4.2](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.1...v1.4.2) (2026-10-27)
 
 
