@@ -51,8 +51,8 @@ claude plugin validate .claude-plugin/plugin.json
 byte size of each always-loaded `SKILL.md` and of `AGENTS.md`. Detailed material belongs in an
 on-demand `references/` file, which the budget deliberately ignores.
 
-Test hooks with representative JSON payloads; allow paths are silent, deny paths emit a decision
-JSON and exit zero, and commit blockers use their documented marker state.
+Test hooks with representative JSON payloads; allow paths are silent, and deny paths emit a decision
+JSON and exit zero.
 
 For local Codex dogfooding, add this working tree as a marketplace under a temporary `CODEX_HOME`
 inside `.context/`, then install `plus-ultra@plus-ultra` from it. Use a scratch `CODEX_HOME` so the
@@ -66,8 +66,6 @@ released plugin in your real Codex profile is untouched, and delete it when fini
 | `dangerous-command.mjs` | PreToolUse (Bash) | Denies recursive force-deletes |
 | `secret-scan.mjs` | PreToolUse (Bash) | Denies commits whose staged diff carries credentials |
 | `commit-msg-lint.mjs` | PreToolUse (Bash) | Denies non-Conventional commit headers |
-| `commit-gate.mjs` | PreToolUse (Bash) | Denies commits without a fresh passing test, and typecheck in TS projects |
-| `test-marker.mjs` | PostToolUse (Bash) | Records passing test and typecheck runs against a working-tree fingerprint |
 | `auto-format.mjs` | PostToolUse (Write/Edit) | Formats edited source files |
 
 The integration gate parses shell syntax — quoting, heredocs, command substitution, `env`, `sudo`,
@@ -79,8 +77,9 @@ a mutation and invokes a protected field is denied whatever `operationName` woul
 therefore denies a little more than a full GraphQL parser would, and never less. A human can still
 run the command.
 
-The commit gate is not applied when every path that differs from `HEAD` is prose or an image, since
-those cannot invalidate a recorded verification run. Any unreadable Git state keeps the gate on.
+No hook gates commits on recorded test or typecheck runs. Verifying before a commit is an
+instruction in `plus-ultra:conventions`, and CI is the backstop; do not reintroduce a marker-based
+commit gate.
 
 ## Installation and update reference
 

@@ -382,6 +382,15 @@ test("a technical spec is optional and has no lifecycle", () => {
   }
 });
 
+test("verifying before a commit is a skill instruction with CI as the backstop", () => {
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(conventions, /^description: Use when committing,/m);
+  const flat = conventions.replace(/\s+/g, " ");
+  assert.ok(flat.includes("Verify before every commit"));
+  assert.ok(flat.includes("commit only when they pass"));
+  assert.ok(flat.includes("CI is the backstop for what escapes local verification"));
+});
+
 test("code review is one on-demand implement-issue reference", () => {
   assert.ok(!existsSync(join(repoRoot, "skills/code-review")), "code review must not consume a skill slot");
 

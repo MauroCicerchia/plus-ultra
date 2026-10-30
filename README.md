@@ -127,11 +127,11 @@ as lifecycle hooks; Cursor receives the portable policy as documentation.
 - **Dangerous commands** — blocks recursive force-deletes. Force-pushing a feature branch is
   allowed; the integration boundary blocks any push to a protected branch.
 - **Secret scan** — blocks commits with credentials in the staged diff.
-- **Commit gate** — blocks a commit unless this session has a passing test run, and a passing
-  typecheck in TypeScript projects, against the current working tree. Prose-only changes are not
-  gated.
 - **Commit message lint** — enforces Conventional Commits, which drive releases.
 - **Auto-format** — runs the project's formatter on edited files.
+
+Verification before a commit is a skill instruction, not a hook: agents run the checks that cover
+the change, and CI catches what escapes.
 
 The rule the whole harness serves: **the agent finishes at a pull request that is ready for review;
 you merge it.**

@@ -23,50 +23,15 @@ function runHook(script, payload, options = {}) {
   return result.stdout.trim();
 }
 
-function makeTempProject() {
-  const root = mkdtempSync(join(tmpdir(), "plus-ultra-test-"));
-  mkdirSync(join(root, "specs"), { recursive: true });
-  writeFileSync(
-    join(root, "specs", "001-linked.md"),
-    "---\nstatus: approved\nissue: 30\n---\n# Linked\n"
-  );
-  writeFileSync(
-    join(root, "specs", "002-unlinked.md"),
-    "---\nstatus: approved\n---\n# Unlinked\n"
-  );
-  writeFileSync(
-    join(root, "specs", "003-history.md"),
-    "---\nstatus: superseded\nissue: 31\n---\n# History\n"
-  );
-  writeFileSync(
-    join(root, "specs", "004-malformed.md"),
-    "---\nstatus: \"approved\n---\n# Malformed\n"
-  );
-  writeFileSync(
-    join(root, "specs", "005-malformed-delimiter.md"),
-    "---\nstatus: approved\n--- not a closing delimiter\n# Malformed delimiter\n"
-  );
-  writeFileSync(
-    join(root, "specs", "006-body-frontmatter.md"),
-    "# Notes\n\n---\nstatus: approved\nissue: 34\n---\nThis is body content, not frontmatter.\n"
-  );
-  writeFileSync(
-    join(root, "specs", "007-commented-crlf.md"),
-    "---\r\nstatus: approved # draft → approved → superseded\r\nissue: 32 # optional\r\n---\r\n# Commented CRLF\r\n"
-  );
-  return root;
-}
-
 function runCommand(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
 }
 
-function makeGitProject({ typescript = false } = {}) {
+function makeGitProject() {
   const root = mkdtempSync(join(tmpdir(), "plus-ultra-git-"));
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, "src", "app.mjs"), "export const value = 1;\n");
-  if (typescript) writeFileSync(join(root, "tsconfig.json"), "{}\n");
 
   runCommand("git", ["init", "--initial-branch=main"], root);
   runCommand("git", ["config", "user.email", "hooks@example.com"], root);
@@ -74,39 +39,6 @@ function makeGitProject({ typescript = false } = {}) {
   runCommand("git", ["add", "."], root);
   runCommand("git", ["commit", "-m", "Initial commit"], root);
   return root;
-}
-
-function markerPayload(command, sessionId = "session-1") {
-  return {
-    hook_event_name: "PostToolUse",
-    model: "gpt-5.5",
-    permission_mode: "default",
-    session_id: sessionId,
-    tool_name: "Bash",
-    tool_input: { command },
-    tool_response: { exitCode: 0 },
-    tool_use_id: "tool-1",
-    transcript_path: null,
-    turn_id: "turn-1",
-  };
-}
-
-function commitPayload(sessionId = "session-1") {
-  return {
-    hook_event_name: "PreToolUse",
-    model: "gpt-5.5",
-    permission_mode: "default",
-    session_id: sessionId,
-    tool_name: "Bash",
-    tool_input: { command: "git commit -m 'feat: guarded commit'" },
-    tool_use_id: "tool-1",
-    transcript_path: null,
-    turn_id: "turn-1",
-  };
-}
-
-function denialReason(output) {
-  return JSON.parse(output).hookSpecificOutput.permissionDecisionReason;
 }
 
 test("auto-format formats files from Codex apply_patch payloads", () => {
@@ -154,358 +86,6 @@ test("auto-format formats files from Codex apply_patch payloads", () => {
   }
 });
 
-test("test marker writes Codex session state under .codex", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook(
-      "test-marker.mjs",
-      {
-        hook_event_name: "PostToolUse",
-        cwd,
-        model: "gpt-5.5",
-        permission_mode: "default",
-        session_id: "session-1",
-        tool_name: "Bash",
-        tool_input: { command: "pnpm test" },
-        tool_response: { exitCode: 0 },
-        tool_use_id: "tool-1",
-        transcript_path: null,
-        turn_id: "turn-1",
-      },
-      { cwd }
-    );
-
-    const marker = JSON.parse(
-      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
-    );
-    assert.equal(typeof marker.testPassedAt, "string");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("test marker does not record a verification when the Git tree cannot be fingerprinted", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "plus-ultra-marker-"));
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-
-    assert.equal(existsSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json")), false);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate accepts a successful test for the unchanged Git tree", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-
-    const marker = JSON.parse(
-      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
-    );
-    assert.equal(typeof marker.testPassedFor, "string");
-    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate rejects a test verification after an unstaged tracked change", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-
-    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
-    assert.equal(
-      denialReason(output),
-      "Blocked by plus-ultra commit-gate: Verification stale: code changed since last successful test run. " +
-        "Run the required checks (exit 0) before committing, then retry."
-    );
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate rejects a test verification after a staged change", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-    runCommand("git", ["add", "src/app.mjs"], cwd);
-
-    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
-    assert.match(output, /Verification stale: code changed since last successful test run\./);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate rejects a test verification after an untracked change", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    writeFileSync(join(cwd, "new-file.mjs"), "export const value = 2;\n");
-
-    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
-    assert.match(output, /Verification stale: code changed since last successful test run\./);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("neutral artifacts do not stale verification while source changes are present", () => {
-  const cwd = makeGitProject();
-  try {
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-
-    writeFileSync(join(cwd, "report.pdf"), "report content\n");
-    runCommand("git", ["add", "report.pdf"], cwd);
-    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("canonical refinement artifacts can be committed without application verification", () => {
-  for (const path of ["designs/90-feature.pen", "designs/nested/90-feature.pen", "DESIGN.md", "docs/product.md"]) {
-    const cwd = makeGitProject({ typescript: true });
-    try {
-      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
-      writeFileSync(join(cwd, path), "approved design context\n");
-      runCommand("git", ["add", path], cwd);
-
-      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", path);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }
-});
-
-test("canonical refinement artifacts do not stale verified source", () => {
-  for (const path of ["designs/90-feature.pen", "designs/nested/90-feature.pen", "DESIGN.md", "docs/product.md"]) {
-    const cwd = makeGitProject({ typescript: true });
-    try {
-      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-      runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
-
-      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
-      writeFileSync(join(cwd, path), "approved design context\n");
-      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", `${path} unstaged`);
-      runCommand("git", ["add", path], cwd);
-      assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "", `${path} staged`);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }
-});
-
-test("refinement artifacts cannot hide stale source, test, config, or runtime changes", () => {
-  for (const path of ["src/app.mjs", "tests/app.test.mjs", "tsconfig.json", "package.json", "page.mdx", "component.svg"]) {
-    const cwd = makeGitProject({ typescript: true });
-    try {
-      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-      runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
-      mkdirSync(join(cwd, "designs"));
-      writeFileSync(join(cwd, "designs", "90-feature.pen"), "approved design context\n");
-      runCommand("git", ["add", "designs/90-feature.pen"], cwd);
-
-      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
-      writeFileSync(join(cwd, path), "changed verification input\n");
-      const reason = denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd }));
-      assert.match(
-        reason,
-        /Verification stale: code changed since last successful test run\./,
-        path
-      );
-      assert.match(reason, /Verification stale: code changed since last successful typecheck\./, path);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }
-});
-
-test("tracked prose, images, reports, and plugin state do not stale a verified source edit", () => {
-  const cwd = makeGitProject();
-  try {
-    mkdirSync(join(cwd, "docs"));
-    writeFileSync(join(cwd, "docs", "notes.md"), "initial notes\n");
-    runCommand("git", ["add", "docs/notes.md"], cwd);
-    runCommand("git", ["commit", "-m", "Add notes"], cwd);
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-
-    writeFileSync(join(cwd, "docs", "notes.md"), "revised notes\n");
-    writeFileSync(join(cwd, "docs", "diagram.png"), "image content\n");
-    writeFileSync(join(cwd, "diagram.png"), "image content\n");
-    mkdirSync(join(cwd, "coverage"));
-    writeFileSync(join(cwd, "coverage", "summary.json"), "{}\n");
-    runCommand("git", ["add", "docs/notes.md", "docs/diagram.png", "diagram.png"], cwd);
-    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("prose consumed by verification remains relevant", () => {
-  for (const path of ["README.md", "docs/maintainer-guide.md", "docs/benchmarking.md", "CHANGELOG.md", "AGENTS.md"]) {
-    const cwd = makeGitProject();
-    try {
-      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
-      writeFileSync(join(cwd, path), "changed\n");
-      assert.match(
-        denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-        /Verification stale: code changed since last successful test run\./,
-        path
-      );
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }
-});
-
-test("moving a clean submodule worktree makes verification stale", () => {
-  const cwd = makeGitProject();
-  const remote = makeGitProject();
-  try {
-    const first = spawnSync("git", ["rev-parse", "HEAD"], { cwd: remote, encoding: "utf8" }).stdout.trim();
-    writeFileSync(join(remote, "src", "app.mjs"), "export const value = 2;\n");
-    runCommand("git", ["add", "src/app.mjs"], remote);
-    runCommand("git", ["commit", "-m", "Second commit"], remote);
-    const second = spawnSync("git", ["rev-parse", "HEAD"], { cwd: remote, encoding: "utf8" }).stdout.trim();
-
-    runCommand("git", ["-c", "protocol.file.allow=always", "submodule", "add", remote, "vendor/dep"], cwd);
-    runCommand("git", ["checkout", first], join(cwd, "vendor", "dep"));
-    runCommand("git", ["add", ".gitmodules", "vendor/dep"], cwd);
-    runCommand("git", ["commit", "-m", "Add submodule"], cwd);
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-
-    runCommand("git", ["checkout", second], join(cwd, "vendor", "dep"));
-    assert.match(
-      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-      /Verification stale: code changed since last successful test run\./
-    );
-
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    writeFileSync(join(cwd, "vendor", "dep", "src", "app.mjs"), "export const value = 3;\n");
-    assert.match(
-      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-      /Verification stale: code changed since last successful test run\./
-    );
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(remote, { recursive: true, force: true });
-  }
-});
-
-test("test, config, manifest, and runtime content changes stale verification", () => {
-  for (const path of ["tests/app.test.mjs", "tsconfig.json", "package.json", "skills/example/SKILL.md", "page.mdx", "component.svg"]) {
-    const cwd = makeGitProject();
-    try {
-      writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-      runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-      mkdirSync(join(cwd, path.split("/").slice(0, -1).join("/")), { recursive: true });
-      writeFileSync(join(cwd, path), "changed\n");
-
-      assert.match(
-        denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-        /Verification stale: code changed since last successful test run\./,
-        path
-      );
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }
-});
-
-test("commit gate fails closed when Git index cannot be read", () => {
-  const cwd = makeGitProject();
-  try {
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    writeFileSync(join(cwd, ".git", "index"), "corrupt index\n");
-
-    assert.match(
-      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-      /Verification stale: code changed since last successful test run\./
-    );
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate skips a change set of only prose and images", () => {
-  const cwd = makeGitProject();
-  try {
-    // No verification recorded at all: the gate would normally block.
-    writeFileSync(join(cwd, "NOTES.md"), "# Docs\n");
-    writeFileSync(join(cwd, "docs.txt"), "notes\n");
-    writeFileSync(join(cwd, "diagram.png"), "image\n");
-    runCommand("git", ["add", "NOTES.md", "diagram.png"], cwd);
-
-    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate still blocks when a source file changes alongside documentation", () => {
-  const cwd = makeGitProject();
-  try {
-    writeFileSync(join(cwd, "README.md"), "# Docs\n");
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 3;\n");
-
-    assert.match(
-      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-      /missing a passing test run/
-    );
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate keeps gating a documentation change when source is already stale", () => {
-  const cwd = makeGitProject();
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    // A source edit invalidates the recorded run; a later docs edit must not
-    // launder the change set into the skip path.
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 4;\n");
-    writeFileSync(join(cwd, "NOTES.md"), "notes\n");
-
-    assert.match(
-      denialReason(runHook("commit-gate.mjs", commitPayload(), { cwd })),
-      /Verification stale/
-    );
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
-test("commit gate requires a matching typecheck verification in TypeScript projects", () => {
-  const cwd = makeGitProject({ typescript: true });
-  try {
-    runHook("test-marker.mjs", markerPayload("pnpm test"), { cwd });
-    runHook("test-marker.mjs", markerPayload("pnpm typecheck"), { cwd });
-
-    const marker = JSON.parse(
-      readFileSync(join(cwd, ".codex", "plus-ultra", "state", "session-1.json"), "utf8")
-    );
-    assert.equal(typeof marker.typecheckPassedFor, "string");
-    assert.equal(runHook("commit-gate.mjs", commitPayload(), { cwd }), "");
-
-    writeFileSync(join(cwd, "src", "app.mjs"), "export const value = 2;\n");
-    const output = runHook("commit-gate.mjs", commitPayload(), { cwd });
-    assert.match(output, /Verification stale: code changed since last successful typecheck\./);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
-});
-
 test("hook manifests no longer register the removed session and PR reminder hooks", () => {
   for (const path of ["hooks/hooks.json", "hooks/hooks-codex.json"]) {
     const manifest = readRelative(path);
@@ -519,6 +99,16 @@ test("hook manifests no longer register the removed session and PR reminder hook
   }
   assert.ok(!existsSync(join(repoRoot, "hooks", "session-start.mjs")));
   assert.ok(!existsSync(join(repoRoot, "hooks", "pr-description-reminder.mjs")));
+});
+
+test("hook manifests do not gate commits on recorded verification", () => {
+  for (const path of ["hooks/hooks.json", "hooks/hooks-codex.json"]) {
+    const manifest = readRelative(path);
+    assert.doesNotMatch(manifest, /commit-gate\.mjs/, `${path} must not register the commit gate`);
+    assert.doesNotMatch(manifest, /test-marker\.mjs/, `${path} must not register the test marker`);
+  }
+  assert.ok(!existsSync(join(repoRoot, "hooks", "commit-gate.mjs")));
+  assert.ok(!existsSync(join(repoRoot, "hooks", "test-marker.mjs")));
 });
 
 test("hook manifests register the integration gate before dangerous command", () => {
