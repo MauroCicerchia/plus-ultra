@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.4](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.3...v1.4.4) (2026-11-03)
+
+
+### Miscellaneous Chores
+
+* release 1.4.4 ([#98](https://github.com/MauroCicerchia/plus-ultra/issues/98)) ([a2c4cd5](https://github.com/MauroCicerchia/plus-ultra/commit/a2c4cd5c5686ece7a8fe2024695aa1fdc03ff4ab))
+
 ## [1.4.3](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.2...v1.4.3) (2026-10-30)
 
 
