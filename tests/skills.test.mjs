@@ -315,7 +315,10 @@ test("an approved design becomes durable before implementation depends on it", (
     pencil,
     /ensure the approved artifact is saved at `designs\/<issue>-<slug>\.pen` as Save-reopen describes/
   );
-  assert.match(pencil, /persist it through the repository's normal Git workflow/);
+  assert.match(
+    pencil,
+    /open a pull request with it against the default branch, on which implementation may stack/
+  );
   assert.match(pencil, /record its path and Git reference in the Issue/i);
   assert.match(pencil, /is implementation unblocked on the design artifact/);
 
@@ -613,7 +616,7 @@ test("Pencil approval requires structural, visual, and durable evidence", () => 
   assert.match(pencil, /Neither.*replaces the other/is);
   assert.match(pencil, /durably reachable through Git/i);
   assert.match(pencil, /implementation worktree/i);
-  assert.match(flat, /unintegrated.*blocked/i);
+  assert.match(flat, /Until then, refinement is complete but implementation is blocked/i);
   assert.match(flat, /record its path and Git reference in the Issue/i);
   assert.match(pencil, /no .*parser|Do not add .*parser/i);
   assert.match(pencil, /wrapper API|wrapper/i);
