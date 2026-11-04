@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.5](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.4...v1.4.5) (2026-11-04)
+
+
+### Bug Fixes
+
+* **design:** make the Pencil handoff open a pull request ([#100](https://github.com/MauroCicerchia/plus-ultra/issues/100)) ([4799bff](https://github.com/MauroCicerchia/plus-ultra/commit/4799bff777d737ccbc9bf0182ec734e694841abb))
+
 ## [1.4.4](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.3...v1.4.4) (2026-11-03)
 
 
