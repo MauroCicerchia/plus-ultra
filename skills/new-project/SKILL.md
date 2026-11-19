@@ -32,7 +32,7 @@ canonical Plus Ultra template substantially fits the product, following
 For a compatible product the template is **the default, not an opt-in**: never ask whether to use
 it, and never make the human re-select a default it owns. Explicit human technology choices always
 win, and an isolated mismatch is adapted rather than grounds for starting over. Ask only about a
-material choice that remains open.
+material choice that remains open, inside the step 4 proposal.
 
 ## 4. Approve the technical direction
 
@@ -49,7 +49,7 @@ remove only the pieces that genuinely do not fit.
 
 **Fundamental mismatch.** Say why the template was skipped, then initialize directly with the
 smallest thing that can run and be tested, and leave every decision the product does not yet need
-unmade. The reference lists that baseline.
+unmade. `canonical-template.md` lists that baseline.
 
 **Either way**, the repository ends holding a short `AGENTS.md` pointing at `docs/product.md` and
 the conventions below, a `.gitignore` containing `/.context/`, and the approved `DESIGN.md` at the
