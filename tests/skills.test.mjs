@@ -1175,6 +1175,85 @@ test("Plus Ultra does not duplicate the stack the template owns", () => {
   }
 });
 
+test("new-project approves a Technical Direction before initializing anything", () => {
+  const raw = read("skills/new-project/SKILL.md");
+  const skill = raw.replace(/\s+/g, " ");
+
+  // The approval step sits between the fit judgment and initialization.
+  const judge = raw.indexOf("## 3. Judge the canonical template");
+  const approve = raw.indexOf("## 4. Approve the technical direction");
+  const init = raw.indexOf("## 5. Initialize the repository");
+  const verify = raw.indexOf("## 6. Verify, then stop before the remote");
+  assert.ok(judge >= 0 && approve > judge && init > approve && verify > init, "steps must run judge → approve → init → verify");
+
+  assert.ok(skill.includes("references/technical-direction.md"), "the detail stays in an on-demand reference");
+  assert.ok(
+    skill.includes("Create no file, run no init command, and install nothing until the human explicitly approves it"),
+    "nothing is scaffolded before approval"
+  );
+  // The direct bootstrap path takes the same step.
+  assert.ok(skill.includes("whatever the verdict, a direct bootstrap included"));
+  assert.ok(skill.includes("Initialize exactly the approved direction"));
+  assert.ok(skill.includes("Record the approved direction in `AGENTS.md`"), "the approved direction has a durable home");
+  assert.ok(skill.includes("the approved direction and any deviation initialization required"), "the report names deviations");
+});
+
+test("the Technical Direction states the decision without re-litigating the template", () => {
+  const reference = read("skills/new-project/references/technical-direction.md");
+  const flat = reference.replace(/\s+/g, " ");
+
+  // One explicit approval point a coordinating app can present on its own.
+  assert.ok(flat.includes("one message that ends in one explicit approval question"));
+
+  // AC2: what it states, in plain language and at the template reference's conceptual level.
+  assert.ok(flat.includes("Short and in plain language"));
+  assert.ok(flat.includes("**Template verdict.**"));
+  assert.ok(flat.includes("fits, mostly fits, or does not fit"));
+  assert.ok(flat.includes("**Direction.**"));
+  assert.ok(flat.includes("persistence, and deployment target"));
+  assert.ok(flat.includes("the conceptual level `canonical-template.md` uses"));
+  assert.ok(flat.includes("**Alternatives.**"));
+  assert.ok(flat.includes("Only where a real alternative exists"));
+  assert.ok(flat.includes("**Deliberately left out.**"));
+
+  // AC3: a fit approves the template itself; it is never an opt-in or a walkthrough.
+  assert.ok(flat.includes("For a fit, the template is the decision being approved"));
+  assert.ok(flat.includes("Do not ask whether to use it, and do not walk through what it owns"));
+
+  // AC4: explicit human requirements are settled, never asked again.
+  assert.ok(flat.includes("**Settled by you.**"));
+  assert.ok(flat.includes("appear as settled and are not asked again"));
+
+  // AC5: approval, revision, and refusal.
+  assert.ok(flat.includes("Only explicit approval of the displayed proposal starts initialization"));
+  assert.ok(flat.includes("show the complete revised proposal, and ask again"));
+  assert.ok(flat.includes("A declined or unanswered proposal leaves the root without scaffolding"));
+
+  // AC6: a durable home that is not the product brief.
+  assert.ok(flat.includes("## Technical direction` section in the generated `AGENTS.md`"));
+  assert.ok(flat.includes("Never put it in `docs/product.md`"));
+
+  // AC7: the report and first commit reflect it, and deviations are named.
+  assert.ok(flat.includes("The final report and the first commit reflect the approved direction"));
+  assert.ok(flat.includes("Name every deviation initialization required"));
+  assert.ok(flat.includes("present a revised direction for approval before continuing"));
+
+  // AC8: the direct bootstrap takes the same step.
+  assert.ok(flat.includes("A direct bootstrap takes the same step"));
+
+  // The template stays the source of truth for its stack.
+  assert.ok(flat.includes("Never restate the template's dependencies, versions, tools, or layout"));
+  assert.doesNotMatch(reference, /\d+\.\d+\.\d+/, "the proposal must not pin a version");
+  assert.doesNotMatch(reference, /"dependencies"|package\.json|pnpm|corepack/i, "the proposal must not restate a manifest");
+
+  // Instantiation itself waits for the approval.
+  const template = read("skills/new-project/references/canonical-template.md").replace(/\s+/g, " ");
+  assert.ok(template.includes("Run this only after the human approves the Technical Direction"));
+
+  const command = read("commands/new-project.md").replace(/\s+/g, " ");
+  assert.ok(command.includes("wait for explicit approval of the Technical Direction before initializing"));
+});
+
 test("verification matches the baseline that was actually created", () => {
   const skill = read("skills/new-project/SKILL.md").replace(/\s+/g, " ");
   assert.ok(

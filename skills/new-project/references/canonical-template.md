@@ -28,7 +28,8 @@ piece when it is isolated.
 The root is not empty by the time you get here: `docs/product.md` is in it, and `DESIGN.md` too when
 the product has an interface. Cloning over that root fails, and cloning elsewhere strands the
 approved context outside the generated project. Stage the template under the transient `.context/`
-directory instead, then materialize its working-tree files into the root. From the project root:
+directory instead, then materialize its working-tree files into the root. Run this only after the
+human approves the Technical Direction. From the project root:
 
 ```sh
 mkdir -p .context
@@ -72,3 +73,14 @@ deviation and why the product required it.
 Do not add a second template, a variant, a registry, a version pin, or a flag that selects between
 them. If adaptation is turning into a rewrite, the verdict was "does not fit": bootstrap directly
 instead.
+
+## Bootstrap directly when it does not fit
+
+Give the project the smallest baseline that can run and be tested, and nothing the product does not
+yet need — no database, deployment target, or architecture layering:
+
+- a package manifest with `test`, `lint` or `format`, and (for typed languages) `typecheck` scripts;
+- a test runner with one real passing test;
+- a formatter or linter with its configuration;
+- a CI workflow that installs, then runs those same scripts;
+- a `README.md` stating what the product is, taken from the brief.
