@@ -30,15 +30,17 @@ Implement Issue #123 end to end.
 
 ## Human checkpoints
 
-Plus Ultra maximizes autonomy between checkpoints rather than maximizing checkpoints. Four decisions
+Plus Ultra maximizes autonomy between checkpoints rather than maximizing checkpoints. Five decisions
 stay yours:
 
 1. **Product direction** — when a decision changes what is being built.
 2. **Significant UI/UX direction** — before an agent invents an interface. For a product with a
    real interface, that starts with one approved root `DESIGN.md`.
-3. **Material unresolved ambiguity** — product, UX, security, data, contract, or anything else
+3. **Technical direction of a new project** — the template verdict, the major stack and deployment
+   choices, and what is deliberately left out, approved once before anything is initialized.
+4. **Material unresolved ambiguity** — product, UX, security, data, contract, or anything else
    externally observable that the agent cannot settle from context.
-4. **Final review and merge** — always manual.
+5. **Final review and merge** — always manual.
 
 Everything else runs autonomously unless evidence forces an escalation. A normal Story has at most
 two checkpoints before the final PR review.
@@ -88,8 +90,11 @@ real user interface, a short design conversation follows and produces an approve
 in the [Google Labs `DESIGN.md` format](https://github.com/google-labs-code/design.md): durable
 visual direction that later refinement and implementation build against, readable by any agent that
 already speaks the convention. Products without a UI skip it entirely. Refinement can later propose a change to that direction, but only as an
-explicit decision you approve — never as a side effect of building a feature. Then the repository is initialized, and `plus-ultra:roadmap` breaks the
-direction into Epics and Stories.
+explicit decision you approve — never as a side effect of building a feature. Before anything is
+initialized, you see a short Technical Direction — whether the canonical template fits, the major
+stack and deployment choices, and what is deliberately left out — and approve it. Then the
+repository is initialized, the approved direction is recorded in its `AGENTS.md`, and
+`plus-ultra:roadmap` breaks the direction into Epics and Stories.
 
 ### An existing repository
 
