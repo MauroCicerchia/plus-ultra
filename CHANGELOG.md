@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.5...v1.5.0) (2026-11-19)
+
+
+### Features
+
+* **new-project:** approve the technical direction before initializing ([#103](https://github.com/MauroCicerchia/plus-ultra/issues/103)) ([206f10e](https://github.com/MauroCicerchia/plus-ultra/commit/206f10ef9374cabc422474920aa2f1091f064598))
+
 ## [1.4.5](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.4...v1.4.5) (2026-11-04)
 
 
