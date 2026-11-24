@@ -51,9 +51,9 @@ product-level direction here. Never invent significant interface direction while
 refinement did not settle it, propose one concrete direction and get explicit human approval before
 implementing it.
 
-If Design references a `.pen`, use `plus-ultra:pencil-design` to inspect that approved feature-level
-reference. Do not redesign approved UI without new material ambiguity, use ordinary filesystem tools
-on its contents, or recreate an unavailable durable reference.
+If Design references an `.html` file, read it as the approved feature-level reference and rebuild
+it in the product's own stack; never ship or import it. Do not redesign approved UI without new
+material ambiguity, or recreate an unavailable durable reference.
 
 ## 5. Plan and implement
 

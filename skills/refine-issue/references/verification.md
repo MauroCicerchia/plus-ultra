@@ -6,8 +6,9 @@ run those repository checks just before the Issue write.
 
 - Review proposed Issue content against the settled decisions before writing. Confirm the GitHub
   mutation succeeded; use a cheap read-back when it helps verify the handoff.
-- For a feature design, follow Pencil's structural and visual validation. Confirm an approved
-  repository-native design is durably Git-reachable before implementation depends on it.
+- For a feature design, perform the structural and visual audits in
+  [feature-design.md](./feature-design.md). Confirm an approved repository-native design is
+  durably Git-reachable before implementation depends on it.
 - Run a targeted validator for an intentionally changed durable design or product document when one
   applies.
 

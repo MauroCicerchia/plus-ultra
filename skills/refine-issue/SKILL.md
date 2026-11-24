@@ -19,10 +19,10 @@ the required `gh` version and check write permission before any GitHub write.
 3. **Design checkpoint.** Decide whether the Story involves significant visual or interaction
    decisions. If there is no significant UI, say so, move on, and read no design context at all.
    If there is, read root `DESIGN.md` when it exists — it is the approved product-level visual
-   direction — and produce one concrete proposal consistent with that direction. When Pencil tooling
-   is available and useful, a Pencil file is the preferred reference: use `plus-ultra:pencil-design`,
-   which owns the design handoff, and save it at `designs/<issue>-<slug>.pen`. A mockup, screenshot, or
-   described reference is the fallback when Pencil is unavailable or not useful. One explicit human
+   direction — and produce one concrete proposal consistent with that direction. The preferred
+   reference is a self-contained HTML file at `designs/<issue>-<slug>.html`, built, validated, and
+   handed off per [feature-design.md](./references/feature-design.md). A screenshot or described
+   reference is the fallback when a rendered page would not help. One explicit human
    approval may cover both the displayed Issue proposal and the concrete design when presented
    together; record the approved reference in the Issue. Feature-level design never touches
    `DESIGN.md`.

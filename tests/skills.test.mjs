@@ -65,7 +65,7 @@ const RETIRED_DESIGN_SECTIONS = [
 // The five user-facing capabilities, in workflow order.
 const CAPABILITIES = ["new-project", "product", "roadmap", "refine-issue", "implement-issue"];
 // Shared policy and helper skills the capabilities lean on.
-const SUPPORTING = ["conventions", "integration-boundary", "pencil-design"];
+const SUPPORTING = ["conventions", "integration-boundary"];
 const SKILLS = [...CAPABILITIES, ...SUPPORTING];
 
 test("the plugin ships exactly the reboot skill set", () => {
@@ -77,7 +77,7 @@ test("the plugin ships exactly the reboot skill set", () => {
 
   const maintainer = read("docs/maintainer-guide.md").replace(/\s+/g, " ");
   assert.ok(
-    maintainer.includes("three they share (`conventions`, `integration-boundary`, `pencil-design`)"),
+    maintainer.includes("two they share (`conventions`, `integration-boundary`)"),
     "the maintainer guide must name the current supporting skills"
   );
   assert.ok(maintainer.includes("skills/implement-issue/references/code-review.md"));
@@ -273,7 +273,7 @@ test("refinement verifies owned artifacts without routine application verificati
   }
   assert.match(detail, /Issue content/);
   assert.match(detail, /read-back/);
-  assert.match(detail, /Pencil/);
+  assert.match(detail, /structural and visual audits in\s+\[feature-design\.md\]/);
   assert.match(detail, /Git-reachable/);
   assert.match(detail, /implementation artifact/);
 });
@@ -302,29 +302,26 @@ test("depth follows state-change failure semantics and auth boundary changes", (
 });
 
 test("an approved design becomes durable before implementation depends on it", () => {
-  const pencil = read("skills/pencil-design/SKILL.md").replace(/\s+/g, " ");
+  const design = read("skills/refine-issue/references/feature-design.md").replace(/\s+/g, " ");
 
-  // build → validate → one approval → save → Git → Issue → unblocked.
+  // build → validate → one approval → commit → Git → Issue → unblocked.
   assert.ok(
-    pencil.includes(
+    design.includes(
       "Then hand off in order: present the refined Issue proposal and the validated design together"
     )
   );
-  assert.match(pencil, /one explicit human approval covers both/);
+  assert.match(design, /one explicit human approval covers both/);
+  assert.match(design, /commit the approved artifact at `designs\/<issue>-<slug>\.html`/);
   assert.match(
-    pencil,
-    /ensure the approved artifact is saved at `designs\/<issue>-<slug>\.pen` as Save-reopen describes/
-  );
-  assert.match(
-    pencil,
+    design,
     /open a pull request with it against the default branch, on which implementation may stack/
   );
-  assert.match(pencil, /record its path and Git reference in the Issue/i);
-  assert.match(pencil, /is implementation unblocked on the design artifact/);
+  assert.match(design, /record its path and Git reference in the Issue/i);
+  assert.match(design, /is implementation unblocked on the design artifact/);
 
   // A temporary marker is allowed until the real reference exists.
-  assert.match(pencil, /`Approved design pending durable Git reference\.`/);
-  assert.match(pencil, /until the real path replaces it/);
+  assert.match(design, /`Approved design pending durable Git reference\.`/);
+  assert.match(design, /until the real path replaces it/);
 
   const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
   assert.ok(
@@ -471,7 +468,7 @@ test("engineering principles are a conditional reference, not a ninth skill", ()
     );
   }
 
-  // Still eight skills; the reference must not become one.
+  // The reference must not become a skill.
   assert.ok(!existsSync(join(repoRoot, "skills/engineering-principles")));
   assert.ok(!existsSync(join(repoRoot, "skills/tech-stack")));
 });
@@ -535,117 +532,90 @@ test("the design checkpoint is human-approved and carries no artifact platform",
   }
 });
 
-test("Pencil preflight is agent-owned and only escalates when it cannot act", () => {
-  const pencil = read("skills/pencil-design/SKILL.md");
-  const flat = pencil.replace(/\s+/g, " ");
-  assert.match(pencil, /creating, editing, validating, or consuming/i);
-  assert.match(pencil, /application is named `Pen`/);
-  assert.match(pencil, /active document.*before.*Pencil MCP/is);
-  assert.match(pencil, /read_skill/);
-  assert.match(pencil, /get_app_state/);
-  for (const nativeDoc of ["skill", "schema", "execute", "UI guide"]) {
-    assert.match(pencil, new RegExp(nativeDoc, "i"));
-  }
-  assert.match(pencil, /Never (?:read|inspect).*\.pen.*ordinary filesystem/is);
-
-  // The agent opens Pen and the document itself; a closed app is not a reason to stop.
-  assert.match(flat, /Own this yourself/);
-  assert.match(flat, /launch Pen when it is closed/);
-  assert.match(flat, /create a blank document in Pen for a new design/);
-  assert.match(flat, /open that exact file in Pen for an existing repository `\.pen`/);
-  assert.match(flat, /local UI or OS automation/);
-
-  // The human is asked only when the environment genuinely cannot do it safely.
-  assert.match(flat, /Ask the human only when you cannot do that safely/);
-  assert.match(flat, /no such automation, blocked permissions, or an undeterminable target/);
-  assert.match(flat, /Never interrupt merely because Pen is closed or has no document open/);
-
-  // Compatibility, not a wrapper: no persistent automation layer around Pen.
-  assert.doesNotMatch(pencil, /GUI orchestration|automation framework|automation layer/i);
-
-  // It remains a helper rather than a sixth user-facing capability.
-  assert.ok(!existsSync(join(repoRoot, "commands/pencil-design.md")));
-  assert.ok(!existsSync(join(repoRoot, "skills/pencil-design/agents/openai.yaml")));
-});
-
-test("Pencil construction preserves the product and feature design boundary", () => {
-  const pencil = read("skills/pencil-design/SKILL.md");
-  const flat = pencil.replace(/\s+/g, " ");
+test("a feature design is one self-contained HTML file with no toolchain", () => {
+  const design = read("skills/refine-issue/references/feature-design.md");
+  const flat = design.replace(/\s+/g, " ");
   assert.ok(flat.includes("`DESIGN.md` is the approved product-level visual direction"));
-  assert.ok(flat.includes("a `.pen` becomes the approved feature-level reference after human approval"));
-  assert.ok(flat.includes("`designs/<issue>-<slug>.pen`"));
-  assert.match(pencil, /map.*`DESIGN\.md`.*tokens.*Pencil variables/is);
-  assert.match(pencil, /named top-level frames/i);
-  assert.match(pencil, /human-readable names/i);
-  assert.match(pencil, /`placeholder: true` only while actively constructing/i);
-  assert.match(pencil, /flex|dynamic layout/i);
-  assert.match(pencil, /focused `execute` calls/i);
-  assert.match(pencil, /fix completed nodes directly/i);
+  assert.ok(
+    flat.includes("`designs/<issue>-<slug>.html` becomes the approved feature-level reference after human approval")
+  );
+  assert.match(flat, /never ships or imports it/);
+
+  // Zero dependencies: nothing outside the file, no build, no framework.
+  assert.match(flat, /one self-contained HTML file/i);
+  assert.match(flat, /inline `<style>`/);
+  for (const banned of ["CDN", "remote font", "remote script", "package", "build step"]) {
+    assert.ok(flat.includes(banned), `feature designs must rule out ${banned}`);
+  }
+  assert.match(flat, /no JavaScript by default/i);
+  assert.match(flat, /`<details>` or `:target`/);
+
+  // Product tokens carry into the feature design by name.
+  assert.match(flat, /`DESIGN\.md` tokens to CSS custom properties on `:root`/);
+  assert.match(flat, /own `<section>` with a stable `id`/);
+  assert.match(flat, /responsive behaviour/i);
 });
 
-test("Pencil compatibility notes encode the proven reliable sequences", () => {
-  const pencil = read("skills/pencil-design/SKILL.md");
-  const flat = pencil.replace(/\s+/g, " ");
-  assert.match(pencil, /After a meaningful mutation/);
-  assert.match(pencil, /inspect structure.*with `Get`/is);
-  assert.match(pencil, /separate `execute` call.*screenshot/is);
-  assert.match(pencil, /blank or stale screenshot/i);
-  assert.match(pencil, /After `Copy`/);
-  assert.match(pencil, /rediscover.*new IDs/is);
-  assert.match(pencil, /descendant-name overrides/i);
-  assert.ok(flat.includes("Save repository designs using the basename without `.pen`"));
-  assert.match(pencil, /repository-relative path.*without the extension/i);
-  assert.match(pencil, /appends `\.pen`/);
-  assert.ok(flat.includes("Reopen the saved repository path explicitly"));
-});
-
-test("Pencil approval requires structural, visual, and durable evidence", () => {
-  const pencil = read("skills/pencil-design/SKILL.md");
-  const flat = pencil.replace(/\s+/g, " ");
+test("feature design approval requires structural, visual, and durable evidence", () => {
+  const design = read("skills/refine-issue/references/feature-design.md");
+  const flat = design.replace(/\s+/g, " ");
   for (const evidence of [
-    "no remaining `placeholder: true`",
-    "no reported `ctx.problems`",
-    "expected top-level frames",
-    "sensible bounds",
-    "screenshot every relevant screen",
+    "Every expected screen and state has its own section",
+    "points outside the file",
+    "no placeholder text remains",
+    "token custom properties",
+    "inspect every section at each relevant width",
     "responsive behavior",
     "validation and success states",
+    "ask the human to open the file",
   ]) {
-    assert.ok(flat.includes(evidence), `Pencil validation must require ${evidence}`);
+    assert.ok(flat.includes(evidence), `feature design validation must require ${evidence}`);
   }
-  assert.match(pencil, /Neither.*replaces the other/is);
-  assert.match(pencil, /durably reachable through Git/i);
-  assert.match(pencil, /implementation worktree/i);
+  assert.match(flat, /Neither audit replaces the other/);
+  assert.match(flat, /durably reachable through Git/i);
+  assert.match(flat, /implementation worktree/i);
   assert.match(flat, /Until then, refinement is complete but implementation is blocked/i);
-  assert.match(flat, /record its path and Git reference in the Issue/i);
-  assert.match(pencil, /no .*parser|Do not add .*parser/i);
-  assert.match(pencil, /wrapper API|wrapper/i);
-  assert.match(pencil, /manifest/i);
-  assert.match(pencil, /versioning/i);
+  for (const machinery of ["renderer", "component library", "generator", "parser", "manifest", "versioning"]) {
+    assert.match(flat, new RegExp(`Do not add .*${machinery}`, "i"));
+  }
+
+  // The design guidance is an on-demand reference, not a skill or a command.
+  assert.ok(!existsSync(join(repoRoot, "skills/pencil-design")));
+  assert.ok(!existsSync(join(repoRoot, "commands/feature-design.md")));
 });
 
-test("refinement prefers Pencil and implementation consumes approved .pen designs", () => {
+test("refinement prefers an HTML design and implementation reads it directly", () => {
   const refine = read("skills/refine-issue/SKILL.md").replace(/\s+/g, " ");
   assert.ok(refine.includes("read root `DESIGN.md`"));
-  assert.ok(refine.includes("`plus-ultra:pencil-design`"));
-  assert.match(refine, /Pencil.*preferred/i);
-  assert.match(refine, /mockup, screenshot, or described reference.*fallback/i);
-  assert.ok(refine.includes("`designs/<issue>-<slug>.pen`"));
+  assert.ok(refine.includes("[feature-design.md](./references/feature-design.md)"));
+  assert.match(refine, /preferred reference is a self-contained HTML file/i);
+  assert.match(refine, /screenshot or described reference is the fallback/i);
+  assert.ok(refine.includes("`designs/<issue>-<slug>.html`"));
   assert.match(refine, /explicit human approval/i);
   assert.match(refine, /durably reachable through Git/i);
 
   const implement = read("skills/implement-issue/SKILL.md").replace(/\s+/g, " ");
-  assert.match(implement, /Design.*\.pen/i);
-  assert.ok(implement.includes("`plus-ultra:pencil-design`"));
+  assert.match(implement, /Design references an `\.html` file/);
   assert.match(implement, /approved feature-level/i);
+  assert.match(implement, /rebuild it in the product's own stack; never ship or import it/);
   assert.match(implement, /do not redesign/i);
-  assert.match(implement, /ordinary filesystem tools/i);
   assert.match(implement, /`DESIGN\.md`.*product-level/i);
 
   const depth = read("skills/implement-issue/references/depth.md").replace(/\s+/g, " ");
-  assert.ok(depth.includes("Pencil uses `designs/<issue>-<slug>.pen`"));
+  assert.ok(depth.includes("An HTML design uses `designs/<issue>-<slug>.html`"));
   assert.ok(depth.includes("present in the later implementation worktree"));
-  assert.ok(!depth.includes("`designs/<issue>-<slug>.pen` committed with the change"));
+
+  // No portable content may depend on Pencil any more.
+  for (const path of [
+    "skills/refine-issue/SKILL.md",
+    "skills/refine-issue/references/verification.md",
+    "skills/refine-issue/references/feature-design.md",
+    "skills/implement-issue/SKILL.md",
+    "skills/implement-issue/references/depth.md",
+    "docs/maintainer-guide.md",
+  ]) {
+    assert.doesNotMatch(read(path), /Pencil|\.pen\b/, `${path} must not reference Pencil`);
+  }
 });
 
 test("design discovery runs only for products with a real interface", () => {
