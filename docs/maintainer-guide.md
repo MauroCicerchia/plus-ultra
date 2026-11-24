@@ -8,9 +8,10 @@ to the shared `skills/` directory. `commands/` and `agents/` are Claude-specific
 the Claude and Codex hook manifests plus zero-dependency Node ESM scripts; shared stdin and
 decision helpers live in `hooks/_lib.mjs`.
 
-Eight skills ship: five user-facing capabilities (`new-project`, `product`, `roadmap`,
-`refine-issue`, `implement-issue`) and three they share (`conventions`, `integration-boundary`,
-`pencil-design`). Each capability has one Claude command in `commands/` and one Codex interface at
+Seven skills ship: five user-facing capabilities (`new-project`, `product`, `roadmap`,
+`refine-issue`, `implement-issue`) and two they share (`conventions`, `integration-boundary`).
+Feature designs are self-contained HTML files; `skills/refine-issue/references/feature-design.md`
+owns how they are built, validated, and handed off, and `implement-issue` reads them directly. Each capability has one Claude command in `commands/` and one Codex interface at
 `skills/<name>/agents/openai.yaml`; keep those in sync with the skill set. The portable independent
 review contract is the on-demand `skills/implement-issue/references/code-review.md`; both
 `implement-issue` and the Claude reviewer agent consume that one copy.
