@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.5.0...v2.0.0) (2026-11-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **design:** the plus-ultra:pencil-design skill is removed. implement-issue no longer reads .pen designs; Issues that reference a .pen need an HTML design or another reference before implementation.
+
+### Features
+
+* **design:** replace Pencil with self-contained HTML feature designs ([#105](https://github.com/MauroCicerchia/plus-ultra/issues/105)) ([d34acef](https://github.com/MauroCicerchia/plus-ultra/commit/d34acef46ac2f9c34811fb4ad9d06d902154970c))
+
 ## [1.5.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.4.5...v1.5.0) (2026-11-19)
 
 
