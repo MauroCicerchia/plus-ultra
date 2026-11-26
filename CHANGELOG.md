@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/MauroCicerchia/plus-ultra/compare/v2.0.0...v2.1.0) (2026-11-26)
+
+
+### Features
+
+* **workflow:** stack implementation on an open design pull request ([#107](https://github.com/MauroCicerchia/plus-ultra/issues/107)) ([e2ea018](https://github.com/MauroCicerchia/plus-ultra/commit/e2ea0186c7ec231337057fb6a7bd0d551936aed9))
+
 ## [2.0.0](https://github.com/MauroCicerchia/plus-ultra/compare/v1.5.0...v2.0.0) (2026-11-24)
 
 
