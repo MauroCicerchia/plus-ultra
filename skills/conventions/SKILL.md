@@ -21,6 +21,9 @@ Plus Ultra requires GitHub CLI 2.94.0 or newer; found <version>. Upgrade gh and 
 
 Do not fall back to GraphQL to emulate a missing hierarchy capability.
 
+The `gh stack` extension is optional. Use it when installed to group stacked pull requests; without
+it, a pull request based on another pull request's branch is still a valid stack.
+
 ## Where artifacts live
 
 | Artifact | Location | Committed |

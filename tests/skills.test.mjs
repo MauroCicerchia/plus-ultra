@@ -1293,3 +1293,33 @@ test("portable skills stay agent-neutral", () => {
     }
   }
 });
+
+test("implementation stacks on an open design pull request", () => {
+  const implement = read("skills/implement-issue/SKILL.md");
+  assert.match(implement, /references\/stacking\.md/, "implement-issue must point to the stacking reference");
+
+  const stacking = read("skills/implement-issue/references/stacking.md").replace(/\s+/g, " ");
+  // Only an open design pull request triggers a stack; merged and closed ones do not.
+  assert.match(stacking, /gh pr view <number> --json state,headRefName/);
+  assert.match(stacking, /\*\*Merged:\*\* branch from the default branch/);
+  assert.match(stacking, /\*\*Closed without merging:\*\* stop/);
+  // The implementation branch starts from the design branch and the PR bases on it.
+  assert.match(stacking, /git switch -c <branch> origin\/<headRefName>/);
+  assert.match(stacking, /gh pr create --base <headRefName>/);
+  assert.match(stacking, /gh stack link <design-pr> <implementation-pr>/);
+  // Stacking by base still happens when the extension or repository support is missing.
+  assert.match(stacking, /stacked by base branch only/);
+  // The template body survives: no auto-generated submit, no local stack state.
+  assert.match(stacking, /Do not use `gh stack submit`/);
+  // Integration stays human, bottom of the stack first.
+  assert.match(stacking, /merge the design pull request first/);
+  assert.doesNotMatch(stacking, /gh stack merge/);
+
+  // Refinement names the design pull request so detection is mechanical.
+  const design = read("skills/refine-issue/references/feature-design.md").replace(/\s+/g, " ");
+  assert.match(design, /naming the design pull request by number/);
+
+  // The extension is optional, never a requirement.
+  const conventions = read("skills/conventions/SKILL.md").replace(/\s+/g, " ");
+  assert.match(conventions, /`gh stack` extension is optional/);
+});
