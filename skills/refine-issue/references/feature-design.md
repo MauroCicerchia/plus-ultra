@@ -38,11 +38,12 @@ Neither audit replaces the other.
 Then hand off in order: present the refined Issue proposal and the validated design together, so
 one explicit human approval covers both; commit the approved artifact at
 `designs/<issue>-<slug>.html`; open a pull request with it against the default branch, on which
-implementation may stack; and record its path and Git reference in the Issue. Only once it is
-durably reachable through Git and present in the later implementation worktree is implementation
-unblocked on the design artifact. Until then, refinement is complete but implementation is blocked:
-the Issue may carry `Approved design pending durable Git reference.` until the real path replaces
-it. State that dependency; do not copy or recreate the artifact.
+implementation may stack; and record its path and Git reference in the Issue, naming the design
+pull request by number. Only once it is durably reachable through Git and present in the later
+implementation worktree is implementation unblocked on the design artifact. Until then, refinement
+is complete but implementation is blocked: the Issue may carry
+`Approved design pending durable Git reference.` until the real path replaces it. State that
+dependency; do not copy or recreate the artifact.
 
 Do not add a renderer, component library, generator, parser, manifest, token-sync layer, preview
 pipeline, or design versioning scheme. A text editor and a browser are the whole toolchain.

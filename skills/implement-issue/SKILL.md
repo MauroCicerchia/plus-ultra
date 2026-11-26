@@ -6,7 +6,7 @@ description: Use when taking a GitHub Issue end to end — clarify what is mater
 # Implement an Issue
 
 Take one GitHub Issue to a review-ready pull request, then stop. Its Context, Goal, and Acceptance
-Criteria define done; a separate spec is optional.
+Criteria define done.
 
 ## 1. Check the Issue is a Story, then load what it needs
 
@@ -15,7 +15,8 @@ not a unit of work. Route it to `plus-ultra:refine-issue` or `plus-ultra:roadmap
 A `type:story` Issue, or an untyped Issue in an existing repository, proceeds normally.
 
 Read it with `gh issue view <number>`, its parent, `docs/product.md` when present, and only the
-repository areas it touches.
+repository areas it touches. Stack on an open design PR per
+[`stacking.md`](./references/stacking.md).
 
 ## 2. Resolve ambiguity deliberately
 
@@ -45,10 +46,10 @@ each depth's controls and path, where a design reference lives, and when a spec 
 
 ## 4. Design checkpoint
 
-Non-UI work reads nothing here. When the change touches a user interface, read root `DESIGN.md` if
-it exists: approved product-level visual context. Build consistently with it, and never change its
+Non-UI work reads nothing here. For UI changes, read root `DESIGN.md` if it exists: approved
+product-level visual context. Build consistently with it, and never change its
 product-level direction here. Never invent significant interface direction while coding. If
-refinement did not settle it, propose one concrete direction and get explicit human approval before
+refinement left it open, propose one concrete direction and get explicit human approval before
 implementing it.
 
 If Design references an `.html` file, read it as the approved feature-level reference and rebuild
@@ -76,7 +77,7 @@ criterion test or manual-check evidence. Say when a check failed or was not run.
 Dispatch an independent reviewer following [`code-review.md`](./references/code-review.md) against
 the Issue, optional spec, and exact head. **Mandatory** for high-risk work. For normal work
 use it **when warranted** — non-obvious logic, wide blast radius, or low confidence. Small work
-skips it by default. Without another agent, make the same deliberate read-only pass.
+skips it by default. Without another agent, make the same read-only pass.
 
 Fix substantiated blockers, then require a final review pass over the resulting exact head. Report,
 but do not silently act on, findings you judge incorrect.

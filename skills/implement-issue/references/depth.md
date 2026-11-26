@@ -68,7 +68,9 @@ head and needs its own review pass.
 When the design checkpoint approves a direction, keep the reference wherever it is cheapest: a
 comment, attached image or screenshot, or link. An HTML design uses `designs/<issue>-<slug>.html`;
 record its path and Git reference on the Issue, and make it present in the later implementation
-worktree before that session depends on it. Do not build a versioning scheme, manifest, or lifecycle around it.
+worktree before that session depends on it. While its design pull request is open, implementation
+stacks on it per [`stacking.md`](./stacking.md).
+Do not build a versioning scheme, manifest, or lifecycle around it.
 
 ## When a separate spec earns its cost
 
