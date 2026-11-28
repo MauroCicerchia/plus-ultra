@@ -4,6 +4,29 @@
 the approved feature-level reference after human approval. It is a reference, not product code:
 implementation rebuilds it in the product's own stack and never ships or imports it.
 
+## Start from the UI journey
+
+A product may have a UI journey at `designs/journey.html`: one mid-fidelity design of the whole
+MVP, with each screen and flow in its own `<section>`. Without a journey, design from `DESIGN.md` as
+below.
+
+If the Story links to `designs/journey.html` but the file is not on the default branch, stop before
+proposing and make no GitHub write: say that the journey's pull request must merge first.
+
+When the journey is on the default branch, read the sections the Story links to, or, without links,
+the sections that name the Story, before designing. Also read the approved designs of the other
+Stories those sections name.
+
+- Keep the journey's navigation, flows, and shared components. Add what it leaves out: loading,
+  error, and empty states, edge cases, responsive detail, and polish.
+- List every departure from the journey, with its reason, in the proposal the human approves.
+- When an approved departure changes a shared pattern, such as navigation or a shared component,
+  the same design pull request updates the journey's affected sections so later Stories follow
+  it. A departure local to the Story leaves the journey as it is.
+
+The Story still gets its own design: a journey section alone is never the Story's approved
+reference.
+
 ## Construct
 
 - Write one self-contained HTML file. Put all styling in an inline `<style>` element. Make no
@@ -37,7 +60,7 @@ Neither audit replaces the other.
 
 Then hand off in order: present the refined Issue proposal and the validated design together, so
 one explicit human approval covers both; commit the approved artifact at
-`designs/<issue>-<slug>.html`; open a pull request with it against the default branch, on which
+`designs/<issue>-<slug>.html`, with any approved journey update; open a pull request with it against the default branch, on which
 implementation may stack; and record its path and Git reference in the Issue, naming the design
 pull request by number. Only once it is durably reachable through Git and present in the later
 implementation worktree is implementation unblocked on the design artifact. Until then, refinement

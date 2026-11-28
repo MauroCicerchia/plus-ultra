@@ -1379,3 +1379,30 @@ test("the first roadmap of a UI product proposes one UI journey", () => {
     "the artifact table must place the journey and commit it"
   );
 });
+
+test("a Story's design starts from the UI journey when one exists", () => {
+  const design = read("skills/refine-issue/references/feature-design.md").replace(/\s+/g, " ");
+  // Read the Story's journey sections, and the designs of Stories that share them, before designing.
+  assert.ok(design.includes("`designs/journey.html`"));
+  assert.match(design, /sections the Story links to/);
+  assert.match(design, /sections that name the Story/);
+  assert.match(design, /approved designs of the other Stories those sections name/);
+  // A journey that has not reached the default branch stops refinement before any write.
+  assert.match(design, /not on the default branch/);
+  assert.match(design, /stop before proposing/);
+  assert.match(design, /make no GitHub write/);
+  assert.match(design, /journey's pull request must merge first/);
+  // Keep the journey, add what it leaves out, and name every departure.
+  assert.match(design, /Keep the journey's navigation, flows, and shared components/);
+  assert.match(design, /loading, error, and empty states/);
+  assert.match(design, /List every departure from the journey, with its reason/);
+  // Shared-pattern departures update the journey in the same design pull request; local ones do not.
+  assert.match(design, /same design pull request updates the journey's affected sections/);
+  assert.match(design, /departure local to the Story leaves the journey as it is/);
+  // The journey never replaces the Story's own design.
+  assert.match(design, /journey section alone is never the Story's approved reference/);
+  assert.match(design, /Without a journey, design from `DESIGN\.md` as below/);
+
+  // Refinement's always-loaded skill is unchanged by the journey.
+  assert.doesNotMatch(read("skills/refine-issue/SKILL.md"), /journey/);
+});
