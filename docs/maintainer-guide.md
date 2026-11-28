@@ -11,10 +11,14 @@ decision helpers live in `hooks/_lib.mjs`.
 Seven skills ship: five user-facing capabilities (`new-project`, `product`, `roadmap`,
 `refine-issue`, `implement-issue`) and two they share (`conventions`, `integration-boundary`).
 Feature designs are self-contained HTML files; `skills/refine-issue/references/feature-design.md`
-owns how they are built, validated, and handed off, and `implement-issue` reads them directly. Each capability has one Claude command in `commands/` and one Codex interface at
-`skills/<name>/agents/openai.yaml`; keep those in sync with the skill set. The portable independent
-review contract is the on-demand `skills/implement-issue/references/code-review.md`; both
-`implement-issue` and the Claude reviewer agent consume that one copy.
+owns how they are built, validated, and handed off, and `implement-issue` reads them directly. The
+MVP's UI journey, `designs/journey.html`, is proposed by `roadmap` per
+`skills/roadmap/references/journey-design.md`, which links to `feature-design.md` for those rules
+instead of restating them. Each capability has one Claude command in `commands/` and one Codex
+interface at `skills/<name>/agents/openai.yaml`; keep those in sync with the skill set. The
+portable independent review contract is the on-demand
+`skills/implement-issue/references/code-review.md`; both `implement-issue` and the Claude reviewer
+agent consume that one copy.
 
 `MauroCicerchia/plus-ultra-template` is the canonical starting point for a compatible TypeScript
 web product and owns the stack outright. `skills/new-project/references/canonical-template.md`
