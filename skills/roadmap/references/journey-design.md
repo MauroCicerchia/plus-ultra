@@ -61,7 +61,7 @@ After approval:
    body. The section `id`s are settled in the proposal, so no Story needs a second edit. For a
    product already underway, edit each open UI Story's body to add a link to its sections instead;
    those edits are part of the approved mutation list.
-2. Replace the Story titles the journey names with the created Issue numbers.
+2. For newly created Stories, replace the titles the journey names with their Issue numbers.
 3. Commit `designs/journey.html`, with any approved `DESIGN.md` change, on a feature branch and open
    a pull request against the default branch.
 4. Report its URL and say that design refinement of the UI Stories waits for that pull request to

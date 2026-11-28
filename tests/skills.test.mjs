@@ -1357,7 +1357,7 @@ test("the first roadmap of a UI product proposes one UI journey", () => {
   assert.match(journey, /names the journey's feature branch, its commit, and its pull request/);
   assert.match(journey, /One explicit approval covers/);
   assert.match(journey, /shown again before any write/);
-  assert.match(journey, /Replace the Story titles the journey names with the created Issue numbers/);
+  assert.match(journey, /For newly created Stories, replace the titles the journey names with their Issue numbers/);
   assert.match(journey, /Report its URL/);
   assert.ok(journey.includes("`designs/journey.html#<id>`"));
   assert.match(journey, /feature branch/);
@@ -1410,6 +1410,9 @@ test("a Story's design starts from the UI journey when one exists", () => {
 test("a product already underway can get a UI journey from what exists", () => {
   const roadmap = read("skills/roadmap/SKILL.md").replace(/\s+/g, " ");
   assert.match(roadmap, /already underway/, "roadmap must route an existing product to the journey reference");
+  // A journey-only request on an existing product is discoverable and skips decomposition.
+  assert.match(frontmatter(read("skills/roadmap/SKILL.md")).description, /UI journey for a product already underway/);
+  assert.match(roadmap, /unless the human asks only for a UI journey for a product already underway/);
 
   const journey = read("skills/roadmap/references/journey-design.md").replace(/\s+/g, " ");
   assert.match(journey, /## A product already underway/);
@@ -1430,6 +1433,7 @@ test("a product already underway can get a UI journey from what exists", () => {
   // Screen prose leaves DESIGN.md through the same approval and pull request.
   assert.match(journey, /smallest `DESIGN\.md` change that removes them/);
   assert.match(journey, /same feature branch and pull request/);
+  assert.match(journey, /Commit `designs\/journey\.html`, with any approved `DESIGN\.md` change, on a feature branch/);
   // Open Stories get their links by an approved edit.
   assert.match(journey, /edit each open UI Story's body to add a link/);
 });
