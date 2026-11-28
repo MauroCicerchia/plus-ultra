@@ -1331,25 +1331,34 @@ test("the first roadmap of a UI product proposes one UI journey", () => {
     "roadmap must point to the on-demand journey reference"
   );
   assert.ok(roadmap.includes("root `DESIGN.md` and no `designs/journey.html`"));
+  // The no-DESIGN.md path must be reachable without loading the reference.
+  assert.match(roadmap, /Without a `DESIGN\.md`, propose none/);
+  assert.match(roadmap, /needs an approved `DESIGN\.md` first/);
 
   const journey = read("skills/roadmap/references/journey-design.md").replace(/\s+/g, " ");
   // Only a product with an approved DESIGN.md and no journey yet gets one.
   assert.ok(journey.includes("root `DESIGN.md` and no `designs/journey.html`"));
-  assert.match(journey, /needs an approved `DESIGN\.md` first/);
   // What the journey holds, and at which fidelity.
   for (const part of ["navigation map", "key screen", "main flows", "shared components"]) {
     assert.ok(journey.includes(part), `the journey must show ${part}`);
   }
   assert.match(journey, /own `<section>` with a stable `id`/);
   assert.match(journey, /names the Stories that build it/);
+  assert.match(journey, /A UI Story is one that builds at least one screen or flow/);
   assert.match(journey, /mid fidelity/i);
   assert.match(journey, /loading, error, and empty states/i);
   // It reuses the feature-design rules instead of restating them.
   assert.ok(journey.includes("(../../refine-issue/references/feature-design.md)"));
   assert.match(journey, /Construct and Validate/);
   assert.match(journey, /structural and the visual audit/);
+  assert.match(journey, /one self-contained HTML file/);
+  assert.match(journey, /`DESIGN\.md` tokens as CSS custom properties/);
   // One approval covers the tree and the journey; then links, commit, and a pull request.
+  assert.match(journey, /names the journey's feature branch, its commit, and its pull request/);
   assert.match(journey, /One explicit approval covers/);
+  assert.match(journey, /shown again before any write/);
+  assert.match(journey, /Replace the Story titles the journey names with the created Issue numbers/);
+  assert.match(journey, /Report its URL/);
   assert.ok(journey.includes("`designs/journey.html#<id>`"));
   assert.match(journey, /feature branch/);
   assert.match(journey, /pull request against the default branch/);

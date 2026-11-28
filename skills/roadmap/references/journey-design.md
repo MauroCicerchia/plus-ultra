@@ -1,8 +1,6 @@
 # UI journey
 
-Read this only when the repository has a root `DESIGN.md` and no `designs/journey.html`. Without a
-`DESIGN.md`, propose no journey and plan the tree as usual; when the brief implies a user interface,
-say that a journey needs an approved `DESIGN.md` first.
+Read this only when the repository has a root `DESIGN.md` and no `designs/journey.html`.
 
 `DESIGN.md` holds the product-level visual direction. The journey holds the screens: one
 mid-fidelity design of the whole MVP, made while the whole MVP is in view, so each Story's design
@@ -19,9 +17,9 @@ Draft it after decomposing the tree, from the tree and `DESIGN.md`:
 - the shared components, for example cards, sheets, and toasts.
 
 Each screen and flow is its own `<section>` with a stable `id` and a visible heading, and names the
-Stories that build it. Keep it mid fidelity: layout, hierarchy, shared components, and main copy.
-Say in the file that loading, error, and empty states, edge cases, and polish are left to each
-Story's refinement.
+Stories that build it. A UI Story is one that builds at least one screen or flow in the journey.
+Keep it mid fidelity: layout, hierarchy, shared components, and main copy. Say in the file that
+loading, error, and empty states, edge cases, and polish are left to each Story's refinement.
 
 Build and check it with the Construct and Validate rules of
 [feature-design.md](../../refine-issue/references/feature-design.md): one self-contained HTML file,
@@ -30,8 +28,9 @@ approval.
 
 ## Approve, then hand off
 
-Show the tree, the full mutation list, and the validated journey together. One explicit approval
-covers all of them. A requested change revises the affected parts, which are shown again before any
+Show the tree, the full mutation list, and the validated journey together. The mutation list also
+names the journey's feature branch, its commit, and its pull request. One explicit approval covers
+all of them. A requested change revises the affected parts, which are shown again before any
 write.
 
 After approval:
