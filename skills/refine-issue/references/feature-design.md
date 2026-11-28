@@ -10,12 +10,14 @@ A product may have a UI journey at `designs/journey.html`: one mid-fidelity desi
 MVP, with each screen and flow in its own `<section>`. Without a journey, design from `DESIGN.md` as
 below.
 
-If the Story links to `designs/journey.html` but the file is not on the default branch, stop before
-proposing and make no GitHub write: say that the journey's pull request must merge first.
+If the Story links to `designs/journey.html` but the file is not on the default branch (check the
+fetched remote branch, not a local checkout), stop before proposing and make no GitHub write: say
+that the journey's pull request must merge first.
 
 When the journey is on the default branch, read the sections the Story links to, or, without links,
 the sections that name the Story, before designing. Also read the approved designs of the other
-Stories those sections name.
+Stories those sections name. When no section links to or names the Story, design from `DESIGN.md`
+as below.
 
 - Keep the journey's navigation, flows, and shared components. Add what it leaves out: loading,
   error, and empty states, edge cases, responsive detail, and polish.
@@ -60,13 +62,13 @@ Neither audit replaces the other.
 
 Then hand off in order: present the refined Issue proposal and the validated design together, so
 one explicit human approval covers both; commit the approved artifact at
-`designs/<issue>-<slug>.html`, with any approved journey update; open a pull request with it against the default branch, on which
-implementation may stack; and record its path and Git reference in the Issue, naming the design
-pull request by number. Only once it is durably reachable through Git and present in the later
-implementation worktree is implementation unblocked on the design artifact. Until then, refinement
-is complete but implementation is blocked: the Issue may carry
-`Approved design pending durable Git reference.` until the real path replaces it. State that
-dependency; do not copy or recreate the artifact.
+`designs/<issue>-<slug>.html`, with any approved journey update; open a pull request with it
+against the default branch, on which implementation may stack; and record its path and Git
+reference in the Issue, naming the design pull request by number. Only once it is durably
+reachable through Git and present in the later implementation worktree is implementation unblocked
+on the design artifact. Until then, refinement is complete but implementation is blocked: the Issue
+may carry `Approved design pending durable Git reference.` until the real path replaces it. State
+that dependency; do not copy or recreate the artifact.
 
 Do not add a renderer, component library, generator, parser, manifest, token-sync layer, preview
 pipeline, or design versioning scheme. A text editor and a browser are the whole toolchain.
