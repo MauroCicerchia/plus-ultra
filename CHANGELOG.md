@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.2.0](https://github.com/MauroCicerchia/plus-ultra/compare/v2.1.0...v2.2.0) (2026-11-28)
+
+
+### Features
+
+* **design:** start each Story's design from the UI journey ([#115](https://github.com/MauroCicerchia/plus-ultra/issues/115)) ([f24c15e](https://github.com/MauroCicerchia/plus-ultra/commit/f24c15e017f1f4fc8287609351d514b07ce7eeda))
+* **roadmap:** add a UI journey to a product already underway ([#116](https://github.com/MauroCicerchia/plus-ultra/issues/116)) ([c7d2aac](https://github.com/MauroCicerchia/plus-ultra/commit/c7d2aacff72fe6f86d0fb955522757e1c2fed796))
+* **roadmap:** propose a UI journey with the first roadmap ([#113](https://github.com/MauroCicerchia/plus-ultra/issues/113)) ([d1ff12b](https://github.com/MauroCicerchia/plus-ultra/commit/d1ff12b19f543c824862df16507bc60772444333))
+
 ## [2.1.0](https://github.com/MauroCicerchia/plus-ultra/compare/v2.0.0...v2.1.0) (2026-11-26)
 
 
