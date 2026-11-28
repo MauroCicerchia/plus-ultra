@@ -30,6 +30,7 @@ it, a pull request based on another pull request's branch is still a valid stack
 | --- | --- | --- |
 | Product brief | `docs/product.md` | yes |
 | Project design brief, for a product with a UI | `DESIGN.md` at the root | yes |
+| UI journey, for a product with a UI | `designs/journey.html` | yes |
 | Work items | GitHub Issues | n/a |
 | Optional technical spec | `specs/NNN-slug.md` | yes |
 | Optional design reference | Issue comment, `designs/`, or a link | as convenient |

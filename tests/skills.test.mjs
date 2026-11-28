@@ -1323,3 +1323,50 @@ test("implementation stacks on an open design pull request", () => {
   const conventions = read("skills/conventions/SKILL.md").replace(/\s+/g, " ");
   assert.match(conventions, /`gh stack` extension is optional/);
 });
+
+test("the first roadmap of a UI product proposes one UI journey", () => {
+  const roadmap = read("skills/roadmap/SKILL.md").replace(/\s+/g, " ");
+  assert.ok(
+    roadmap.includes("[`references/journey-design.md`](./references/journey-design.md)"),
+    "roadmap must point to the on-demand journey reference"
+  );
+  assert.ok(roadmap.includes("root `DESIGN.md` and no `designs/journey.html`"));
+
+  const journey = read("skills/roadmap/references/journey-design.md").replace(/\s+/g, " ");
+  // Only a product with an approved DESIGN.md and no journey yet gets one.
+  assert.ok(journey.includes("root `DESIGN.md` and no `designs/journey.html`"));
+  assert.match(journey, /needs an approved `DESIGN\.md` first/);
+  // What the journey holds, and at which fidelity.
+  for (const part of ["navigation map", "key screen", "main flows", "shared components"]) {
+    assert.ok(journey.includes(part), `the journey must show ${part}`);
+  }
+  assert.match(journey, /own `<section>` with a stable `id`/);
+  assert.match(journey, /names the Stories that build it/);
+  assert.match(journey, /mid fidelity/i);
+  assert.match(journey, /loading, error, and empty states/i);
+  // It reuses the feature-design rules instead of restating them.
+  assert.ok(journey.includes("(../../refine-issue/references/feature-design.md)"));
+  assert.match(journey, /Construct and Validate/);
+  assert.match(journey, /structural and the visual audit/);
+  // One approval covers the tree and the journey; then links, commit, and a pull request.
+  assert.match(journey, /One explicit approval covers/);
+  assert.ok(journey.includes("`designs/journey.html#<id>`"));
+  assert.match(journey, /feature branch/);
+  assert.match(journey, /pull request against the default branch/);
+  assert.match(journey, /waits for that pull request to merge/);
+  assert.match(journey, /never merge/i);
+  for (const machinery of ["renderer", "generator", "component library", "manifest", "versioning"]) {
+    assert.match(journey, new RegExp(`Do not add .*${machinery}`, "i"));
+  }
+
+  // Screens live in the journey, not in DESIGN.md.
+  const brief = read("skills/new-project/references/design-brief.md").replace(/\s+/g, " ");
+  assert.match(brief, /Screens belong in the UI journey at `designs\/journey\.html`/);
+
+  const conventions = read("skills/conventions/SKILL.md");
+  assert.match(
+    conventions,
+    /^\| UI journey, for a product with a UI \| `designs\/journey\.html` \| yes \|$/m,
+    "the artifact table must place the journey and commit it"
+  );
+});

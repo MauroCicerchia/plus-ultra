@@ -44,7 +44,9 @@ Issue is done. Do not add a competing "done" label.
    acceptance criteria, and its dependencies. Cross-epic ordering lives in the dependency text;
    sub-issue links express ownership, not scheduling.
 3. Show the complete tree **and** the full mutation list: labels to create, any milestone, each
-   Epic and Story, and each parent-child link.
+   Epic and Story, and each parent-child link. When the repository has a root `DESIGN.md` and no
+   `designs/journey.html`, show a UI journey with them, per
+   [`references/journey-design.md`](./references/journey-design.md).
 4. Wait for **explicit confirmation** of that complete list. Create nothing before it.
 5. Create missing labels with `gh label create --color <color> --description <description>`; never
    `--force` over an existing label. Create Stories with `gh issue create --parent <parent>`, or

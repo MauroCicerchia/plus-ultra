@@ -5,8 +5,9 @@ pipeline, or scheduled job has none: skip design discovery entirely and never cr
 for it.
 
 `DESIGN.md` lives at the repository root and holds durable, product-level visual direction. It is
-not a component catalogue and it does not describe individual screens. Feature-level UI decisions
-stay in the Issue design checkpoint.
+not a component catalogue and it does not describe individual screens. Screens belong in the UI
+journey at `designs/journey.html`, which the first roadmap proposes. Feature-level UI decisions stay
+in the Issue design checkpoint.
 
 Its shape is not ours to invent. The document follows the [Google Labs `DESIGN.md`
 convention](https://github.com/google-labs-code/design.md), an open format for handing a visual
