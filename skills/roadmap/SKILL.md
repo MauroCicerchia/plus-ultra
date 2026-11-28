@@ -1,6 +1,6 @@
 ---
 name: roadmap
-description: Use when turning a product brief or a rough plan into GitHub Epics and Stories that are ready to refine and implement.
+description: Use when turning a product brief or a rough plan into GitHub Epics and Stories that are ready to refine and implement, or when proposing a UI journey for a product already underway.
 ---
 
 # Roadmap
@@ -40,14 +40,16 @@ Issue is done. Do not add a competing "done" label.
 1. Follow `plus-ultra:conventions` for the required `gh` version, then run `gh auth status` and
    check the repository's `viewerPermission`. Stop without writing unless it is `WRITE`,
    `MAINTAIN`, or `ADMIN`.
-2. Decompose before writing anything. Every Story needs an outcome-oriented title, context,
-   acceptance criteria, and its dependencies. Cross-epic ordering lives in the dependency text;
-   sub-issue links express ownership, not scheduling.
+2. Decompose before writing anything, unless the human asks only for a UI journey for a product
+   already underway; then the existing tree stands and step 3 applies. Every Story needs an
+   outcome-oriented title, context, acceptance criteria, and its dependencies. Cross-epic ordering
+   lives in the dependency text; sub-issue links express ownership, not scheduling.
 3. Show the complete tree **and** the full mutation list: labels to create, any milestone, each
    Epic and Story, and each parent-child link. When the repository has a root `DESIGN.md` and no
    `designs/journey.html`, show a UI journey with them, per
-   [`references/journey-design.md`](./references/journey-design.md). Without a `DESIGN.md`,
-   propose none; when the brief implies a UI, say a journey needs an approved `DESIGN.md` first.
+   [`references/journey-design.md`](./references/journey-design.md), which also covers a product
+   already underway that asks only for a journey. Without a `DESIGN.md`, propose none; when the
+   brief implies a UI, say a journey needs an approved `DESIGN.md` first.
 4. Wait for **explicit confirmation** of that complete list. Create nothing before it.
 5. Create missing labels with `gh label create --color <color> --description <description>`; never
    `--force` over an existing label. Create Stories with `gh issue create --parent <parent>`, or

@@ -1357,7 +1357,7 @@ test("the first roadmap of a UI product proposes one UI journey", () => {
   assert.match(journey, /names the journey's feature branch, its commit, and its pull request/);
   assert.match(journey, /One explicit approval covers/);
   assert.match(journey, /shown again before any write/);
-  assert.match(journey, /Replace the Story titles the journey names with the created Issue numbers/);
+  assert.match(journey, /For newly created Stories, replace the titles the journey names with their Issue numbers/);
   assert.match(journey, /Report its URL/);
   assert.ok(journey.includes("`designs/journey.html#<id>`"));
   assert.match(journey, /feature branch/);
@@ -1405,4 +1405,35 @@ test("a Story's design starts from the UI journey when one exists", () => {
 
   // Refinement's always-loaded skill is unchanged by the journey.
   assert.doesNotMatch(read("skills/refine-issue/SKILL.md"), /journey/);
+});
+
+test("a product already underway can get a UI journey from what exists", () => {
+  const roadmap = read("skills/roadmap/SKILL.md").replace(/\s+/g, " ");
+  assert.match(roadmap, /already underway/, "roadmap must route an existing product to the journey reference");
+  // A journey-only request on an existing product is discoverable and skips decomposition.
+  assert.match(frontmatter(read("skills/roadmap/SKILL.md")).description, /UI journey for a product already underway/);
+  assert.match(roadmap, /unless the human asks only for a UI journey for a product already underway/);
+
+  const journey = read("skills/roadmap/references/journey-design.md").replace(/\s+/g, " ");
+  assert.match(journey, /## A product already underway/);
+  // The existing tree, without new Epics or Stories unless the human asks.
+  assert.match(journey, /existing Epics or Stories/);
+  assert.match(journey, /no new Epics or Stories unless the human asks/);
+  // Approved designs are the source and are never redesigned or edited.
+  assert.ok(journey.includes("approved `designs/<issue>-<slug>.html`"));
+  assert.match(journey, /names the design it comes from/);
+  assert.match(journey, /never redesign or edit/i);
+  // Shipped screens without an HTML design are reconstructed and marked.
+  assert.match(journey, /marked as reconstructed/);
+  assert.match(journey, /Do not read or run the product's code/);
+  // Open Stories without a design match the existing screens.
+  assert.match(journey, /designed to match the existing screens/);
+  // Conflicts between approved designs are the human's choice.
+  assert.match(journey, /lists each conflict with a recommended resolution/);
+  // Screen prose leaves DESIGN.md through the same approval and pull request.
+  assert.match(journey, /smallest `DESIGN\.md` change that removes them/);
+  assert.match(journey, /same feature branch and pull request/);
+  assert.match(journey, /Commit `designs\/journey\.html`, with any approved `DESIGN\.md` change, on a feature branch/);
+  // Open Stories get their links by an approved edit.
+  assert.match(journey, /edit each open UI Story's body to add a link/);
 });
