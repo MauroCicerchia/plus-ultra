@@ -46,7 +46,8 @@ Issue is done. Do not add a competing "done" label.
 3. Show the complete tree **and** the full mutation list: labels to create, any milestone, each
    Epic and Story, and each parent-child link. When the repository has a root `DESIGN.md` and no
    `designs/journey.html`, show a UI journey with them, per
-   [`references/journey-design.md`](./references/journey-design.md). Without a `DESIGN.md`,
+   [`references/journey-design.md`](./references/journey-design.md), which also covers a product
+   already underway that asks only for a journey. Without a `DESIGN.md`,
    propose none; when the brief implies a UI, say a journey needs an approved `DESIGN.md` first.
 4. Wait for **explicit confirmation** of that complete list. Create nothing before it.
 5. Create missing labels with `gh label create --color <color> --description <description>`; never
